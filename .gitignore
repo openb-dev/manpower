@@ -1,0 +1,16 @@
+node_modules/
+.next/
+out/
+dist/
+*.tsbuildinfo
+.env
+.env.local
+.env.*.local
+server/data/
+*.log
+*.tgz
+*.xlsx
+Client-Daily-Work-Tracker.xlsx
+.DS_Store
+Thumbs.db
+.cursor/

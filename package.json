@@ -1,0 +1,60 @@
+{
+  "name": "manpower",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "imports": {
+    "@/*": "./*"
+  },
+  "scripts": {
+    "dev": "vite",
+    "next:dev": "next dev",
+    "next:build": "next build",
+    "next:start": "next start",
+    "server": "node server/index.js",
+    "test": "node --experimental-strip-types --test tests/access.test.js tests/schema.test.js tests/attendanceExport.test.js tests/required.test.js tests/monthClose.test.js tests/apply.test.js tests/joiningText.test.js tests/tenant_engine.test.js tests/prisma_tenant.test.js tests/edge_cases.test.js",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@auth/prisma-adapter": "^2.11.3",
+    "@prisma/client": "^6.3.0",
+    "bcryptjs": "^3.0.3",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "docx": "^9.8.1",
+    "dotenv": "^18.0.5",
+    "exceljs": "^4.4.0",
+    "express": "^5.2.1",
+    "html2canvas": "^1.4.1",
+    "jspdf": "^4.2.1",
+    "lucide-react": "^1.54.0",
+    "mysql2": "^3.24.5",
+    "next": "^16.4.2",
+    "next-auth": "^5.0.0-beta.32",
+    "nodemailer": "^8.0.11",
+    "pdfkit": "^0.20.2",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "tailwind-merge": "^3.7.0",
+    "tailwindcss-animate": "^1.0.7",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^22.13.0",
+    "@types/nodemailer": "^8.0.2",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^5.0.2",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.5.1",
+    "prisma": "^6.19.3",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.7.3",
+    "vite": "^7.1.2"
+  },
+  "prisma": {
+    "seed": "node --experimental-strip-types prisma/seed.ts"
+  }
+}

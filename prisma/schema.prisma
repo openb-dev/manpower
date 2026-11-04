@@ -1,0 +1,587 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  SUPER_ADMIN
+  COMPANY_ADMIN
+}
+
+enum ApplicantStatus {
+  NEW
+  SHORTLISTED
+  APPROVED
+  REJECTED
+}
+
+enum EmployeeStatus {
+  ACTIVE
+  INACTIVE
+  TERMINATED
+  ON_LEAVE
+}
+
+enum SkillCategory {
+  SKILLED
+  SEMI_SKILLED
+  UNSKILLED
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  HALF_DAY
+  LEAVE
+  WEEK_OFF
+}
+
+enum ShiftType {
+  DAY_8H
+  DAY_12H
+  NIGHT_12H
+  RELIEVER
+}
+
+enum VerificationStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+model Company {
+  id         String   @id @default(uuid())
+  slug       String   @unique
+  legalName  String   @map("legal_name")
+  shortName  String   @map("short_name")
+  gstin      String?  @unique
+  stateName  String?  @map("state_name")
+  stateCode  String?  @map("state_code")
+  sac        String?
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  sequence         CompanySequence?
+  users            User[]
+  jobRoles         JobRole[]
+  roleCategories   RoleCategory[]
+  formDefinitions  FormDefinition[]
+  applicants       Applicant[]
+  employees        Employee[]
+  sites            Site[]
+  attendances      Attendance[]
+  monthLocks       MonthLock[]
+  auditLogs        AuditLog[]
+  applicantOtps    ApplicantOtp[]
+  candidateAccounts CandidateAccount[]
+  contracts        Contract[]
+  invoices         Invoice[]
+  purchases        Purchase[]
+  ledgerEntries    LedgerEntry[]
+
+  @@map("companies")
+}
+
+model CompanySequence {
+  id         String   @id @default(uuid())
+  companyId  String   @unique @map("company_id")
+  prefix     String   @default("EMP")
+  nextNumber Int      @default(1) @map("next_number")
+  company    Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@map("company_sequences")
+}
+
+model User {
+  id           String    @id @default(uuid())
+  email        String    @unique
+  name         String
+  passwordHash String    @map("password_hash")
+  role         Role      @default(COMPANY_ADMIN)
+  companyId    String?   @map("company_id")
+  active       Boolean   @default(true)
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  company      Company?  @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  auditLogs    AuditLog[]
+  remarks      ApplicantRemark[]
+
+  @@index([companyId])
+  @@map("users")
+}
+
+model JobRole {
+  id          String         @id @default(uuid())
+  companyId   String         @map("company_id")
+  name        String
+  code        String
+  description String?
+  active      Boolean        @default(true)
+  createdAt   DateTime       @default(now()) @map("created_at")
+  updatedAt   DateTime       @updatedAt @map("updated_at")
+
+  company     Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  categories  RoleCategory[]
+  applicants  Applicant[]
+  employees   Employee[]
+
+  @@unique([companyId, code])
+  @@index([companyId])
+  @@map("job_roles")
+}
+
+model RoleCategory {
+  id               String          @id @default(uuid())
+  companyId        String          @map("company_id")
+  jobRoleId        String          @map("job_role_id")
+  name             String
+  code             String
+  active           Boolean         @default(true)
+  createdAt        DateTime        @default(now()) @map("created_at")
+  updatedAt        DateTime        @updatedAt @map("updated_at")
+
+  company          Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  jobRole          JobRole         @relation(fields: [jobRoleId], references: [id], onDelete: Cascade)
+  formDefinitions  FormDefinition[]
+  applicants       Applicant[]
+  employees        Employee[]
+
+  @@unique([jobRoleId, code])
+  @@index([companyId])
+  @@map("role_categories")
+}
+
+model FormDefinition {
+  id              String        @id @default(uuid())
+  companyId       String        @map("company_id")
+  roleCategoryId  String        @map("role_category_id")
+  version         Int           @default(1)
+  schema          Json          // Stores FormFieldDefinition[]
+  active          Boolean       @default(true)
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+
+  company         Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  roleCategory    RoleCategory  @relation(fields: [roleCategoryId], references: [id], onDelete: Cascade)
+
+  @@unique([roleCategoryId, version])
+  @@index([companyId])
+  @@map("form_definitions")
+}
+
+model ApplicantOtp {
+  id            String    @id @default(uuid())
+  companyId     String    @map("company_id")
+  identifier    String    // Phone or email
+  hashedOtp     String    @map("hashed_otp")
+  attempts      Int       @default(0)
+  maxAttempts   Int       @default(3) @map("max_attempts")
+  expiresAt     DateTime  @map("expires_at")
+  verifiedAt    DateTime? @map("verified_at")
+  ipAddress     String?   @map("ip_address")
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  company       Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, identifier])
+  @@index([identifier, expiresAt])
+  @@map("applicant_otps")
+}
+
+model Applicant {
+  id                String          @id @default(uuid())
+  companyId         String          @map("company_id")
+  jobRoleId         String          @map("job_role_id")
+  roleCategoryId    String          @map("role_category_id")
+  fullName          String          @map("full_name")
+  mobile            String
+  email             String?
+  fatherOrHusband   String?         @map("father_or_husband")
+  dateOfBirth       DateTime?       @map("date_of_birth")
+  gender            String?
+  presentAddress    String?         @map("present_address")
+  permanentAddress  String?         @map("permanent_address")
+  
+  // Sensitive IDs
+  aadhaarLast4      String?         @map("aadhaar_last_4")
+  aadhaarHash       String?         @map("aadhaar_hash")
+  aadhaarEncrypted  String?         @map("aadhaar_encrypted")
+  pan               String?
+
+  // Domain & Compliance
+  armsLicenseNo     String?         @map("arms_license_no")
+  armsExpiryDate    DateTime?       @map("arms_expiry_date")
+  exServiceNo       String?         @map("ex_service_no")
+  pvcStatus         VerificationStatus @default(PENDING) @map("pvc_status")
+
+  // Dynamic responses & documents
+  formData          Json            @default("{}") @map("form_data")
+  documents         Json            @default("[]")
+
+  status            ApplicantStatus @default(NEW)
+  deletedAt         DateTime?       @map("deleted_at")
+  createdAt         DateTime        @default(now()) @map("created_at")
+  updatedAt         DateTime        @updatedAt @map("updated_at")
+
+  company           Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  candidateAccountId String?        @map("candidate_account_id")
+  candidateAccount  CandidateAccount? @relation(fields: [candidateAccountId], references: [id], onDelete: SetNull)
+  jobRole           JobRole         @relation(fields: [jobRoleId], references: [id])
+  roleCategory      RoleCategory    @relation(fields: [roleCategoryId], references: [id])
+  remarks           ApplicantRemark[]
+  employee          Employee?
+
+  @@index([companyId, status])
+  @@index([companyId, mobile])
+  @@index([companyId, aadhaarHash])
+  @@index([candidateAccountId])
+  @@map("applicants")
+}
+
+model CandidateAccount {
+  id              String        @id @default(uuid())
+  companyId       String        @map("company_id")
+  fullName        String        @map("full_name")
+  email           String
+  whatsappNo      String        @map("whatsapp_no")
+  passwordHash    String        @map("password_hash")
+  otpVerifiedVia  String        @default("WHATSAPP") @map("otp_verified_via") // EMAIL | WHATSAPP
+  isVerified      Boolean       @default(false) @map("is_verified")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+
+  company         Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  applicants      Applicant[]
+
+  @@unique([companyId, email])
+  @@index([companyId, whatsappNo])
+  @@map("candidate_accounts")
+}
+
+model ApplicantRemark {
+  id          String     @id @default(uuid())
+  applicantId String     @map("applicant_id")
+  userId      String     @map("user_id")
+  remark      String
+  createdAt   DateTime   @default(now()) @map("created_at")
+
+  applicant   Applicant  @relation(fields: [applicantId], references: [id], onDelete: Cascade)
+  user        User       @relation(fields: [userId], references: [id])
+
+  @@index([applicantId])
+  @@map("applicant_remarks")
+}
+
+model Site {
+  id          String        @id @default(uuid())
+  companyId   String        @map("company_id")
+  name        String
+  code        String
+  location    String?
+  active      Boolean       @default(true)
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+
+  company     Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employees   Employee[]
+  attendances Attendance[]
+
+  @@unique([companyId, code])
+  @@index([companyId])
+  @@map("sites")
+}
+
+model Employee {
+  id                String          @id @default(uuid())
+  companyId         String          @map("company_id")
+  employeeCode      String          @unique @map("employee_code")
+  applicantId       String?         @unique @map("applicant_id")
+  jobRoleId         String          @map("job_role_id")
+  roleCategoryId    String          @map("role_category_id")
+  siteId            String?         @map("site_id")
+
+  fullName          String          @map("full_name")
+  mobile            String
+  email             String?
+  fatherOrHusband   String?         @map("father_or_husband")
+  dateOfBirth       DateTime?       @map("date_of_birth")
+  gender            String?
+  presentAddress    String?         @map("present_address")
+  permanentAddress  String?         @map("permanent_address")
+
+  // Skill & Payroll prerequisites
+  skill             SkillCategory   @default(UNSKILLED)
+  basicRate         Decimal?        @map("basic_rate") @db.Decimal(12, 2)
+  divisorDays       Int             @default(26) @map("divisor_days")
+
+  // Bank & Statutory
+  bankAccountNo     String?         @map("bank_account_no")
+  bankIfsc          String?         @map("bank_ifsc")
+  bankBranch        String?         @map("bank_branch")
+  uan               String?
+  esicNo            String?         @map("esic_no")
+
+  // Sensitive IDs
+  aadhaarLast4      String?         @map("aadhaar_last_4")
+  aadhaarHash       String?         @map("aadhaar_hash")
+  aadhaarEncrypted  String?         @map("aadhaar_encrypted")
+  pan               String?
+
+  status            EmployeeStatus  @default(ACTIVE)
+  joiningDate       DateTime        @default(now()) @map("joining_date")
+  deletedAt         DateTime?       @map("deleted_at")
+  createdAt         DateTime        @default(now()) @map("created_at")
+  updatedAt         DateTime        @updatedAt @map("updated_at")
+
+  company           Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  applicant         Applicant?      @relation(fields: [applicantId], references: [id])
+  jobRole           JobRole         @relation(fields: [jobRoleId], references: [id])
+  roleCategory      RoleCategory    @relation(fields: [roleCategoryId], references: [id])
+  site              Site?           @relation(fields: [siteId], references: [id])
+  documents         EmployeeDocument[]
+  attendances       Attendance[]
+
+  @@index([companyId, status])
+  @@index([companyId, siteId])
+  @@map("employees")
+}
+
+model EmployeeDocument {
+  id          String    @id @default(uuid())
+  employeeId  String    @map("employee_id")
+  docType     String    @map("doc_type") // PHOTO, AADHAAR, PAN, BANK_PASSBOOK, GUN_LICENSE, PVC
+  fileKey     String    @map("file_key")
+  fileName    String    @map("file_name")
+  mimeType    String    @map("mime_type")
+  fileSize    Int       @map("file_size")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  employee    Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+  @@map("employee_documents")
+}
+
+model Attendance {
+  id            String            @id @default(uuid())
+  companyId     String            @map("company_id")
+  employeeId    String            @map("employee_id")
+  siteId        String            @map("site_id")
+  nominalDate   DateTime          @map("nominal_date") @db.Date
+  status        AttendanceStatus  @default(PRESENT)
+  shift         ShiftType         @default(DAY_8H)
+  overtimeHours Decimal           @default(0) @map("overtime_hours") @db.Decimal(5, 2)
+  locked        Boolean           @default(false)
+  markedBy      String?           @map("marked_by")
+  createdAt     DateTime          @default(now()) @map("created_at")
+  updatedAt     DateTime          @updatedAt @map("updated_at")
+
+  company       Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employee      Employee          @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  site          Site              @relation(fields: [siteId], references: [id])
+
+  @@unique([companyId, employeeId, nominalDate])
+  @@index([companyId, siteId, nominalDate])
+  @@map("attendances")
+}
+
+model MonthLock {
+  id         String   @id @default(uuid())
+  companyId  String   @map("company_id")
+  monthKey   String   @map("month_key") // e.g. "2026-08"
+  lockedAt   DateTime @default(now()) @map("locked_at")
+  lockedBy   String   @map("locked_by")
+
+  company    Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, monthKey])
+  @@index([companyId])
+  @@map("month_locks")
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  companyId  String   @map("company_id")
+  userId     String?  @map("user_id")
+  entityType String   @map("entity_type") // APPLICANT, EMPLOYEE, ATTENDANCE
+  entityId   String   @map("entity_id")
+  action     String   // APPROVE, REJECT, EDIT, MARK_ATTENDANCE
+  oldValue   Json?    @map("old_value")
+  newValue   Json?    @map("new_value")
+  ipAddress  String?  @map("ip_address")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  company    Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user       User?    @relation(fields: [userId], references: [id])
+
+  @@index([companyId, entityType, entityId])
+  @@map("audit_logs")
+}
+
+model Contract {
+  id                    String        @id @default(uuid())
+  companyId             String        @map("company_id")
+  clientName            String        @map("client_name")
+  departmentName        String?       @map("department_name")
+  contractType          String        @default("A") @map("contract_type") // A - Manpower, B - Work, C - Office
+  workName              String?       @map("work_name")
+  agreementNo           String?       @map("agreement_no")
+  tenderNo              String?       @map("tender_no")
+  tenderOpening         DateTime?     @map("tender_opening") @db.Date
+  estimateCost          Decimal?      @map("estimate_cost") @db.Decimal(14, 2)
+  tenderAmount          Decimal?      @map("tender_amount") @db.Decimal(14, 2)
+
+  // EMD (Earnest Money Deposit) - Pre-contract / Tender stage
+  emdAmount             Decimal?      @map("emd_amount") @db.Decimal(14, 2)
+  emdPercent            Decimal?      @map("emd_percent") @db.Decimal(5, 2)
+  emdMode               String?       @default("DD") @map("emd_mode") // DD, FDR, BG, ONLINE, CHALLAN
+  emdInstrumentNo       String?       @map("emd_instrument_no")
+  emdDate               DateTime?     @map("emd_date") @db.Date
+  emdBankName           String?       @map("emd_bank_name")
+  emdStatus             String?       @default("SUBMITTED") @map("emd_status") // SUBMITTED, ACTIVE, REFUNDED, ADJUSTED_TO_PG, ADJUSTED_TO_SD, FORFEITED
+  emdRefundDate         DateTime?     @map("emd_refund_date") @db.Date
+  emdRefundRef          String?       @map("emd_refund_ref")
+
+  // PG (Performance Guarantee) - Post-award, pre-work stage
+  pgAmount              Decimal?      @map("pg_amount") @db.Decimal(14, 2)
+  pgPercent             Decimal?      @map("pg_percent") @db.Decimal(5, 2)
+  pgMode                String?       @default("BG") @map("pg_mode") // BG, FDR, DD, CASH
+  pgInstrumentNo        String?       @map("pg_instrument_no")
+  pgBankName            String?       @map("pg_bank_name")
+  pgDate                DateTime?     @map("pg_date") @db.Date
+  pgExpiryDate          DateTime?     @map("pg_expiry_date") @db.Date
+  pgClaimDate           DateTime?     @map("pg_claim_date") @db.Date
+  pgStatus              String?       @default("SUBMITTED") @map("pg_status") // SUBMITTED, ACTIVE, RELEASED, INVOKED
+  pgReleaseDate         DateTime?     @map("pg_release_date") @db.Date
+  pgReleaseRef          String?       @map("pg_release_ref")
+
+  // Work Register & Execution Details
+  measurementBookNo     String?       @map("measurement_book_no")
+  lccNo                 String?       @map("lcc_no")
+  startAgreement        DateTime?     @map("start_agreement") @db.Date
+  startActual           DateTime?     @map("start_actual") @db.Date
+  completionAgreement   DateTime?     @map("completion_agreement") @db.Date
+  completionActual      DateTime?     @map("completion_actual") @db.Date
+  workStatus            String        @default("IN_PROGRESS") @map("work_status") // TENDER_EMD, AWARDED_PG, IN_PROGRESS, COMPLETED, CLOSED
+
+  // Bill, Deductions & Recoveries Breakdown
+  billNumber            String?       @map("bill_number")
+  billDate              DateTime?     @map("bill_date") @db.Date
+  grossAmount           Decimal?      @map("gross_amount") @db.Decimal(14, 2)
+  securityDeposit       Decimal?      @map("security_deposit") @db.Decimal(14, 2)
+  incomeTaxTds          Decimal?      @map("income_tax_tds") @db.Decimal(14, 2)
+  gstRecovery           Decimal?      @map("gst_recovery") @db.Decimal(14, 2)
+  labourCess            Decimal?      @map("labour_cess") @db.Decimal(14, 2)
+  waterCharge           Decimal?      @map("water_charge") @db.Decimal(14, 2)
+  esiPfDeduction        Decimal?      @map("esi_pf_deduction") @db.Decimal(14, 2)
+  withheldAmount        Decimal?      @map("withheld_amount") @db.Decimal(14, 2)
+  otherRecovery         Decimal?      @map("other_recovery") @db.Decimal(14, 2)
+  totalDeductions       Decimal?      @map("total_deductions") @db.Decimal(14, 2)
+  netAmount             Decimal?      @map("net_amount") @db.Decimal(14, 2)
+  voucherNumber         String?       @map("voucher_number")
+  bankReceivedDate      DateTime?     @map("bank_received_date") @db.Date
+  reimburseDate         DateTime?     @map("reimburse_date") @db.Date
+  remarks               String?
+
+  deletedAt             DateTime?     @map("deleted_at")
+  createdAt             DateTime      @default(now()) @map("created_at")
+  updatedAt             DateTime      @updatedAt @map("updated_at")
+
+  company               Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  invoices              Invoice[]
+  purchases             Purchase[]
+
+  @@index([companyId])
+  @@map("contracts")
+}
+
+model Invoice {
+  id              String        @id @default(uuid())
+  companyId       String        @map("company_id")
+  contractId      String?       @map("contract_id")
+  billNo          String        @map("bill_no")
+  periodFrom      DateTime?     @map("period_from") @db.Date
+  periodTo        DateTime?     @map("period_to") @db.Date
+  invoiceDate     DateTime?     @map("invoice_date") @db.Date
+  orderNo         String?       @map("order_no")
+  grossAmount     Decimal       @default(0) @map("gross_amount") @db.Decimal(14, 2)
+  cgst            Decimal       @default(0) @db.Decimal(14, 2)
+  sgst            Decimal       @default(0) @db.Decimal(14, 2)
+  roundOff        Decimal       @default(0) @map("round_off") @db.Decimal(14, 2)
+  sayTotal        Decimal       @default(0) @map("say_total") @db.Decimal(14, 2)
+  totalAmount     Decimal       @default(0) @map("total_amount") @db.Decimal(14, 2)
+  status          String        @default("DRAFT")
+  meta            Json?
+  deletedAt       DateTime?     @map("deleted_at")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+
+  company         Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  contract        Contract?     @relation(fields: [contractId], references: [id], onDelete: SetNull)
+  lines           InvoiceLine[]
+
+  @@index([companyId])
+  @@map("invoices")
+}
+
+model InvoiceLine {
+  id              String        @id @default(uuid())
+  invoiceId       String        @map("invoice_id")
+  trade           String
+  skill           String        @default("Skilled")
+  sac             String?       @default("998519")
+  manDays         Decimal       @map("man_days") @db.Decimal(10, 2)
+  ratePerDay      Decimal       @map("rate_per_day") @db.Decimal(10, 2)
+  amount          Decimal       @db.Decimal(14, 2)
+  breakup         Json?
+
+  invoice         Invoice       @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+  @@map("invoice_lines")
+}
+
+model Purchase {
+  id              String        @id @default(uuid())
+  companyId       String        @map("company_id")
+  contractId      String?       @map("contract_id")
+  itemName        String        @map("item_name")
+  vendorName      String        @map("vendor_name")
+  amount          Decimal       @db.Decimal(14, 2)
+  invoiceNo       String?       @map("invoice_no")
+  purchaseDate    DateTime      @default(now()) @map("purchase_date")
+  deletedAt       DateTime?     @map("deleted_at")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+
+  company         Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  contract        Contract?     @relation(fields: [contractId], references: [id], onDelete: SetNull)
+
+  @@index([companyId])
+  @@map("purchases")
+}
+
+model LedgerEntry {
+  id              String        @id @default(uuid())
+  companyId       String        @map("company_id")
+  entryDate       DateTime      @default(now()) @map("entry_date") @db.Date
+  narration       String
+  voucherNumber   String?       @map("voucher_number")
+  debitAmount     Decimal       @default(0) @map("debit_amount") @db.Decimal(14, 2)
+  creditAmount    Decimal       @default(0) @map("credit_amount") @db.Decimal(14, 2)
+  category        String        @default("GENERAL") // BANK, OFFICE, SALARY, CLIENT_RECEIPT
+  paymentMode     String        @default("CASH") @map("payment_mode") // CASH, ONLINE, BANK_TRANSFER, CHEQUE
+  chequeNo        String?       @map("cheque_no")
+  createdAt       DateTime      @default(now()) @map("created_at")
+
+  company         Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@map("ledger_entries")
+}

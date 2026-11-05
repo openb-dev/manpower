@@ -57,6 +57,16 @@ body {
   border-radius: 18px;
   padding: 18px 20px 22px;
   box-sizing: border-box;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.paper-form-sheet li,
+.paper-form-sheet p,
+.paper-form-sheet td,
+.paper-form-sheet span {
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .tax-invoice {

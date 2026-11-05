@@ -76,10 +76,10 @@ function Blank({
   const filled = text(value);
   return (
     <span
-      className={`inline-flex items-end border-b border-black px-1 leading-tight min-h-[1.15em] ${className}`}
+      className={`inline border-b border-black px-1 leading-snug break-words align-bottom min-w-0 ${className}`}
       style={{ minWidth: min }}
     >
-      {filled ? <span className="font-semibold tracking-wide">{filled}</span> : <span>&nbsp;</span>}
+      {filled ? <span className="font-semibold tracking-wide break-words">{filled}</span> : <span>&nbsp;</span>}
     </span>
   );
 }
@@ -94,7 +94,7 @@ function Tick({ on }: { on: boolean }) {
 
 function Footer({ date, name, label }: { date: string; name: string; label: string }) {
   return (
-    <div className="mt-auto pt-6 flex justify-between items-end gap-6 text-[12px]">
+    <div className="mt-auto shrink-0 pt-6 flex justify-between items-end gap-6 text-[12px]">
       <div>
         Date : <Blank value={date} min="8rem" />
       </div>
@@ -191,18 +191,28 @@ export function ApplicantPaperForm({
             <br />
             My Bio-data is given below :-
           </p>
+          {(person?.jobRole?.name || person?.roleCategory?.name || fd.skillCategory || fd.gemExperience) && (
+            <p className="mt-1 text-[11px] leading-snug break-words">
+              Post applied :{" "}
+              <span className="font-semibold">
+                {[person?.jobRole?.name, person?.roleCategory?.name, fd.skillCategory, fd.gemExperience]
+                  .filter(Boolean)
+                  .join(" / ")}
+              </span>
+            </p>
+          )}
 
-          <ol className="mt-2 space-y-1 text-[12px] leading-snug list-none">
+          <ol className="mt-2 space-y-1.5 text-[12px] leading-snug list-none">
             <li className="flex gap-2">
               <span className="w-5 shrink-0">1.</span>
-              <span className="flex-1 flex flex-wrap items-end gap-x-1">
-                Name in full <Blank value={name} className="flex-1" min="12rem" />
+              <span className="flex-1 min-w-0 flex flex-wrap items-end gap-x-1">
+                Name in full <Blank value={name} className="flex-1" min="8rem" />
               </span>
             </li>
             <li className="flex gap-2">
               <span className="w-5 shrink-0">2.</span>
-              <span className="flex-1 flex flex-wrap items-end gap-x-1">
-                Father&apos;s / Husband Name <Blank value={father} className="flex-1" min="10rem" />
+              <span className="flex-1 min-w-0 flex flex-wrap items-end gap-x-1">
+                Father&apos;s / Husband Name <Blank value={father} className="flex-1" min="8rem" />
               </span>
             </li>
             <li className="flex gap-2">
@@ -213,9 +223,9 @@ export function ApplicantPaperForm({
             </li>
             <li className="flex gap-2">
               <span className="w-5 shrink-0">4.</span>
-              <span className="flex-1 space-y-1">
-                <span className="flex flex-wrap items-end gap-x-1">
-                  Local Address : Name <Blank value={local} className="flex-1" min="10rem" />
+              <span className="flex-1 min-w-0 space-y-1">
+                <span className="block min-w-0">
+                  Local Address : Name <Blank value={local} className="w-full" min="0" />
                 </span>
                 <span className="block">C/o. <Blank className="w-[85%]" /></span>
                 <span className="flex flex-wrap items-end gap-x-2">
@@ -228,9 +238,9 @@ export function ApplicantPaperForm({
             </li>
             <li className="flex gap-2">
               <span className="w-5 shrink-0">5.</span>
-              <span className="flex-1 space-y-1">
-                <span className="flex flex-wrap items-end gap-x-1">
-                  Village Address : Name <Blank value={village} className="flex-1" min="8rem" />
+              <span className="flex-1 min-w-0 space-y-1">
+                <span className="block min-w-0">
+                  Village Address : Name <Blank value={village} className="w-full" min="0" />
                 </span>
                 <span className="flex flex-wrap items-end gap-x-2">
                   Father&apos;s Name <Blank value={father} min="8rem" /> H/W (Bariwala) <Blank min="5rem" />
@@ -289,8 +299,8 @@ export function ApplicantPaperForm({
             </li>
             <li className="flex gap-2">
               <span className="w-5 shrink-0">12.</span>
-              <span className="flex-1 flex flex-wrap items-end gap-x-1">
-                Experience, if any <Blank value={experienceShown(fd)} className="flex-1" />
+              <span className="flex-1 min-w-0 flex flex-wrap items-end gap-x-1">
+                Experience, if any <Blank value={experienceShown(fd)} className="flex-1" min="0" />
               </span>
             </li>
             <li className="flex gap-2 items-center">
@@ -382,8 +392,8 @@ export function ApplicantPaperForm({
             <li className="flex gap-2">
               <span className="w-5 shrink-0">4.</span>
               <span className="flex-1 space-y-1">
-                <span className="flex flex-wrap items-end gap-x-1">
-                  Present Address : <Blank value={text(fd.presentAddress) || present} className="flex-1" />
+                <span className="block min-w-0">
+                  Present Address : <Blank value={text(fd.presentAddress) || present} className="w-full" min="0" />
                 </span>
                 <span className="flex flex-wrap items-end gap-x-2">
                   P.O. <Blank value={fd.presentPO} min="6rem" /> P.S. <Blank value={fd.presentPS} min="6rem" /> PIN{" "}
@@ -394,8 +404,8 @@ export function ApplicantPaperForm({
             <li className="flex gap-2">
               <span className="w-5 shrink-0">5.</span>
               <span className="flex-1 space-y-1">
-                <span className="flex flex-wrap items-end gap-x-1">
-                  Permanent Address : <Blank value={text(fd.permanentAddress) || permanent} className="flex-1" />
+                <span className="block min-w-0">
+                  Permanent Address : <Blank value={text(fd.permanentAddress) || permanent} className="w-full" min="0" />
                 </span>
                 <span className="flex flex-wrap items-end gap-x-2">
                   P.O. <Blank value={fd.permanentPO} min="6rem" /> P.S. <Blank value={fd.permanentPS} min="6rem" /> PIN{" "}

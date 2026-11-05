@@ -1,12 +1,12 @@
 "use client";
 
-import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import HrmHeader from "@/components/admin/HrmHeader";
 import { statusLabel } from "@/components/admin/SimpleGuide";
 import { loadApplicantBook, loadApplicantDetail } from "../actions";
-import { downloadPaperFormPdf, paperFormFileName, waitForImages } from "@/lib/downloadPaperFormPdf";
+import { downloadPaperFormPdf, paperFormFileName } from "@/lib/downloadPaperFormPdf";
 
 const ApplicantPaperForm = dynamic(
   () => import("@/components/admin/ApplicantPaperForm").then((mod) => mod.ApplicantPaperForm),
@@ -47,9 +47,6 @@ export default function ApplicantBookPage() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [downloading, setDownloading] = useState(false);
   const [downloadStatus, setDownloadStatus] = useState("");
-  const [pdfPerson, setPdfPerson] = useState<any | null>(null);
-  const pdfHostRef = useRef<HTMLDivElement>(null);
-  const pdfReadyRef = useRef<((el: HTMLElement) => void) | null>(null);
 
   function loadApplicants() {
     setLoading(true);
@@ -221,17 +218,6 @@ export default function ApplicantBookPage() {
     else selectAll();
   }
 
-  function waitForPdfPerson(person: any) {
-    return new Promise<HTMLElement>((resolve, reject) => {
-      const timer = window.setTimeout(() => reject(new Error("Form did not open for PDF.")), 20000);
-      pdfReadyRef.current = (el) => {
-        window.clearTimeout(timer);
-        resolve(el);
-      };
-      setPdfPerson(person);
-    });
-  }
-
   async function downloadSelectedForms() {
     const ids = selectedIds.filter((id) => applicants.some((row) => row.id === id));
     if (!ids.length) {
@@ -252,17 +238,12 @@ export default function ApplicantBookPage() {
           continue;
         }
         try {
-          setPdfPerson(null);
-          await new Promise((resolve) => setTimeout(resolve, 50));
-          const el = await waitForPdfPerson(detail);
-          await downloadPaperFormPdf(el, paperFormFileName(detail, i));
+          await downloadPaperFormPdf(detail, paperFormFileName(detail, i), { slug: companySlug });
         } catch {
           failed.push(detail?.fullName || row?.fullName || ids[i]);
         }
       }
     } finally {
-      setPdfPerson(null);
-      pdfReadyRef.current = null;
       setDownloading(false);
       setDownloadStatus("");
     }
@@ -270,25 +251,6 @@ export default function ApplicantBookPage() {
       alert(`Could not download: ${failed.join(", ")}`);
     }
   }
-
-  useLayoutEffect(() => {
-    if (!pdfPerson || !pdfHostRef.current) return;
-    const root = pdfHostRef.current;
-    let cancelled = false;
-    (async () => {
-      for (let i = 0; i < 50; i += 1) {
-        if (cancelled) return;
-        if (root.querySelector(`[data-pdf-person="${pdfPerson.id}"] .paper-form-pack`)) break;
-        await new Promise((resolve) => setTimeout(resolve, 80));
-      }
-      await waitForImages(root);
-      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-      if (!cancelled) pdfReadyRef.current?.(root);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [pdfPerson]);
 
   return (
     <div className="space-y-6">
@@ -1233,13 +1195,6 @@ export default function ApplicantBookPage() {
         </div>
       )}
 
-      <div ref={pdfHostRef} className="paper-form-pdf-host" aria-hidden>
-        {pdfPerson ? (
-          <div data-pdf-person={pdfPerson.id}>
-            <ApplicantPaperForm key={pdfPerson.id} person={pdfPerson} company={{ slug: companySlug }} />
-          </div>
-        ) : null}
-      </div>
     </div>
   );
 }

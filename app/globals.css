@@ -29,12 +29,14 @@ body {
 }
 
 .paper-form-pdf-host {
-  position: absolute;
-  left: -10000px;
+  position: fixed;
+  left: 0;
   top: 0;
   width: 210mm;
   background: #fff;
   pointer-events: none;
+  z-index: -1;
+  opacity: 0.02;
 }
 
 .paper-form-pdf-host .paper-form-page {
@@ -57,16 +59,8 @@ body {
   border-radius: 18px;
   padding: 18px 20px 22px;
   box-sizing: border-box;
-  overflow-wrap: anywhere;
-  word-break: break-word;
-}
-
-.paper-form-sheet li,
-.paper-form-sheet p,
-.paper-form-sheet td,
-.paper-form-sheet span {
-  overflow-wrap: anywhere;
-  word-break: break-word;
+  letter-spacing: 0;
+  word-spacing: 0.04em;
 }
 
 .tax-invoice {

@@ -63,6 +63,19 @@ export async function downloadPaperFormPdf(root: HTMLElement, filename: string) 
       backgroundColor: "#ffffff",
       logging: false,
       windowWidth: 794,
+      scrollX: 0,
+      scrollY: 0,
+      onclone(_doc, cloned) {
+        cloned.style.letterSpacing = "0px";
+        cloned.style.wordSpacing = "0.16em";
+        cloned.style.fontFamily = "Arial, Helvetica, sans-serif";
+        cloned.querySelectorAll<HTMLElement>("*").forEach((el) => {
+          el.style.letterSpacing = "0px";
+          el.style.wordBreak = "normal";
+          el.style.overflowWrap = "break-word";
+          el.style.fontFamily = "Arial, Helvetica, sans-serif";
+        });
+      },
     });
     const img = canvas.toDataURL("image/jpeg", 0.9);
     let drawWidth = pageWidth;

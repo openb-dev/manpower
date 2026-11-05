@@ -79,7 +79,7 @@ function Blank({
       className={`inline border-b border-black px-1 leading-snug break-words align-bottom min-w-0 ${className}`}
       style={{ minWidth: min }}
     >
-      {filled ? <span className="font-semibold tracking-wide break-words">{filled}</span> : <span>&nbsp;</span>}
+      {filled ? <span className="font-semibold">{filled}</span> : <span>&nbsp;</span>}
     </span>
   );
 }
@@ -157,7 +157,7 @@ export function ApplicantPaperForm({
       <section className="paper-form-page">
         <div className="paper-form-sheet flex flex-col">
           <div className="flex justify-center -mt-1 mb-3">
-            <div className="bg-black text-white text-center text-[13px] font-bold tracking-[0.16em] px-6 py-1.5 rounded-sm">
+            <div className="bg-black text-white text-center text-[13px] font-bold px-6 py-1.5 rounded-sm">
               APPLICATION FOR EMPLOYMENT
             </div>
           </div>
@@ -366,7 +366,7 @@ export function ApplicantPaperForm({
               {head.mobile ? <>Mobile : {head.mobile}</> : null}
             </div>
           </div>
-          <div className="bg-black text-white text-center text-[13px] font-bold tracking-[0.18em] py-1.5 mt-3 mb-3">
+          <div className="bg-black text-white text-center text-[13px] font-bold py-1.5 mt-3 mb-3">
             EMPLOYEE&apos;S DECLARATION
           </div>
 
@@ -509,7 +509,7 @@ export function ApplicantPaperForm({
 
       <section className="paper-form-page">
         <div className="paper-form-sheet flex flex-col">
-          <h2 className="text-center text-[22px] font-bold tracking-wide mb-3">18. DECLARATION</h2>
+          <h2 className="text-center text-[22px] font-bold mb-3">18. DECLARATION</h2>
           <p className="text-[12px] mb-2">{DECLARATION.intro}</p>
           <ol className="space-y-1.5 text-[11.5px] leading-snug list-decimal pl-5">
             {DECLARATION.points.map((point: string) => (
@@ -522,7 +522,7 @@ export function ApplicantPaperForm({
 
       <section className="paper-form-page">
         <div className="paper-form-sheet flex flex-col">
-          <h2 className="text-center text-[22px] font-bold tracking-wide">TERMS &amp; CONDITIONS</h2>
+          <h2 className="text-center text-[22px] font-bold">TERMS &amp; CONDITIONS</h2>
           <p className="text-center text-[12px] mb-3">({TERMS.note})</p>
           <ol className="space-y-1.5 text-[11px] leading-snug list-decimal pl-5">
             {TERMS.points.map((point: string) => (

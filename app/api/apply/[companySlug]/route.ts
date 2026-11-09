@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { requestApplicantOtp, verifyApplicantOtp } from "@/modules/otp/services";
 import { submitApplicant } from "@/modules/applicants/services";
 import { registerCandidate, loginCandidate, getCandidateApplications } from "@/modules/candidates/services";
+import { publicCatchMessage } from "@/lib/publicErrors";
 
 export async function GET(
   request: Request,
@@ -48,7 +49,7 @@ export async function GET(
 
     return NextResponse.json(company);
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: publicCatchMessage(error) }, { status: 500 });
   }
 }
 
@@ -58,7 +59,18 @@ export async function POST(
 ) {
   try {
     const { companySlug } = await params;
-    const body = await request.json();
+    let body: any;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json(
+        {
+          error:
+            "The form could not be saved. Please use a smaller photo and documents (under 2 MB each) and try again.",
+        },
+        { status: 400 },
+      );
+    }
 
     if (body.action === "REQUEST_OTP") {
       const res = await requestApplicantOtp({
@@ -128,8 +140,8 @@ export async function POST(
       return NextResponse.json(res);
     }
 
-    return NextResponse.json({ error: "Invalid action." }, { status: 400 });
+    return NextResponse.json({ error: "This request is not valid. Please try again." }, { status: 400 });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    return NextResponse.json({ error: publicCatchMessage(error) }, { status: 400 });
   }
 }

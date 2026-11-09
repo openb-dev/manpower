@@ -10,6 +10,7 @@ import {
   lockAttendanceMonth,
   saveAttendanceDay,
 } from "../actions";
+import { friendlyPublicError } from "@/lib/publicErrors";
 
 const CYCLE = [null, "PRESENT", "HALF_DAY", "ABSENT", "LEAVE", "WEEK_OFF"] as const;
 
@@ -108,7 +109,7 @@ export default function AttendancePage() {
       })
       .catch((err: any) => {
         setData(null);
-        setError(err.message || "Attendance could not be loaded.");
+        setError(friendlyPublicError(err.message || "Attendance could not be loaded."));
       })
       .finally(() => setLoading(false));
   }
@@ -144,7 +145,7 @@ export default function AttendancePage() {
       });
       setError("");
     } catch (err: any) {
-      setError(err.message || "Attendance could not be saved.");
+      setError(friendlyPublicError(err.message || "Attendance could not be saved."));
       loadBook();
     } finally {
       setBusy("");
@@ -159,7 +160,7 @@ export default function AttendancePage() {
       setError("");
       loadBook();
     } catch (err: any) {
-      setError(err.message || "Site could not be saved.");
+      setError(friendlyPublicError(err.message || "Site could not be saved."));
     } finally {
       setBusy("");
     }
@@ -175,7 +176,7 @@ export default function AttendancePage() {
       await fillAttendanceMonth(companySlug, monthKey, throughDay);
       loadBook();
     } catch (err: any) {
-      setError(err.message || "Working days could not be filled.");
+      setError(friendlyPublicError(err.message || "Working days could not be filled."));
     } finally {
       setBusy("");
     }
@@ -188,7 +189,7 @@ export default function AttendancePage() {
       await lockAttendanceMonth(companySlug, monthKey);
       loadBook();
     } catch (err: any) {
-      setError(err.message || "Month could not be locked.");
+      setError(friendlyPublicError(err.message || "Month could not be locked."));
     } finally {
       setBusy("");
     }

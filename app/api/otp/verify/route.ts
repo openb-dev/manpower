@@ -1,9 +1,15 @@
 import { NextResponse } from "next/server";
 import { verifyApplicantOtp } from "@/modules/otp/services";
+import { publicCatchMessage } from "@/lib/publicErrors";
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
+    let body: any;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: "Please enter the 6-digit verification code." }, { status: 400 });
+    }
     const companySlug = String(body.companySlug || "").trim();
     const identifier = String(body.identifier || "").trim();
     const code = String(body.code || body.otpCode || "").trim();
@@ -23,6 +29,6 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true, verified: result.verified });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message || "OTP verification failed." }, { status: 400 });
+    return NextResponse.json({ error: publicCatchMessage(error) || "OTP verification failed." }, { status: 400 });
   }
 }

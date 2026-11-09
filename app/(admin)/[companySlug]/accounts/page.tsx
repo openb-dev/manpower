@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { createClientInvoice, loadAccountsBook } from "../actions";
+import { friendlyPublicError } from "@/lib/publicErrors";
 import { TaxInvoiceView } from "@/components/admin/TaxInvoiceView";
 import {
   BILL_DEFAULTS,
@@ -72,7 +73,7 @@ export default function AccountsPage() {
       .catch((err) => {
         setInvoices([]);
         setContracts([]);
-        setListError(err.message || "The invoice book could not be loaded.");
+        setListError(friendlyPublicError(err.message || "The invoice book could not be loaded."));
       })
       .finally(() => setLoading(false));
   }
@@ -157,7 +158,7 @@ export default function AccountsPage() {
       setLines([blankLine()]);
       loadAccountsData();
     } catch (err: any) {
-      alert(err.message);
+      alert(friendlyPublicError(err.message || "This bill could not be saved."));
     } finally {
       setSaving(false);
     }

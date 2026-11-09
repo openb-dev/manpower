@@ -5,6 +5,7 @@ import { Role } from "@prisma/client";
 import { addApplicantRemark, listApplicants, updateApplicantStatus } from "@/modules/applicants/services";
 import { approveApplicantAndCreateEmployee, assignEmployeeSite, listEmployees, softDeleteEmployee } from "@/modules/employees/services";
 import { bulkMarkAttendance, getMonthlyAttendanceSummary, lockMonthAttendance } from "@/modules/attendance/services";
+import { publicCatchMessage } from "@/lib/publicErrors";
 
 async function verifyTenantSession(companySlug: string) {
   const session = await auth();
@@ -126,8 +127,9 @@ export async function GET(
 
     return NextResponse.json({ error: "Invalid module." }, { status: 400 });
   } catch (error: any) {
-    const status = error.message.includes("Unauthorized") ? 401 : error.message.includes("Forbidden") ? 403 : 400;
-    return NextResponse.json({ error: error.message }, { status });
+    const message = String(error?.message || "");
+    const status = message.includes("Unauthorized") ? 401 : message.includes("Forbidden") ? 403 : 400;
+    return NextResponse.json({ error: publicCatchMessage(error) }, { status });
   }
 }
 
@@ -421,7 +423,8 @@ export async function POST(
 
     return NextResponse.json({ error: "Invalid action." }, { status: 400 });
   } catch (error: any) {
-    const status = error.message.includes("Unauthorized") ? 401 : error.message.includes("Forbidden") ? 403 : 400;
-    return NextResponse.json({ error: error.message }, { status });
+    const message = String(error?.message || "");
+    const status = message.includes("Unauthorized") ? 401 : message.includes("Forbidden") ? 403 : 400;
+    return NextResponse.json({ error: publicCatchMessage(error) }, { status });
   }
 }

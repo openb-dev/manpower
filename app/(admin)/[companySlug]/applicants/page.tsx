@@ -7,6 +7,7 @@ import HrmHeader from "@/components/admin/HrmHeader";
 import { statusLabel } from "@/components/admin/SimpleGuide";
 import { loadApplicantBook, loadApplicantDetail } from "../actions";
 import { downloadPaperFormPdf, paperFormFileName } from "@/lib/downloadPaperFormPdf";
+import { friendlyPublicError, readApiJson } from "@/lib/publicErrors";
 
 const ApplicantPaperForm = dynamic(
   () => import("@/components/admin/ApplicantPaperForm").then((mod) => mod.ApplicantPaperForm),
@@ -85,9 +86,9 @@ export default function ApplicantBookPage() {
           remark: remark || `Status marked as ${newStatus}`,
         }),
       });
-      const data = await res.json();
+      const data = await readApiJson(res);
       if (!res.ok) {
-        alert(data.error || "Failed to update status.");
+        alert(friendlyPublicError(data.error || "Status could not be updated."));
         return;
       }
       setPendingStatus(null);
@@ -102,7 +103,7 @@ export default function ApplicantBookPage() {
         setSelectedApplicant((prev: any) => (prev && prev.id === applicantId ? { ...prev, status: newStatus } : prev));
       }
     } catch (e: any) {
-      alert(e.message);
+      alert(friendlyPublicError(e.message || "Status could not be updated."));
     } finally {
       setLoading(false);
     }
@@ -159,15 +160,15 @@ export default function ApplicantBookPage() {
           remark: approvalRemark.trim(),
         }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to approve applicant.");
+      const data = await readApiJson(res);
+      if (!res.ok) throw new Error(data.error || "This person could not be made an employee.");
 
       alert(`Done. This person is now an employee. Employee number: ${data.employeeCode}`);
       setShowApproveModal(false);
       setSelectedApplicant(null);
       loadApplicants();
     } catch (e: any) {
-      setActionError(e.message);
+      setActionError(friendlyPublicError(e.message || "This person could not be made an employee."));
     } finally {
       setProcessing(false);
     }
@@ -187,15 +188,15 @@ export default function ApplicantBookPage() {
           remark: newRemark,
         }),
       });
-      const data = await res.json();
-      if (!res.ok) alert(data.error || "Failed to add remark.");
+      const data = await readApiJson(res);
+      if (!res.ok) alert(friendlyPublicError(data.error || "The note could not be saved."));
       else {
         setNewRemark("");
         // Reload applicant detail
         loadApplicants();
       }
     } catch (e: any) {
-      alert(e.message);
+      alert(friendlyPublicError(e.message || "The note could not be saved."));
     }
   }
 
@@ -424,7 +425,7 @@ export default function ApplicantBookPage() {
                             const detail = await loadApplicantDetail(companySlug, a.id);
                             setSelectedApplicant(detail);
                           } catch (err: any) {
-                            alert(err.message || "Could not open this form.");
+                            alert(friendlyPublicError(err.message || "Could not open this form."));
                           }
                         }}
                         className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold rounded-md transition"
@@ -550,6 +551,10 @@ export default function ApplicantBookPage() {
                         selectedApplicant.formData?.localAddress || selectedApplicant.presentAddress,
                         selectedApplicant.formData?.localPO ? `P.O. ${selectedApplicant.formData.localPO}` : "",
                         selectedApplicant.formData?.localPS ? `P.S. ${selectedApplicant.formData.localPS}` : "",
+                        selectedApplicant.formData?.localPin ? `PIN ${selectedApplicant.formData.localPin}` : "",
+                        selectedApplicant.formData?.localDistrict ? `Dist. ${selectedApplicant.formData.localDistrict}` : "",
+                        selectedApplicant.formData?.localState,
+                        selectedApplicant.formData?.localCountry,
                       ]
                         .filter(Boolean)
                         .join(", ") || "—"}
@@ -562,6 +567,10 @@ export default function ApplicantBookPage() {
                         selectedApplicant.formData?.villageAddress || selectedApplicant.permanentAddress,
                         selectedApplicant.formData?.villagePO ? `P.O. ${selectedApplicant.formData.villagePO}` : "",
                         selectedApplicant.formData?.villagePS ? `P.S. ${selectedApplicant.formData.villagePS}` : "",
+                        selectedApplicant.formData?.villagePin ? `PIN ${selectedApplicant.formData.villagePin}` : "",
+                        selectedApplicant.formData?.villageDistrict ? `Dist. ${selectedApplicant.formData.villageDistrict}` : "",
+                        selectedApplicant.formData?.villageState,
+                        selectedApplicant.formData?.villageCountry,
                       ]
                         .filter(Boolean)
                         .join(", ") || "—"}
@@ -740,6 +749,17 @@ export default function ApplicantBookPage() {
                       {selectedApplicant.formData?.policeStatus || selectedApplicant.pvcStatus || "pending"}
                     </span>
                   </div>
+                  <div>
+                    <span className="text-slate-400 block font-semibold text-[10px] uppercase">Police verification document</span>
+                    <span className="font-semibold text-emerald-700">
+                      {selectedApplicant.formData?.policeFileName
+                        ? `✓ ${selectedApplicant.formData.policeFileName}`
+                        : Array.isArray(selectedApplicant.documents) &&
+                            selectedApplicant.documents.some((doc: any) => doc.docType === "POLICE_VERIFICATION")
+                          ? "Attached"
+                          : "—"}
+                    </span>
+                  </div>
                   <div className="col-span-2">
                     <span className="text-slate-400 block font-semibold text-[10px] uppercase">Present Address & PIN</span>
                     <span className="text-slate-700">{selectedApplicant.presentAddress}</span>
@@ -862,6 +882,14 @@ export default function ApplicantBookPage() {
                     <span className="font-semibold text-emerald-700">
                       {selectedApplicant.formData?.otherQualFileName
                         ? `✓ ${selectedApplicant.formData.otherQualFileName}`
+                        : "—"}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block font-semibold text-[10px] uppercase">Police verification document</span>
+                    <span className="font-semibold text-emerald-700">
+                      {selectedApplicant.formData?.policeFileName
+                        ? `✓ ${selectedApplicant.formData.policeFileName}`
                         : "—"}
                     </span>
                   </div>

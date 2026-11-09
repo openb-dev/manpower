@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { loadDashboard } from "../actions";
 import { statusLabel } from "@/components/admin/SimpleGuide";
+import { friendlyPublicError } from "@/lib/publicErrors";
 
 function money(value: unknown) {
   return `₹${Number(value || 0).toLocaleString("en-IN")}`;
@@ -46,7 +47,7 @@ export default function DashboardPage() {
       })
       .catch((err) => {
         setData(null);
-        setError(err.message || "Dashboard could not be loaded.");
+        setError(friendlyPublicError(err.message || "Dashboard could not be loaded."));
       })
       .finally(() => setLoading(false));
   }, [companySlug]);

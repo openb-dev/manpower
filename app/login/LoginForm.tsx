@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { signIn } from "next-auth/react";
 import { LayoutDashboard, Mail, Lock } from "lucide-react";
+import { friendlyPublicError } from "@/lib/publicErrors";
 
 export default function LoginForm() {
   const [email, setEmail] = useState("");
@@ -30,7 +31,7 @@ export default function LoginForm() {
 
       window.location.replace("/");
     } catch (err: any) {
-      setError(err.message || "Failed to sign in.");
+      setError(friendlyPublicError(err.message || "Could not sign in. Please try again."));
       setLoading(false);
     }
   }

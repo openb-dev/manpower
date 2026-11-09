@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import { useParams } from "next/navigation";
 import { loadCompanyReports, loadReportPerson } from "../actions";
 import { statusLabel } from "@/components/admin/SimpleGuide";
+import { friendlyPublicError } from "@/lib/publicErrors";
 
 const ApplicantPaperForm = dynamic(
   () => import("@/components/admin/ApplicantPaperForm").then((mod) => mod.ApplicantPaperForm),
@@ -88,7 +89,7 @@ export default function ReportsPage() {
       })
       .catch((err) => {
         setData(null);
-        setError(err.message || "Reports could not be loaded.");
+        setError(friendlyPublicError(err.message || "Reports could not be loaded."));
       })
       .finally(() => setLoading(false));
   }, [companySlug]);
@@ -334,7 +335,7 @@ export default function ReportsPage() {
       setPerson(payload);
     } catch (err: any) {
       setPerson(null);
-      setPersonError(err.message || "This record could not be opened.");
+      setPersonError(friendlyPublicError(err.message || "This record could not be opened."));
     } finally {
       setPersonLoading(false);
     }
@@ -711,6 +712,7 @@ function collectDocuments(person: any) {
   add("PASSBOOK", fd.passbookFileName || "Bank passbook", fd.passbookFile);
   add("EDUCATION", fd.educationFileName || "Education certificate", fd.educationFile);
   add("OTHER_QUALIFICATION", fd.otherQualFileName || "Other qualification certificate", fd.otherQualFile);
+  add("POLICE_VERIFICATION", fd.policeFileName || "Police verification document", fd.policeFile);
   return out;
 }
 

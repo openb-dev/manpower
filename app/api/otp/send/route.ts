@@ -1,9 +1,15 @@
 import { NextResponse } from "next/server";
 import { requestApplicantOtp } from "@/modules/otp/services";
+import { publicCatchMessage } from "@/lib/publicErrors";
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
+    let body: any;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: "Please try again." }, { status: 400 });
+    }
     const companySlug = String(body.companySlug || "").trim();
     const identifier = String(body.identifier || "").trim();
     const channel = body.channel === "EMAIL" ? "EMAIL" : "WHATSAPP";
@@ -31,6 +37,6 @@ export async function POST(request: Request) {
       trialCode: result.trialCode,
     });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message || "Could not send OTP." }, { status: 400 });
+    return NextResponse.json({ error: publicCatchMessage(error) || "Could not send the verification code." }, { status: 400 });
   }
 }

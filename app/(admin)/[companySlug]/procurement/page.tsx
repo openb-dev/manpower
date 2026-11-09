@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { loadProcurementBook } from "../actions";
+import { friendlyPublicError, readApiJson } from "@/lib/publicErrors";
 
 export default function ProcurementPage() {
   const params = useParams();
@@ -34,7 +35,7 @@ export default function ProcurementPage() {
       .catch((err) => {
         setPurchases([]);
         setContracts([]);
-        setListError(err.message || "The purchase book could not be loaded.");
+        setListError(friendlyPublicError(err.message || "The purchase book could not be loaded."));
       })
       .finally(() => setLoading(false));
   }
@@ -60,8 +61,8 @@ export default function ProcurementPage() {
           purchaseDate,
         }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to record purchase");
+      const data = await readApiJson(res);
+      if (!res.ok) throw new Error(data.error || "This purchase could not be saved.");
 
       setShowModal(false);
       setItemName("");
@@ -70,7 +71,7 @@ export default function ProcurementPage() {
       setInvoiceNo("");
       loadProcurementData();
     } catch (err: any) {
-      alert(err.message);
+      alert(friendlyPublicError(err.message || "This purchase could not be saved."));
     } finally {
       setSaving(false);
     }

@@ -65,7 +65,7 @@ export async function requestApplicantOtp({ companySlug, identifier, channel, ip
   const dispatch = await provider.sendOtp(cleanId, plainOtp, company.shortName, chosenChannel);
 
   if (!dispatch.success) {
-    throw new Error(dispatch.error || "The verification code could not be sent. Please try again.");
+    throw new Error("The verification code could not be sent. Please try again.");
   }
 
   const isDevOrTest = process.env.NODE_ENV !== "production";

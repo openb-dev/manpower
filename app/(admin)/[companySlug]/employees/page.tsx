@@ -6,6 +6,7 @@ import dynamic from "next/dynamic";
 import HrmHeader from "@/components/admin/HrmHeader";
 import { statusLabel } from "@/components/admin/SimpleGuide";
 import { assignStaffSite, loadEmployeeBook, loadReportPerson } from "../actions";
+import { friendlyPublicError, readApiJson } from "@/lib/publicErrors";
 
 const ApplicantPaperForm = dynamic(
   () => import("@/components/admin/ApplicantPaperForm").then((mod) => mod.ApplicantPaperForm),
@@ -81,14 +82,14 @@ export default function EmployeeBookPage() {
           reason,
         }),
       });
-      const data = await res.json();
-      if (!res.ok) alert(data.error || "Failed to update record.");
+      const data = await readApiJson(res);
+      if (!res.ok) alert(friendlyPublicError(data.error || "This employee could not be updated."));
       else {
         alert("Done. This person is terminated.");
         loadEmployees();
       }
     } catch (e: any) {
-      alert(e.message);
+      alert(friendlyPublicError(e.message || "This employee could not be updated."));
     }
   }
 
@@ -98,7 +99,7 @@ export default function EmployeeBookPage() {
       const detail = await loadReportPerson(companySlug, "employee", emp.id);
       setSelectedEmployee({ ...emp, ...detail });
     } catch (err: any) {
-      alert(err.message || "Could not open this employee form.");
+      alert(friendlyPublicError(err.message || "Could not open this employee form."));
     }
   }
 

@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { loadFinanceBook } from "../actions";
+import { friendlyPublicError, readApiJson } from "@/lib/publicErrors";
 
 export default function FinancePage() {
   const params = useParams();
@@ -42,7 +43,7 @@ export default function FinancePage() {
         setTotalCredit(0);
         setTotalDebit(0);
         setBalance(0);
-        setListError(err.message || "The ledger could not be loaded.");
+        setListError(friendlyPublicError(err.message || "The ledger could not be loaded."));
       })
       .finally(() => setLoading(false));
   }
@@ -78,8 +79,8 @@ export default function FinancePage() {
           entryDate,
         }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to create ledger entry");
+      const data = await readApiJson(res);
+      if (!res.ok) throw new Error(data.error || "The ledger entry could not be saved.");
 
       setShowModal(false);
       setNarration("");
@@ -89,7 +90,7 @@ export default function FinancePage() {
       setPaymentMode("CASH");
       loadFinanceData();
     } catch (err: any) {
-      alert(err.message);
+      alert(friendlyPublicError(err.message || "The ledger entry could not be saved."));
     } finally {
       setSaving(false);
     }

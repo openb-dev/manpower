@@ -2,6 +2,7 @@
 
 import React from "react";
 import { DECLARATION, TERMS } from "@/server/data/joiningText.js";
+import { applicantPhotoUrl } from "@/lib/applicantFormFields";
 
 const NK_LETTERHEAD = {
   address: [
@@ -144,7 +145,7 @@ export function ApplicantPaperForm({
   const presentPin = text(fd.presentPin);
   const permanentPin = text(fd.permanentPin);
   const religion = text(fd.religion).toLowerCase();
-  const photo = typeof fd.photo === "string" ? fd.photo : "";
+  const photo = applicantPhotoUrl(person);
   const signedOn = dmy(person?.joiningDate || person?.createdAt);
   const aadhaar = text(person?.aadhaarDisplay || fd.aadhaar);
   const pan = text(person?.pan || fd.pan);
@@ -162,7 +163,7 @@ export function ApplicantPaperForm({
             </div>
           </div>
           <div className="flex gap-4 items-start">
-            <div className="flex-1 min-w-0">
+            <div className="flex-1 min-w-0 pr-2">
               <div className="text-[22px] font-bold leading-none">{head.name}</div>
               {head.address.map((line) => (
                 <div key={line} className="text-[11px] leading-snug">
@@ -175,12 +176,10 @@ export function ApplicantPaperForm({
               </div>
               {head.mobile ? <div className="text-[11px]">Mobile : {head.mobile}</div> : null}
             </div>
-            <div className="w-[92px] h-[118px] border border-black shrink-0 bg-white overflow-hidden">
+            <div className="w-[78px] h-[100px] border border-black shrink-0 bg-white overflow-hidden flex items-center justify-center">
               {photo ? (
-                <img src={photo} alt={name} className="w-full h-full object-cover" />
-              ) : (
-                <div className="w-full h-full" />
-              )}
+                <img src={photo} alt={name} className="max-w-full max-h-full object-contain" />
+              ) : null}
             </div>
           </div>
 
@@ -218,7 +217,7 @@ export function ApplicantPaperForm({
             <li className="flex gap-2">
               <span className="w-5 shrink-0">3.</span>
               <span className="flex-1 flex flex-wrap items-end gap-x-1">
-                Date of Birth / Age <Blank value={dob} min="7rem" /> / <Blank value={age} min="3rem" />
+                Date of Birth <Blank value={dob} min="7rem" /> Age <Blank value={age} min="3rem" />
               </span>
             </li>
             <li className="flex gap-2">
@@ -232,7 +231,11 @@ export function ApplicantPaperForm({
                   No. <Blank min="4rem" /> P.O. <Blank value={fd.localPO} min="6rem" /> P.S. <Blank value={fd.localPS} min="6rem" />
                 </span>
                 <span className="flex flex-wrap items-end gap-x-2">
-                  Dist. <Blank min="8rem" /> State <Blank min="8rem" />
+                  PIN <Blank value={fd.localPin} min="4rem" /> Dist. <Blank value={fd.localDistrict} min="6rem" /> State{" "}
+                  <Blank value={fd.localState} min="6rem" />
+                </span>
+                <span className="flex flex-wrap items-end gap-x-2">
+                  Country <Blank value={fd.localCountry} min="6rem" />
                 </span>
               </span>
             </li>
@@ -253,7 +256,11 @@ export function ApplicantPaperForm({
                   Big P.O. - or Via <Blank min="6rem" /> P.S. <Blank value={fd.villagePS} min="6rem" />
                 </span>
                 <span className="flex flex-wrap items-end gap-x-2">
-                  Dist. <Blank min="8rem" /> State <Blank min="8rem" />
+                  PIN <Blank value={fd.villagePin} min="4rem" /> Dist. <Blank value={fd.villageDistrict} min="6rem" /> State{" "}
+                  <Blank value={fd.villageState} min="6rem" />
+                </span>
+                <span className="flex flex-wrap items-end gap-x-2">
+                  Country <Blank value={fd.villageCountry} min="6rem" />
                 </span>
               </span>
             </li>
@@ -399,6 +406,10 @@ export function ApplicantPaperForm({
                   P.O. <Blank value={fd.presentPO} min="6rem" /> P.S. <Blank value={fd.presentPS} min="6rem" /> PIN{" "}
                   <Blank value={presentPin} min="4rem" />
                 </span>
+                <span className="flex flex-wrap items-end gap-x-2">
+                  Dist. <Blank value={fd.presentDistrict} min="6rem" /> State <Blank value={fd.presentState} min="6rem" />{" "}
+                  Country <Blank value={fd.presentCountry} min="5rem" />
+                </span>
               </span>
             </li>
             <li className="flex gap-2">
@@ -410,6 +421,10 @@ export function ApplicantPaperForm({
                 <span className="flex flex-wrap items-end gap-x-2">
                   P.O. <Blank value={fd.permanentPO} min="6rem" /> P.S. <Blank value={fd.permanentPS} min="6rem" /> PIN{" "}
                   <Blank value={permanentPin} min="4rem" />
+                </span>
+                <span className="flex flex-wrap items-end gap-x-2">
+                  Dist. <Blank value={fd.permanentDistrict} min="6rem" /> State <Blank value={fd.permanentState} min="6rem" />{" "}
+                  Country <Blank value={fd.permanentCountry} min="5rem" />
                 </span>
               </span>
             </li>

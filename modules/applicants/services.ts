@@ -3,9 +3,13 @@ import { encryptText, getAadhaarLast4, hashAadhaar, maskAadhaar } from "../../li
 import { ApplicantStatus, Role, VerificationStatus } from "@prisma/client";
 import { z } from "zod";
 import { ApplicantSubmitSchema } from "./schema.ts";
+import { formDataWithoutFiles } from "../../lib/applicantFormFields.ts";
+import { firstZodMessage } from "../../lib/publicErrors.ts";
 
 export async function submitApplicant(rawInput: z.infer<typeof ApplicantSubmitSchema>) {
-  const input = ApplicantSubmitSchema.parse(rawInput);
+  const parsed = ApplicantSubmitSchema.safeParse(rawInput);
+  if (!parsed.success) throw new Error(firstZodMessage(parsed.error));
+  const input = parsed.data;
 
   const company = await prisma.company.findUnique({
     where: { slug: input.companySlug },
@@ -86,7 +90,7 @@ export async function submitApplicant(rawInput: z.infer<typeof ApplicantSubmitSc
       armsExpiryDate: input.armsExpiryDate ? new Date(input.armsExpiryDate) : null,
       exServiceNo: input.exServiceNo?.trim() || null,
       pvcStatus,
-      formData: input.formData,
+      formData: formDataWithoutFiles(input.formData || {}),
       documents: input.documents,
       status: ApplicantStatus.NEW,
     },

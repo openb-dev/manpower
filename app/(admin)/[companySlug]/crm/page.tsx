@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { useParams } from "next/navigation";
 import { loadCrmBook } from "../actions";
+import { friendlyPublicError, readApiJson } from "@/lib/publicErrors";
 import {
   FileSpreadsheet,
   Landmark,
@@ -197,7 +198,7 @@ export default function CrmPage() {
       .catch((err) => {
         setContracts([]);
         setSites([]);
-        setListError(err.message || "Work register could not be loaded.");
+        setListError(friendlyPublicError(err.message || "Work register could not be loaded."));
       })
       .finally(() => setLoading(false));
   }
@@ -510,13 +511,13 @@ export default function CrmPage() {
         body: JSON.stringify(payload),
       });
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to save contract entry");
+      const data = await readApiJson(res);
+      if (!res.ok) throw new Error(data.error || "This work register entry could not be saved.");
 
       setShowModal(false);
       loadCrmData();
     } catch (err: any) {
-      alert(err.message);
+      alert(friendlyPublicError(err.message || "This work register entry could not be saved."));
     } finally {
       setSaving(false);
     }
@@ -531,10 +532,10 @@ export default function CrmPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "DELETE_CONTRACT", id }),
       });
-      if (!res.ok) throw new Error("Failed to delete entry");
+      if (!res.ok) throw new Error("This work register entry could not be deleted.");
       loadCrmData();
     } catch (err: any) {
-      alert(err.message);
+      alert(friendlyPublicError(err.message || "This work register entry could not be deleted."));
     }
   }
 

@@ -3,6 +3,15 @@
 import React, { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { DECLARATION, TERMS, JOINING_VERSION } from "@/server/data/joiningText.js";
+import {
+  DEFAULT_COUNTRY,
+  DEFAULT_STATE,
+  INDIAN_STATES,
+  QUALIFICATION_OPTIONS,
+  formDataWithoutFiles,
+  joinAddressParts,
+} from "@/lib/applicantFormFields";
+import { friendlyPublicError, readApiJson } from "@/lib/publicErrors";
 
 interface JobRole {
   id: string;
@@ -65,10 +74,6 @@ function jobList(history: unknown): WorkJob[] {
   }));
 }
 
-function joinAddress(parts: unknown[]) {
-  return parts.map((part) => String(part || "").trim()).filter(Boolean).join(", ");
-}
-
 function copyPresentToPermanent<T extends Record<string, any>>(form: T): T {
   return {
     ...form,
@@ -76,6 +81,9 @@ function copyPresentToPermanent<T extends Record<string, any>>(form: T): T {
     permanentPO: form.presentPO,
     permanentPS: form.presentPS,
     permanentPin: form.presentPin,
+    permanentDistrict: form.presentDistrict,
+    permanentState: form.presentState,
+    permanentCountry: form.presentCountry,
   };
 }
 
@@ -89,10 +97,19 @@ function initialForm() {
     localAddress: "",
     localPO: "",
     localPS: "",
+    localPin: "",
+    localDistrict: "",
+    localState: DEFAULT_STATE,
+    localCountry: DEFAULT_COUNTRY,
     villageAddress: "",
     villagePO: "",
     villagePS: "",
+    villagePin: "",
+    villageDistrict: "",
+    villageState: DEFAULT_STATE,
+    villageCountry: DEFAULT_COUNTRY,
     qualification: "",
+    qualificationOther: "",
     experienceType: "",
     experience: "",
     workHistory: [blankJob()],
@@ -124,11 +141,17 @@ function initialForm() {
     presentPO: "",
     presentPS: "",
     presentPin: "",
+    presentDistrict: "",
+    presentState: DEFAULT_STATE,
+    presentCountry: DEFAULT_COUNTRY,
     sameAsPresent: false,
     permanentAddress: "",
     permanentPO: "",
     permanentPS: "",
     permanentPin: "",
+    permanentDistrict: "",
+    permanentState: DEFAULT_STATE,
+    permanentCountry: DEFAULT_COUNTRY,
     aadhaar: "",
     pan: "",
     previousEmployer: "None",
@@ -141,6 +164,8 @@ function initialForm() {
     ifsc: "",
     branchName: "",
     policeStatus: "pending",
+    policeFile: "",
+    policeFileName: "",
     securityMoney: "0",
     declarationAccepted: false,
     termsAccepted: false,
@@ -181,14 +206,174 @@ function heightText(form: ReturnType<typeof initialForm>) {
   return cm ? `${cm} cm` : "";
 }
 
+function qualificationShown(form: ReturnType<typeof initialForm>) {
+  if (form.qualification === "Other") return form.qualificationOther.trim();
+  return form.qualification.trim();
+}
+
+function missingPlace(label: string, pin: string, district: string, state: string, country: string) {
+  if (!pin.trim() || pin.replace(/\D/g, "").length !== 6) return `Please enter a 6-digit PIN for ${label}.`;
+  if (!district.trim()) return `Please enter district for ${label}.`;
+  if (!state.trim()) return `Please select state for ${label}.`;
+  if (!country.trim()) return `Please enter country for ${label}.`;
+  return "";
+}
+
+function readAsDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(new Error("Could not read the file."));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function fileToUploadData(file: File) {
+  if (file.size > 8 * 1024 * 1024) {
+    throw new Error("Please choose a file smaller than 8 MB.");
+  }
+  if (!file.type.startsWith("image/")) {
+    if (file.size > 2 * 1024 * 1024) {
+      throw new Error("PDF files must be smaller than 2 MB.");
+    }
+    return readAsDataUrl(file);
+  }
+  return new Promise<string>((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const max = 1280;
+      let width = img.width;
+      let height = img.height;
+      if (width > max || height > max) {
+        const scale = max / Math.max(width, height);
+        width = Math.round(width * scale);
+        height = Math.round(height * scale);
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        readAsDataUrl(file).then(resolve, reject);
+        return;
+      }
+      ctx.drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL("image/jpeg", 0.72));
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      readAsDataUrl(file).then(resolve, reject);
+    };
+    img.src = url;
+  });
+}
+
+const fieldCls = "w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white disabled:bg-slate-100 disabled:text-slate-600";
+
+function PlaceFields({
+  pin,
+  district,
+  state,
+  country,
+  disabled = false,
+  required = true,
+  onPin,
+  onDistrict,
+  onState,
+  onCountry,
+}: {
+  pin: string;
+  district: string;
+  state: string;
+  country: string;
+  disabled?: boolean;
+  required?: boolean;
+  onPin: (value: string) => void;
+  onDistrict: (value: string) => void;
+  onState: (value: string) => void;
+  onCountry: (value: string) => void;
+}) {
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3">
+      <div>
+        <label className="block text-xs font-bold text-slate-700 mb-1">
+          PIN {required ? <span className="text-red-500">*</span> : null}
+        </label>
+        <input
+          required={required}
+          disabled={disabled}
+          type="text"
+          maxLength={6}
+          value={pin}
+          onChange={(e) => onPin(e.target.value.replace(/\D/g, ""))}
+          className={`${fieldCls} font-mono`}
+          placeholder="6-digit PIN"
+        />
+      </div>
+      <div>
+        <label className="block text-xs font-bold text-slate-700 mb-1">
+          District {required ? <span className="text-red-500">*</span> : null}
+        </label>
+        <input
+          required={required}
+          disabled={disabled}
+          type="text"
+          value={district}
+          onChange={(e) => onDistrict(e.target.value)}
+          className={fieldCls}
+          placeholder="District"
+        />
+      </div>
+      <div>
+        <label className="block text-xs font-bold text-slate-700 mb-1">
+          State {required ? <span className="text-red-500">*</span> : null}
+        </label>
+        <select
+          required={required}
+          disabled={disabled}
+          value={state}
+          onChange={(e) => onState(e.target.value)}
+          className={fieldCls}
+        >
+          <option value="">Select state</option>
+          {INDIAN_STATES.map((name) => (
+            <option key={name} value={name}>
+              {name}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div>
+        <label className="block text-xs font-bold text-slate-700 mb-1">
+          Country {required ? <span className="text-red-500">*</span> : null}
+        </label>
+        <input
+          required={required}
+          disabled={disabled}
+          type="text"
+          value={country}
+          onChange={(e) => onCountry(e.target.value)}
+          className={fieldCls}
+          placeholder="Country"
+        />
+      </div>
+    </div>
+  );
+}
+
 export default function ApplyPage() {
   const params = useParams();
   const companySlug = params?.companySlug as string;
 
   const [company, setCompany] = useState<CompanyData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [error, setErrorState] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
+  function setError(message: string) {
+    setErrorState(message ? friendlyPublicError(message) : "");
+  }
 
   // Candidate Authentication State
   const [candidate, setCandidate] = useState<CandidateSession | null>(null);
@@ -243,7 +428,7 @@ export default function ApplyPage() {
     fetch(`/api/apply/${companySlug}`)
       .then(async (res) => {
         if (!res.ok) throw new Error("Could not find company recruitment portal.");
-        const data = await res.json();
+        const data = await readApiJson(res);
         setCompany(data);
         if (data.jobRoles?.[0]) {
           setSelectedRole(data.jobRoles[0]);
@@ -271,6 +456,11 @@ export default function ApplyPage() {
       }));
     }
   }, [candidate]);
+
+  useEffect(() => {
+    if (!error) return;
+    document.getElementById("apply-error")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [error]);
 
   // Request OTP for candidate registration
   async function handleSendRegistrationOtp() {
@@ -303,8 +493,8 @@ export default function ApplyPage() {
         }),
       });
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to send verification code.");
+      const data = await readApiJson(res);
+      if (!res.ok) throw new Error(data.error || "Could not send the verification code. Please try again.");
 
       setOtpSent(true);
       setOtpCountdown(60);
@@ -375,8 +565,8 @@ export default function ApplyPage() {
         }),
       });
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Registration failed.");
+      const data = await readApiJson(res);
+      if (!res.ok) throw new Error(data.error || "Registration could not be completed. Please check the details and try again.");
 
       const newSession: CandidateSession = data.candidate;
       setCandidate(newSession);
@@ -412,8 +602,8 @@ export default function ApplyPage() {
         }),
       });
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Sign in failed.");
+      const data = await readApiJson(res);
+      if (!res.ok) throw new Error(data.error || "Sign in failed. Please check email and password.");
 
       const session: CandidateSession = data.candidate;
       setCandidate(session);
@@ -459,30 +649,50 @@ export default function ApplyPage() {
   // Handle File Uploads with FileReader DataURL
   function handleFileUpload(
     e: React.ChangeEvent<HTMLInputElement>,
-    dataKey: "photo" | "aadhaarFile" | "panFile" | "passbookFile" | "educationFile" | "otherQualFile",
+    dataKey:
+      | "photo"
+      | "aadhaarFile"
+      | "panFile"
+      | "passbookFile"
+      | "educationFile"
+      | "otherQualFile"
+      | "policeFile",
     nameKey:
       | "photoName"
       | "aadhaarFileName"
       | "panFileName"
       | "passbookFileName"
       | "educationFileName"
-      | "otherQualFileName",
+      | "otherQualFileName"
+      | "policeFileName",
   ) {
-    const file = e.target.files?.[0];
+    const input = e.target;
+    const file = input.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      setForm((prev) => ({
-        ...prev,
-        [dataKey]: reader.result as string,
-        [nameKey]: file.name,
-      }));
-    };
-    reader.readAsDataURL(file);
+    fileToUploadData(file)
+      .then((dataUrl) => {
+        setError("");
+        setForm((prev) => ({
+          ...prev,
+          [dataKey]: dataUrl,
+          [nameKey]: file.name,
+        }));
+      })
+      .catch((err: any) => {
+        setError(err.message || "Could not read that file.");
+        input.value = "";
+      });
   }
 
   function updatePresent(
-    field: "presentAddress" | "presentPO" | "presentPS" | "presentPin",
+    field:
+      | "presentAddress"
+      | "presentPO"
+      | "presentPS"
+      | "presentPin"
+      | "presentDistrict"
+      | "presentState"
+      | "presentCountry",
     value: string,
   ) {
     setForm((prev) => {
@@ -549,19 +759,35 @@ export default function ApplyPage() {
       setError("Please sign in or register before submitting your application.");
       return;
     }
+    if (!selectedRole?.id) return setError("Please select a trade.");
+    if (!selectedCategory?.id) return setError("Please select a job category.");
 
     // Validation checks
     if (!form.name.trim()) return setError("Please enter your full name.");
     if (!form.fatherOrHusband.trim()) return setError("Please enter your Father / Husband name.");
     if (!form.dateOfBirth) return setError("Please enter your date of birth.");
     if (!form.age) return setError("Please enter your age.");
+    if (!form.gender) return setError("Please select gender.");
     if (!form.localAddress.trim()) return setError("Please enter your local address.");
     if (!form.localPO.trim()) return setError("Please enter local P.O.");
     if (!form.localPS.trim()) return setError("Please enter local P.S.");
+    const localPlaceErr = missingPlace("local address", form.localPin, form.localDistrict, form.localState, form.localCountry);
+    if (localPlaceErr) return setError(localPlaceErr);
     if (!form.villageAddress.trim()) return setError("Please enter your village address.");
     if (!form.villagePO.trim()) return setError("Please enter village P.O.");
     if (!form.villagePS.trim()) return setError("Please enter village P.S.");
-    if (!form.qualification.trim()) return setError("Please enter your educational qualification.");
+    const villagePlaceErr = missingPlace(
+      "village address",
+      form.villagePin,
+      form.villageDistrict,
+      form.villageState,
+      form.villageCountry,
+    );
+    if (villagePlaceErr) return setError(villagePlaceErr);
+    if (!qualificationShown(form)) return setError("Please select your educational qualification.");
+    if (form.qualification === "Other" && !form.qualificationOther.trim()) {
+      return setError("Please enter your educational qualification.");
+    }
     if (!form.educationFileName && !form.educationFile) {
       return setError("Please upload your education qualification certificate.");
     }
@@ -576,6 +802,8 @@ export default function ApplyPage() {
       );
       if (incompleteJob) return setError("Please complete every work experience row, or remove it.");
     }
+    if (!form.identificationMark.trim()) return setError("Please enter your identification mark.");
+    if (!form.nationality.trim()) return setError("Please enter your nationality.");
     if (!form.religion.trim()) return setError("Please select your religion.");
     if (!form.reference.trim()) return setError("Please provide a reference contact.");
     const heightValue = heightText(form);
@@ -591,24 +819,44 @@ export default function ApplyPage() {
     if (!form.presentAddress.trim()) return setError("Please enter present address.");
     if (!form.presentPO.trim()) return setError("Please enter present P.O.");
     if (!form.presentPS.trim()) return setError("Please enter present P.S.");
-    if (!form.presentPin.trim()) return setError("Please enter present PIN code.");
+    const presentPlaceErr = missingPlace(
+      "present address",
+      form.presentPin,
+      form.presentDistrict,
+      form.presentState,
+      form.presentCountry,
+    );
+    if (presentPlaceErr) return setError(presentPlaceErr);
     const permanent = form.sameAsPresent
       ? {
           address: form.presentAddress,
           po: form.presentPO,
           ps: form.presentPS,
           pin: form.presentPin,
+          district: form.presentDistrict,
+          state: form.presentState,
+          country: form.presentCountry,
         }
       : {
           address: form.permanentAddress,
           po: form.permanentPO,
           ps: form.permanentPS,
           pin: form.permanentPin,
+          district: form.permanentDistrict,
+          state: form.permanentState,
+          country: form.permanentCountry,
         };
     if (!permanent.address.trim()) return setError("Please enter permanent address.");
     if (!permanent.po.trim()) return setError("Please enter permanent P.O.");
     if (!permanent.ps.trim()) return setError("Please enter permanent P.S.");
-    if (!permanent.pin.trim()) return setError("Please enter permanent PIN code.");
+    const permanentPlaceErr = missingPlace(
+      "permanent address",
+      permanent.pin,
+      permanent.district,
+      permanent.state,
+      permanent.country,
+    );
+    if (permanentPlaceErr) return setError(permanentPlaceErr);
 
     const cleanAadhaar = form.aadhaar.replace(/\D/g, "");
     if (cleanAadhaar.length !== 12) return setError("Aadhaar number must be exactly 12 digits.");
@@ -646,6 +894,9 @@ export default function ApplyPage() {
       if (!form.preferredDispensary.trim()) return setError("Please enter preferred ESI dispensary.");
     }
     if (!form.policeStatus) return setError("Please select police verification status.");
+    if (form.policeStatus === "verified" && !form.policeFileName && !form.policeFile) {
+      return setError("Please upload the police verification document.");
+    }
 
     const filledFamily = (form.family || []).filter((member) =>
       [member.name, member.relation, member.dateOfBirth, member.aadhaar].some((part) => String(part || "").trim())
@@ -679,6 +930,9 @@ export default function ApplyPage() {
         ...(form.otherQualFileName
           ? [{ docType: "OTHER_QUALIFICATION", fileName: form.otherQualFileName, fileData: form.otherQualFile }]
           : []),
+        ...(form.policeFileName
+          ? [{ docType: "POLICE_VERIFICATION", fileName: form.policeFileName, fileData: form.policeFile }]
+          : []),
       ];
 
       const payload = {
@@ -692,28 +946,38 @@ export default function ApplyPage() {
         fatherOrHusband: form.fatherOrHusband.trim(),
         dateOfBirth: form.dateOfBirth,
         gender: form.gender || "MALE",
-        presentAddress: joinAddress([
+        presentAddress: joinAddressParts([
           form.presentAddress,
           form.presentPO ? `P.O. ${form.presentPO}` : "",
           form.presentPS ? `P.S. ${form.presentPS}` : "",
           form.presentPin ? `PIN ${form.presentPin}` : "",
+          form.presentDistrict ? `Dist. ${form.presentDistrict}` : "",
+          form.presentState,
+          form.presentCountry,
         ]),
-        permanentAddress: joinAddress([
+        permanentAddress: joinAddressParts([
           permanent.address,
           permanent.po ? `P.O. ${permanent.po}` : "",
           permanent.ps ? `P.S. ${permanent.ps}` : "",
           permanent.pin ? `PIN ${permanent.pin}` : "",
+          permanent.district ? `Dist. ${permanent.district}` : "",
+          permanent.state,
+          permanent.country,
         ]),
         aadhaarNumber: cleanAadhaar,
         panNumber: cleanPan,
         exServiceNo: isExServiceman ? form.exServiceNo.trim() : "NA",
         armsLicenseNo: form.gunLicence.trim(),
         formData: {
-          ...form,
+          ...formDataWithoutFiles(form),
+          qualification: qualificationShown(form),
           permanentAddress: permanent.address,
           permanentPO: permanent.po,
           permanentPS: permanent.ps,
           permanentPin: permanent.pin,
+          permanentDistrict: permanent.district,
+          permanentState: permanent.state,
+          permanentCountry: permanent.country,
           exServiceNo: isExServiceman ? form.exServiceNo.trim() : "NA",
           exRank: isExServiceman ? form.exRank.trim() : "NA",
           exDischargeDate: isExServiceman ? form.exDischargeDate : "",
@@ -742,12 +1006,12 @@ export default function ApplyPage() {
         body: JSON.stringify({ action: "SUBMIT_APPLICATION", data: payload }),
       });
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Application submission failed.");
+      const data = await readApiJson(res);
+      if (!res.ok) throw new Error(data.error || "The application could not be submitted. Please check the form and try again.");
       setSubmittedRef(data.id);
       setStep("SUCCESS");
     } catch (err: any) {
-      setError(err.message);
+      setError(err.message || "The application could not be submitted. Please check the form and try again.");
     } finally {
       setSubmitting(false);
     }
@@ -827,7 +1091,10 @@ export default function ApplyPage() {
       <div className="max-w-5xl mx-auto px-4 py-8 flex-1 w-full">
         {/* Banner Messages */}
         {error && (
-          <div className="mb-6 p-4 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-semibold flex items-center justify-between">
+          <div
+            id="apply-error"
+            className="mb-6 p-4 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-semibold flex items-center justify-between"
+          >
             <span>⚠️ {error}</span>
             <button onClick={() => setError("")} className="text-red-500 hover:text-red-800 font-bold ml-2">✕</button>
           </div>
@@ -1391,6 +1658,16 @@ export default function ApplyPage() {
                           />
                         </div>
                       </div>
+                      <PlaceFields
+                        pin={form.localPin}
+                        district={form.localDistrict}
+                        state={form.localState}
+                        country={form.localCountry}
+                        onPin={(value) => setForm({ ...form, localPin: value })}
+                        onDistrict={(value) => setForm({ ...form, localDistrict: value })}
+                        onState={(value) => setForm({ ...form, localState: value })}
+                        onCountry={(value) => setForm({ ...form, localCountry: value })}
+                      />
                     </div>
 
                     <div className="sm:col-span-2">
@@ -1433,20 +1710,45 @@ export default function ApplyPage() {
                           />
                         </div>
                       </div>
+                      <PlaceFields
+                        pin={form.villagePin}
+                        district={form.villageDistrict}
+                        state={form.villageState}
+                        country={form.villageCountry}
+                        onPin={(value) => setForm({ ...form, villagePin: value })}
+                        onDistrict={(value) => setForm({ ...form, villageDistrict: value })}
+                        onState={(value) => setForm({ ...form, villageState: value })}
+                        onCountry={(value) => setForm({ ...form, villageCountry: value })}
+                      />
                     </div>
 
                     <div>
                       <label className="block text-xs font-bold text-slate-700 mb-1">
                         Educational Qualification <span className="text-red-500">*</span>
                       </label>
-                      <input
+                      <select
                         required
-                        type="text"
                         value={form.qualification}
                         onChange={(e) => setForm({ ...form, qualification: e.target.value })}
                         className="w-full px-3.5 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500"
-                        placeholder="e.g. Class 10 / Madhyamik / Higher Secondary"
-                      />
+                      >
+                        <option value="">Select qualification</option>
+                        {QUALIFICATION_OPTIONS.map((item) => (
+                          <option key={item} value={item}>
+                            {item}
+                          </option>
+                        ))}
+                      </select>
+                      {form.qualification === "Other" ? (
+                        <input
+                          required
+                          type="text"
+                          value={form.qualificationOther}
+                          onChange={(e) => setForm({ ...form, qualificationOther: e.target.value })}
+                          className="w-full mt-2 px-3.5 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500"
+                          placeholder="Please enter qualification"
+                        />
+                      ) : null}
                       <label className="block text-[11px] font-semibold text-slate-600 mt-2 mb-1">
                         Education qualification certificate <span className="text-red-500">*</span>
                       </label>
@@ -1599,9 +1901,10 @@ export default function ApplyPage() {
 
                     <div>
                       <label className="block text-xs font-bold text-slate-700 mb-1">
-                        Identification Mark
+                        Identification Mark <span className="text-red-500">*</span>
                       </label>
                       <input
+                        required
                         type="text"
                         value={form.identificationMark}
                         onChange={(e) => setForm({ ...form, identificationMark: e.target.value })}
@@ -1953,7 +2256,7 @@ export default function ApplyPage() {
                         className="w-full px-3.5 py-2 border border-slate-300 rounded-lg text-sm bg-white"
                         placeholder="House/Flat No, Street"
                       />
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
                           <label className="block text-xs font-bold text-slate-700 mb-1">
                             P.O. <span className="text-red-500">*</span>
@@ -1980,21 +2283,17 @@ export default function ApplyPage() {
                             placeholder="Police station"
                           />
                         </div>
-                        <div>
-                          <label className="block text-xs font-bold text-slate-700 mb-1">
-                            PIN <span className="text-red-500">*</span>
-                          </label>
-                          <input
-                            required
-                            type="text"
-                            maxLength={6}
-                            value={form.presentPin}
-                            onChange={(e) => updatePresent("presentPin", e.target.value.replace(/\D/g, ""))}
-                            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-mono bg-white"
-                            placeholder="6-digit PIN"
-                          />
-                        </div>
                       </div>
+                      <PlaceFields
+                        pin={form.presentPin}
+                        district={form.presentDistrict}
+                        state={form.presentState}
+                        country={form.presentCountry}
+                        onPin={(value) => updatePresent("presentPin", value)}
+                        onDistrict={(value) => updatePresent("presentDistrict", value)}
+                        onState={(value) => updatePresent("presentState", value)}
+                        onCountry={(value) => updatePresent("presentCountry", value)}
+                      />
                       <label className="flex items-center gap-2 pt-1 text-sm text-slate-700 cursor-pointer select-none">
                         <input
                           type="checkbox"
@@ -2025,7 +2324,7 @@ export default function ApplyPage() {
                         className="w-full px-3.5 py-2 border border-slate-300 rounded-lg text-sm bg-white disabled:bg-slate-100 disabled:text-slate-600"
                         placeholder="Village/Town"
                       />
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
                           <label className="block text-xs font-bold text-slate-700 mb-1">
                             P.O. <span className="text-red-500">*</span>
@@ -2054,28 +2353,19 @@ export default function ApplyPage() {
                             placeholder="Police station"
                           />
                         </div>
-                        <div>
-                          <label className="block text-xs font-bold text-slate-700 mb-1">
-                            PIN <span className="text-red-500">*</span>
-                          </label>
-                          <input
-                            required={!form.sameAsPresent}
-                            type="text"
-                            maxLength={6}
-                            value={form.permanentPin}
-                            onChange={(e) =>
-                              setForm({
-                                ...form,
-                                permanentPin: e.target.value.replace(/\D/g, ""),
-                                sameAsPresent: false,
-                              })
-                            }
-                            disabled={form.sameAsPresent}
-                            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-mono bg-white disabled:bg-slate-100 disabled:text-slate-600"
-                            placeholder="6-digit PIN"
-                          />
-                        </div>
                       </div>
+                      <PlaceFields
+                        pin={form.permanentPin}
+                        district={form.permanentDistrict}
+                        state={form.permanentState}
+                        country={form.permanentCountry}
+                        required={!form.sameAsPresent}
+                        disabled={form.sameAsPresent}
+                        onPin={(value) => setForm({ ...form, permanentPin: value, sameAsPresent: false })}
+                        onDistrict={(value) => setForm({ ...form, permanentDistrict: value, sameAsPresent: false })}
+                        onState={(value) => setForm({ ...form, permanentState: value, sameAsPresent: false })}
+                        onCountry={(value) => setForm({ ...form, permanentCountry: value, sameAsPresent: false })}
+                      />
                     </div>
 
                     <div>
@@ -2279,6 +2569,29 @@ export default function ApplyPage() {
                         <option value="verified">Verified</option>
                         <option value="rejected">Rejected</option>
                       </select>
+                      {form.policeStatus === "verified" ? (
+                        <div className="mt-3">
+                          <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                            Police verification document <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            type="file"
+                            accept="image/*,.pdf"
+                            required={!form.policeFileName}
+                            onChange={(e) => handleFileUpload(e, "policeFile", "policeFileName")}
+                            className="w-full text-xs text-slate-600 file:mr-2 file:py-1 file:px-2.5 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-100 file:text-blue-800"
+                          />
+                          {form.policeFileName ? (
+                            <div className="text-[11px] text-emerald-700 font-semibold mt-1 truncate">
+                              ✓ {form.policeFileName}
+                            </div>
+                          ) : (
+                            <p className="text-[11px] text-slate-500 mt-1">
+                              Upload the police verification certificate or proof.
+                            </p>
+                          )}
+                        </div>
+                      ) : null}
                     </div>
                     <div>
                       <label className="block text-xs font-bold text-slate-700 mb-1">

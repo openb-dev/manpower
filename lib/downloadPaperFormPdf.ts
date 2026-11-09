@@ -1,4 +1,5 @@
 import { DECLARATION, TERMS } from "@/server/data/joiningText.js";
+import { applicantPhotoUrl } from "@/lib/applicantFormFields";
 
 const NK = {
   name: "M/s. N.K. Enterprise",
@@ -120,7 +121,7 @@ export async function buildPaperFormPdf(
   const postApplied = [person?.jobRole?.name, person?.roleCategory?.name, fd.skillCategory, fd.gemExperience]
     .filter(Boolean)
     .join(" / ");
-  const photo = typeof fd.photo === "string" ? fd.photo : "";
+  const photo = applicantPhotoUrl(person);
 
   const pdf = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
   const pageW = 210;
@@ -187,37 +188,78 @@ export async function buildPaperFormPdf(
     pdf.text(`(${label})`, right, 279, { align: "right" });
   };
 
-  const letterhead = (y: number, withPhoto = false) => {
-    write(companyName, left, y, 16, "bold");
-    y += 5;
+  const letterhead = (startY: number, withPhoto = false) => {
+    const photoW = 25;
+    const photoH = 32;
+    const gap = 5;
+    const photoX = right - photoW;
+    const photoY = startY;
+    const textMax = withPhoto ? photoX - left - gap : width;
+
+    if (withPhoto) {
+      pdf.setDrawColor(0);
+      pdf.setLineWidth(0.35);
+      pdf.rect(photoX, photoY, photoW, photoH);
+      if (photo.startsWith("data:image")) {
+        const formats = photo.includes("png") ? ["PNG", "JPEG"] : ["JPEG", "PNG"];
+        let drawn = false;
+        for (const fmt of formats) {
+          try {
+            const props = pdf.getImageProperties(photo);
+            const imgRatio = props.width / Math.max(props.height, 1);
+            const boxRatio = photoW / photoH;
+            const pad = 0.5;
+            const innerW = photoW - pad * 2;
+            const innerH = photoH - pad * 2;
+            let drawW = innerW;
+            let drawH = innerH;
+            if (imgRatio > boxRatio) {
+              drawH = innerW / imgRatio;
+            } else {
+              drawW = innerH * imgRatio;
+            }
+            const dx = photoX + pad + (innerW - drawW) / 2;
+            const dy = photoY + pad + (innerH - drawH) / 2;
+            pdf.addImage(photo, fmt, dx, dy, drawW, drawH);
+            drawn = true;
+            break;
+          } catch {
+            /* try next format */
+          }
+        }
+        if (!drawn) {
+          pdf.setFont("times", "normal");
+          pdf.setFontSize(7);
+          pdf.text("PHOTO", photoX + photoW / 2, photoY + photoH / 2, { align: "center" });
+        }
+      }
+    }
+
+    pdf.setFont("times", "bold");
+    pdf.setFontSize(15);
+    pdf.setTextColor(0, 0, 0);
+    const nameLines = pdf.splitTextToSize(companyName, textMax);
+    pdf.text(nameLines, left, startY);
+    let ty = startY + nameLines.length * 6;
     pdf.setFont("times", "normal");
     pdf.setFontSize(9);
     for (const line of address) {
-      pdf.text(line, left, y);
-      y += 4;
+      const lines = pdf.splitTextToSize(line, textMax);
+      pdf.text(lines, left, ty);
+      ty += lines.length * 4;
     }
     if (websiteLine) {
-      pdf.text(websiteLine, left, y);
-      y += 4;
+      const lines = pdf.splitTextToSize(websiteLine, textMax);
+      pdf.text(lines, left, ty);
+      ty += lines.length * 4;
     }
     if (mobileLine) {
-      pdf.text(mobileLine, left, y);
+      const lines = pdf.splitTextToSize(mobileLine, textMax);
+      pdf.text(lines, left, ty);
+      ty += lines.length * 4;
     }
-    if (withPhoto) {
-      pdf.setDrawColor(0);
-      pdf.rect(right - 28, 18, 28, 36);
-      if (photo.startsWith("data:image")) {
-        try {
-          const fmt = photo.includes("png") ? "PNG" : "JPEG";
-          pdf.addImage(photo, fmt, right - 27.5, 18.5, 27, 35);
-        } catch {
-          write("PHOTO", right - 21, 38, 8);
-        }
-      } else {
-        write("PHOTO", right - 21, 38, 8);
-      }
-    }
-    return y + 6;
+    const bottom = withPhoto ? Math.max(ty, photoY + photoH) : ty;
+    return bottom + 5;
   };
 
   // Page 1
@@ -232,11 +274,36 @@ export async function buildPaperFormPdf(
   if (postApplied) y = lineFill("Post applied :", postApplied, y);
   y = lineFill("1. Name in full", name, y);
   y = lineFill("2. Father's / Husband Name", father, y);
-  y = lineFill("3. Date of Birth / Age", [dob, age].filter(Boolean).join(" / "), y);
+  pdf.setFont("times", "normal");
+  pdf.setFontSize(10.5);
+  pdf.text("3. Date of Birth", left, y);
+  const dobLabelW = pdf.getTextWidth("3. Date of Birth ");
+  pdf.setFont("times", "bold");
+  pdf.text(dob || "", left + dobLabelW, y);
+  pdf.setDrawColor(0);
+  pdf.setLineWidth(0.2);
+  pdf.line(left + dobLabelW, y + 1.1, left + 92, y + 1.1);
+  pdf.setFont("times", "normal");
+  pdf.text("Age", left + 96, y);
+  const ageLabelW = pdf.getTextWidth("Age ");
+  pdf.setFont("times", "bold");
+  pdf.text(age || "", left + 96 + ageLabelW, y);
+  pdf.line(left + 96 + ageLabelW, y + 1.1, right, y + 1.1);
+  y += 8.5;
   y = lineFill("4. Local Address", local, y);
   y = lineFill("     P.O. / P.S.", [text(fd.localPO), text(fd.localPS)].filter(Boolean).join(" / "), y);
+  y = lineFill(
+    "     PIN / Dist. / State / Country",
+    [text(fd.localPin), text(fd.localDistrict), text(fd.localState), text(fd.localCountry)].filter(Boolean).join(" / "),
+    y,
+  );
   y = lineFill("5. Village Address", village, y);
   y = lineFill("     Vill. / P.O. / P.S.", [village, text(fd.villagePO), text(fd.villagePS)].filter(Boolean).join(" / "), y);
+  y = lineFill(
+    "     PIN / Dist. / State / Country",
+    [text(fd.villagePin), text(fd.villageDistrict), text(fd.villageState), text(fd.villageCountry)].filter(Boolean).join(" / "),
+    y,
+  );
   y = lineFill(
     "6. No. & Rank if Ex-Service man",
     [text(person?.exServiceNo || fd.exServiceNo), text(fd.exRank)].filter(Boolean).join(" / ") || "NA",
@@ -306,8 +373,18 @@ export async function buildPaperFormPdf(
   y = lineFill("3. Date of Birth (as per Aadhaar) :", dob, y);
   y = lineFill("4. Present Address :", present, y);
   y = lineFill("     P.O. / P.S. / PIN", [text(fd.presentPO), text(fd.presentPS), text(fd.presentPin)].filter(Boolean).join(" / "), y);
+  y = lineFill(
+    "     Dist. / State / Country",
+    [text(fd.presentDistrict), text(fd.presentState), text(fd.presentCountry)].filter(Boolean).join(" / "),
+    y,
+  );
   y = lineFill("5. Permanent Address :", permanent, y);
   y = lineFill("     P.O. / P.S. / PIN", [text(fd.permanentPO), text(fd.permanentPS), text(fd.permanentPin)].filter(Boolean).join(" / "), y);
+  y = lineFill(
+    "     Dist. / State / Country",
+    [text(fd.permanentDistrict), text(fd.permanentState), text(fd.permanentCountry)].filter(Boolean).join(" / "),
+    y,
+  );
   y = lineFill("6. Contact Mobile No. :", text(person?.mobile || fd.mobile), y);
   y = lineFill("7. Educational Qualification :", text(fd.qualification), y);
   y = lineFill("8. Aadhaar No. & PAN No. (own) :", [text(person?.aadhaarDisplay || fd.aadhaar), text(person?.pan || fd.pan)].filter(Boolean).join(" / "), y);

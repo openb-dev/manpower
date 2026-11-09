@@ -120,7 +120,12 @@ export async function buildPaperFormPdf(
   const employeeIdNo = text(person?.employeeCode || person?.employee?.employeeCode || fd.officeApplicantId);
   const filledBy = fd.filledByAdmin && typeof fd.filledByAdmin === "object" ? fd.filledByAdmin : null;
   const signedOn = dmy(person?.joiningDate || person?.createdAt);
-  const postApplied = [person?.jobRole?.name, person?.roleCategory?.name, fd.skillCategory, fd.gemExperience]
+  const postApplied = [
+    person?.jobRole?.name,
+    fd.otherCategory || fd.gemProfile || person?.roleCategory?.name,
+    fd.skillCategory,
+    fd.gemExperience,
+  ]
     .filter(Boolean)
     .join(" / ");
   const photo = applicantPhotoUrl(person);

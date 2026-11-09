@@ -132,6 +132,7 @@ function initialForm() {
     skillCategory: "",
     gemProfile: "",
     gemExperience: "",
+    otherCategory: "",
     height: "",
     heightUnit: "cm" as string,
     heightCm: "",
@@ -212,6 +213,11 @@ function isExServicemanCategory(role?: JobRole | null, category?: { code?: strin
 function isGunmanCategory(role?: JobRole | null, category?: { code?: string; name?: string } | null) {
   const text = `${role?.code || ""} ${role?.name || ""} ${category?.code || ""} ${category?.name || ""}`.toLowerCase();
   return text.includes("gunman") || text.includes("armed");
+}
+
+function isOthersChoice(value?: { code?: string; name?: string } | string | null) {
+  const text = typeof value === "string" ? value : `${value?.code || ""} ${value?.name || ""}`;
+  return text.trim().toUpperCase() === "OTHERS" || /(^|\s)others$/i.test(text.trim());
 }
 
 function heightText(form: ReturnType<typeof initialForm>) {
@@ -1060,8 +1066,9 @@ export default function ApplyPage() {
           uploadBankDetails: form.uploadBankDetails,
           referenceYears: String(form.referenceYears || "").trim(),
           skillCategory: form.skillCategory,
-          gemProfile: form.gemProfile,
+          gemProfile: form.gemProfile === "Others" ? form.otherCategory.trim() || "Others" : form.gemProfile,
           gemExperience: form.gemExperience,
+          otherCategory: form.otherCategory.trim(),
           bankName: wantsBank ? form.bankName.trim() : "",
           accountNo: wantsBank ? form.accountNo.trim() : "",
           ifsc: wantsBank ? form.ifsc.trim().toUpperCase() : "",
@@ -1545,7 +1552,13 @@ export default function ApplyPage() {
                         onClick={() => {
                           setSelectedRole(role);
                           setSelectedCategory(null);
-                          setForm((prev) => ({ ...prev, gemProfile: "", skillCategory: "", gemExperience: "" }));
+                          setForm((prev) => ({
+                            ...prev,
+                            gemProfile: "",
+                            skillCategory: "",
+                            gemExperience: "",
+                            otherCategory: "",
+                          }));
                         }}
                         className={`text-left rounded-2xl border-2 p-5 transition ${
                           selected
@@ -1576,7 +1589,13 @@ export default function ApplyPage() {
                           <button
                             key={cat.id}
                             type="button"
-                            onClick={() => setSelectedCategory(cat)}
+                            onClick={() => {
+                              setSelectedCategory(cat);
+                              setForm((prev) => ({
+                                ...prev,
+                                otherCategory: isOthersChoice(cat) ? prev.otherCategory : "",
+                              }));
+                            }}
                             className={`px-3 py-2 rounded-lg text-xs font-bold border transition ${
                               active
                                 ? "bg-blue-600 text-white border-blue-600"
@@ -1588,6 +1607,20 @@ export default function ApplyPage() {
                         );
                       })}
                     </div>
+                    {isOthersChoice(selectedCategory) ? (
+                      <div className="mt-3">
+                        <label className="block text-xs font-bold text-slate-700 mb-1">
+                          Specify category <span className="text-red-600">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={form.otherCategory}
+                          onChange={(e) => setForm({ ...form, otherCategory: e.target.value })}
+                          className="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-sm bg-white"
+                          placeholder="Type the category"
+                        />
+                      </div>
+                    ) : null}
                   </div>
                 ) : null}
 
@@ -1622,7 +1655,11 @@ export default function ApplyPage() {
                             manpowerCategories.find((cat) => cat.name === gemProfile) ||
                             (gemProfile === "Others" ? manpowerOthers : null) ||
                             manpowerOthers;
-                          setForm({ ...form, gemProfile });
+                          setForm({
+                            ...form,
+                            gemProfile,
+                            otherCategory: gemProfile === "Others" ? form.otherCategory : "",
+                          });
                           setSelectedCategory(match || null);
                         }}
                         className="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-sm bg-white"
@@ -1634,6 +1671,20 @@ export default function ApplyPage() {
                           </option>
                         ))}
                       </select>
+                      {form.gemProfile === "Others" ? (
+                        <div className="mt-3">
+                          <label className="block text-xs font-bold text-slate-700 mb-1">
+                            Specify category <span className="text-red-600">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            value={form.otherCategory}
+                            onChange={(e) => setForm({ ...form, otherCategory: e.target.value })}
+                            className="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-sm bg-white"
+                            placeholder="Type the category"
+                          />
+                        </div>
+                      ) : null}
                     </div>
                     <div>
                       <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
@@ -1662,9 +1713,15 @@ export default function ApplyPage() {
                     if (isSecurityGuardRole(selectedRole) && !selectedCategory) {
                       return setError("Please select a Security Guard category.");
                     }
+                    if (isSecurityGuardRole(selectedRole) && isOthersChoice(selectedCategory) && !form.otherCategory.trim()) {
+                      return setError("Please type the category for Others.");
+                    }
                     if (isManpowerRole(selectedRole)) {
                       if (!form.skillCategory) return setError("Please select skill category.");
                       if (!form.gemProfile) return setError("Please select a manpower profile.");
+                      if (form.gemProfile === "Others" && !form.otherCategory.trim()) {
+                        return setError("Please type the category for Others.");
+                      }
                       if (!form.gemExperience) return setError("Please select experience.");
                       const category =
                         selectedCategory ||
@@ -1693,9 +1750,9 @@ export default function ApplyPage() {
                     <span className="text-xs uppercase font-extrabold tracking-wider bg-blue-100 text-blue-800 px-2.5 py-1 rounded">
                       Applying for: {selectedRole?.name}
                       {isManpowerRole(selectedRole)
-                        ? ` / ${form.gemProfile || selectedCategory?.name || "Others"}`
+                        ? ` / ${form.gemProfile === "Others" ? form.otherCategory.trim() || "Others" : form.gemProfile || selectedCategory?.name || "Others"}`
                         : selectedCategory?.name
-                          ? ` (${selectedCategory.name})`
+                          ? ` (${isOthersChoice(selectedCategory) ? form.otherCategory.trim() || "Others" : selectedCategory.name})`
                           : ""}
                     </span>
                     <h2 className="text-xl font-bold text-slate-900 mt-2">Official Job Application Form</h2>

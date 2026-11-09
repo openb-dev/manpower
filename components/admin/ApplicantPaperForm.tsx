@@ -205,7 +205,12 @@ export function ApplicantPaperForm({
             <p className="mt-1 text-[11px] leading-snug break-words">
               Post applied :{" "}
               <span className="font-semibold">
-                {[person?.jobRole?.name, person?.roleCategory?.name, fd.skillCategory, fd.gemExperience]
+                {[
+                  person?.jobRole?.name,
+                  fd.otherCategory || fd.gemProfile || person?.roleCategory?.name,
+                  fd.skillCategory,
+                  fd.gemExperience,
+                ]
                   .filter(Boolean)
                   .join(" / ")}
               </span>

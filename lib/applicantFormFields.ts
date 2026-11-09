@@ -72,7 +72,55 @@ export function placeLine(fd: Record<string, any> | null | undefined, prefix: st
 export function formDataWithoutFiles(form: Record<string, any>) {
   const next = { ...form };
   for (const key of FILE_DATA_KEYS) next[key] = "";
+  delete next.filledByAdmin;
   return next;
+}
+
+export type FilledByAdmin = {
+  userId: string;
+  name: string;
+  email: string;
+  filledAt: string;
+};
+
+export function filledByAdminInfo(person: any): FilledByAdmin | null {
+  const raw = person?.formData?.filledByAdmin || person?.filledByAdmin;
+  if (!raw || typeof raw !== "object") return null;
+  const userId = String(raw.userId || raw.id || "").trim();
+  const email = String(raw.email || "").trim();
+  const name = String(raw.name || "").trim();
+  if (!userId && !email) return null;
+  return {
+    userId,
+    name: name || "Admin",
+    email,
+    filledAt: String(raw.filledAt || ""),
+  };
+}
+
+export function wantsBankUpload(form: Record<string, any> | null | undefined) {
+  return String(form?.uploadBankDetails || "").toUpperCase() === "YES";
+}
+
+export function hasPassbookAttachment(person: any) {
+  const fd = person?.formData || {};
+  if (String(fd.uploadBankDetails || "").toUpperCase() === "NO") return false;
+  if (fd.passbookFileName || (typeof fd.passbookFile === "string" && fd.passbookFile.startsWith("data:"))) {
+    return true;
+  }
+  const lists = [person?.documents, person?.applicantDocuments];
+  for (const list of lists) {
+    if (!Array.isArray(list)) continue;
+    if (
+      list.some((doc: any) => {
+        const type = String(doc?.docType || "").toUpperCase();
+        return type === "PASSBOOK" && (doc?.fileName || doc?.fileData);
+      })
+    ) {
+      return true;
+    }
+  }
+  return false;
 }
 
 export function applicantPhotoUrl(person: any) {

@@ -16,6 +16,13 @@ export function maskAadhaar(raw?: string | null): string {
   return `XXXX-XXXX-${cleaned.slice(-4)}`;
 }
 
+export function formatAadhaar(raw?: string | null): string {
+  const cleaned = String(raw || "").replace(/\D/g, "");
+  if (cleaned.length === 12) return `${cleaned.slice(0, 4)} ${cleaned.slice(4, 8)} ${cleaned.slice(8)}`;
+  if (cleaned.length === 4) return `XXXX XXXX ${cleaned}`;
+  return String(raw || "").trim();
+}
+
 export function getAadhaarLast4(raw?: string | null): string {
   if (!raw) return "";
   const cleaned = raw.replace(/\D/g, "");

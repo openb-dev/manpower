@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
+import Link from "next/link";
 import { DECLARATION, TERMS, JOINING_VERSION } from "@/server/data/joiningText.js";
 import {
   DEFAULT_COUNTRY,
@@ -119,6 +120,8 @@ function initialForm() {
     nationality: "Indian",
     religion: "Hindu",
     reference: "",
+    referenceYears: "",
+    uploadBankDetails: "",
     height: "",
     heightUnit: "cm" as string,
     heightCm: "",
@@ -137,6 +140,7 @@ function initialForm() {
     gunLicence: "NA",
     gunNo: "NA",
     mobile: "",
+    email: "",
     presentAddress: "",
     presentPO: "",
     presentPS: "",
@@ -377,6 +381,8 @@ export default function ApplyPage() {
 
   // Candidate Authentication State
   const [candidate, setCandidate] = useState<CandidateSession | null>(null);
+  const [officeAdmin, setOfficeAdmin] = useState<{ id: string; name: string; email: string } | null>(null);
+  const [officeAdminChecked, setOfficeAdminChecked] = useState(false);
   const [authTab, setAuthTab] = useState<"REGISTER" | "LOGIN">("REGISTER");
 
   // Registration Form State
@@ -416,11 +422,35 @@ export default function ApplyPage() {
           ...prev,
           name: prev.name || parsed.fullName || "",
           mobile: prev.mobile || parsed.whatsappNo || "",
+          email: prev.email || parsed.email || "",
         }));
       } catch (e) {
         localStorage.removeItem(`candidate_${companySlug}`);
       }
     }
+  }, [companySlug]);
+
+  useEffect(() => {
+    fetch("/api/auth/session", { credentials: "include" })
+      .then(async (res) => {
+        if (!res.ok) return;
+        const data = await res.json();
+        const user = data?.user;
+        if (!user?.id) return;
+        const role = String(user.role || "");
+        const sameCompany = user.companySlug === companySlug || !user.companySlug;
+        if (role !== "SUPER_ADMIN" && role !== "COMPANY_ADMIN") return;
+        if (role === "COMPANY_ADMIN" && user.companySlug && user.companySlug !== companySlug) return;
+        if (!sameCompany && role !== "SUPER_ADMIN") return;
+        setOfficeAdmin({
+          id: String(user.id),
+          name: String(user.name || "Admin"),
+          email: String(user.email || ""),
+        });
+        setCandidate(null);
+      })
+      .catch(() => {})
+      .finally(() => setOfficeAdminChecked(true));
   }, [companySlug]);
 
   // Fetch Company Data
@@ -449,11 +479,12 @@ export default function ApplyPage() {
   // When candidate logs in or updates, sync name & mobile
   useEffect(() => {
     if (candidate) {
-      setForm((prev) => ({
-        ...prev,
-        name: prev.name || candidate.fullName || "",
-        mobile: prev.mobile || candidate.whatsappNo || "",
-      }));
+        setForm((prev) => ({
+          ...prev,
+          name: prev.name || candidate.fullName || "",
+          mobile: prev.mobile || candidate.whatsappNo || "",
+          email: prev.email || candidate.email || "",
+        }));
     }
   }, [candidate]);
 
@@ -805,7 +836,10 @@ export default function ApplyPage() {
     if (!form.identificationMark.trim()) return setError("Please enter your identification mark.");
     if (!form.nationality.trim()) return setError("Please enter your nationality.");
     if (!form.religion.trim()) return setError("Please select your religion.");
-    if (!form.reference.trim()) return setError("Please provide a reference contact.");
+    if (!form.reference.trim()) return setError("Please provide a reference name and relation.");
+    if (!String(form.referenceYears || "").trim()) {
+      return setError("Please enter how many years the reference person has known you.");
+    }
     const heightValue = heightText(form);
     if (!heightValue) return setError("Please enter your height.");
     if (!form.weight.trim()) return setError("Please specify weight.");
@@ -815,6 +849,8 @@ export default function ApplyPage() {
 
     const cleanMobile = form.mobile.replace(/\D/g, "").slice(-10);
     if (cleanMobile.length !== 10) return setError("Please enter a valid 10-digit mobile number.");
+    const applicantEmail = String(form.email || candidate?.email || "").trim().toLowerCase();
+    if (!applicantEmail.includes("@")) return setError("Please enter the applicant email address.");
 
     if (!form.presentAddress.trim()) return setError("Please enter present address.");
     if (!form.presentPO.trim()) return setError("Please enter present P.O.");
@@ -906,6 +942,18 @@ export default function ApplyPage() {
     );
     if (incompleteFamily) return setError("Please complete the family row you started, or remove it.");
 
+    if (!form.uploadBankDetails) return setError("Please select Yes or No for bank details.");
+    const wantsBank = form.uploadBankDetails === "YES";
+    if (wantsBank) {
+      if (!form.bankName.trim()) return setError("Please enter bank name.");
+      if (!form.accountNo.trim()) return setError("Please enter bank account number.");
+      if (!form.ifsc.trim()) return setError("Please enter IFSC code.");
+      if (!form.branchName.trim()) return setError("Please enter bank branch name.");
+      if (!form.passbookFileName && !form.passbookFile) {
+        return setError("Please upload the bank passbook or cancelled cheque.");
+      }
+    }
+
     if (!form.aadhaarFileName && !form.aadhaarFile) return setError("Please upload your Aadhaar document.");
     if (!form.panFileName && !form.panFile) return setError("Please upload your PAN card document.");
 
@@ -923,7 +971,9 @@ export default function ApplyPage() {
         ...(form.photoName ? [{ docType: "PHOTO", fileName: form.photoName, fileData: form.photo }] : []),
         ...(form.aadhaarFileName ? [{ docType: "AADHAAR", fileName: form.aadhaarFileName, fileData: form.aadhaarFile }] : []),
         ...(form.panFileName ? [{ docType: "PAN", fileName: form.panFileName, fileData: form.panFile }] : []),
-        ...(form.passbookFileName ? [{ docType: "PASSBOOK", fileName: form.passbookFileName, fileData: form.passbookFile }] : []),
+        ...(wantsBank && form.passbookFileName
+          ? [{ docType: "PASSBOOK", fileName: form.passbookFileName, fileData: form.passbookFile }]
+          : []),
         ...(form.educationFileName
           ? [{ docType: "EDUCATION", fileName: form.educationFileName, fileData: form.educationFile }]
           : []),
@@ -937,12 +987,12 @@ export default function ApplyPage() {
 
       const payload = {
         companySlug,
-        candidateAccountId: candidate.id,
+        ...(officeAdmin ? {} : { candidateAccountId: candidate?.id }),
         jobRoleId: selectedRole?.id,
         roleCategoryId: selectedCategory?.id,
         fullName: form.name.trim(),
         mobile: cleanMobile,
-        email: candidate.email,
+        email: applicantEmail,
         fatherOrHusband: form.fatherOrHusband.trim(),
         dateOfBirth: form.dateOfBirth,
         gender: form.gender || "MALE",
@@ -994,6 +1044,13 @@ export default function ApplyPage() {
           otherQualification: form.otherQualification.trim(),
           characterCertificate: form.otherQualification.trim(),
           family: filledFamily,
+          uploadBankDetails: form.uploadBankDetails,
+          referenceYears: String(form.referenceYears || "").trim(),
+          bankName: wantsBank ? form.bankName.trim() : "",
+          accountNo: wantsBank ? form.accountNo.trim() : "",
+          ifsc: wantsBank ? form.ifsc.trim().toUpperCase() : "",
+          branchName: wantsBank ? form.branchName.trim() : "",
+          passbookFileName: wantsBank ? form.passbookFileName : "",
           joiningTerms: Boolean(form.declarationAccepted && form.termsAccepted),
           termsVersion: JOINING_VERSION,
         },
@@ -1002,6 +1059,7 @@ export default function ApplyPage() {
 
       const res = await fetch(`/api/apply/${companySlug}`, {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "SUBMIT_APPLICATION", data: payload }),
       });
@@ -1017,7 +1075,7 @@ export default function ApplyPage() {
     }
   }
 
-  if (loading) {
+  if (loading || !officeAdminChecked) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-slate-50">
         <p className="text-slate-600 font-medium animate-pulse">Loading recruitment portal...</p>
@@ -1037,6 +1095,7 @@ export default function ApplyPage() {
     );
   }
 
+  const canFillForm = Boolean(officeAdmin || candidate);
   const isGunRole = Boolean(
     selectedRole?.code === "GUNMAN" ||
     selectedRole?.name?.toLowerCase().includes("gunman") ||
@@ -1063,7 +1122,21 @@ export default function ApplyPage() {
             </div>
           </div>
 
-          {candidate ? (
+          {officeAdmin ? (
+            <div className="flex items-center gap-3 text-xs">
+              <div className="hidden sm:block text-right">
+                <div className="font-bold text-indigo-900">Form fill up by admin</div>
+                <div className="text-[11px] text-indigo-700 font-semibold">{officeAdmin.name}</div>
+                <div className="text-[11px] text-slate-500 font-mono">{officeAdmin.email}</div>
+              </div>
+              <Link
+                href={`/${companySlug}/applicants`}
+                className="px-3 py-1.5 rounded-lg border border-indigo-300 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 font-semibold text-xs transition"
+              >
+                Back to New applicant
+              </Link>
+            </div>
+          ) : candidate ? (
             <div className="flex items-center gap-3 text-xs">
               <div className="hidden sm:block text-right">
                 <div className="font-bold text-slate-900">{candidate.fullName}</div>
@@ -1109,7 +1182,7 @@ export default function ApplyPage() {
         {/* =========================================================================
             STATE 1: NOT AUTHENTICATED -> CANDIDATE REGISTRATION / SIGN IN
             ========================================================================= */}
-        {!candidate && (
+        {!canFillForm && (
           <div className="max-w-xl mx-auto bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
             {/* Tabs Header */}
             <div className="grid grid-cols-2 border-b border-slate-200 bg-slate-50/70 text-xs font-bold text-slate-600">
@@ -1419,15 +1492,24 @@ export default function ApplyPage() {
         {/* =========================================================================
             STATE 2: AUTHENTICATED CANDIDATE -> ROLE SELECTION & FULL APPLICATION FORM
             ========================================================================= */}
-        {candidate && (
+        {canFillForm && (
           <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
             {/* Step 1: Role Selection */}
             {step === "ROLE" && (
               <div className="p-6 sm:p-8 space-y-6">
                 <div>
-                  <span className="text-xs font-bold uppercase tracking-wider text-blue-700 bg-blue-50 px-2.5 py-1 rounded-md">
-                    Candidate: {candidate.fullName}
-                  </span>
+                  {officeAdmin ? (
+                    <div className="rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 mb-3 text-indigo-950">
+                      <div className="text-[10px] font-bold uppercase tracking-wide">Form fill up by admin</div>
+                      <div className="text-sm font-semibold mt-0.5">{officeAdmin.name}</div>
+                      <div className="text-xs font-mono mt-1">Email: {officeAdmin.email || "—"}</div>
+                      <div className="text-xs font-mono">Admin ID: {officeAdmin.id}</div>
+                    </div>
+                  ) : (
+                    <span className="text-xs font-bold uppercase tracking-wider text-blue-700 bg-blue-50 px-2.5 py-1 rounded-md">
+                      Candidate: {candidate?.fullName}
+                    </span>
+                  )}
                   <div className="mt-2">
                     <h2 className="text-lg font-bold text-slate-900">Step 1: Select trade / category</h2>
                     <p className="text-xs text-slate-500">
@@ -1519,21 +1601,40 @@ export default function ApplyPage() {
                   </button>
                 </div>
 
-                {/* Candidate Account Quick Summary */}
-                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 grid gap-3 sm:grid-cols-3 text-xs">
-                  <div>
-                    <span className="text-slate-400 block uppercase font-bold text-[10px]">Registered Name</span>
-                    <span className="font-bold text-slate-900">{candidate.fullName}</span>
+                {officeAdmin ? (
+                  <div className="rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-indigo-950">
+                    <div className="text-[10px] font-bold uppercase tracking-wide">Form fill up by admin</div>
+                    <div className="grid gap-2 sm:grid-cols-3 text-xs mt-2">
+                      <div>
+                        <span className="block uppercase font-bold text-[10px] text-indigo-700">Admin name</span>
+                        <span className="font-bold">{officeAdmin.name}</span>
+                      </div>
+                      <div>
+                        <span className="block uppercase font-bold text-[10px] text-indigo-700">Admin email</span>
+                        <span className="font-mono">{officeAdmin.email || "—"}</span>
+                      </div>
+                      <div>
+                        <span className="block uppercase font-bold text-[10px] text-indigo-700">Admin ID</span>
+                        <span className="font-mono">{officeAdmin.id}</span>
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <span className="text-slate-400 block uppercase font-bold text-[10px]">Account Email</span>
-                    <span className="font-medium text-slate-900">{candidate.email}</span>
+                ) : (
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 grid gap-3 sm:grid-cols-3 text-xs">
+                    <div>
+                      <span className="text-slate-400 block uppercase font-bold text-[10px]">Registered Name</span>
+                      <span className="font-bold text-slate-900">{candidate?.fullName}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block uppercase font-bold text-[10px]">Account Email</span>
+                      <span className="font-medium text-slate-900">{candidate?.email}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block uppercase font-bold text-[10px]">Verified Mobile</span>
+                      <span className="font-mono font-semibold text-emerald-700">+91 {candidate?.whatsappNo} ✓</span>
+                    </div>
                   </div>
-                  <div>
-                    <span className="text-slate-400 block uppercase font-bold text-[10px]">Verified Mobile</span>
-                    <span className="font-mono font-semibold text-emerald-700">+91 {candidate.whatsappNo} ✓</span>
-                  </div>
-                </div>
+                )}
 
                 {/* SECTION 1: APPLICATION / PERSONAL DETAILS */}
                 <div className="space-y-4">
@@ -1945,18 +2046,36 @@ export default function ApplyPage() {
                       </div>
                     </div>
 
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">
-                        Reference (Name & Relation) <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        required
-                        type="text"
-                        value={form.reference}
-                        onChange={(e) => setForm({ ...form, reference: e.target.value })}
-                        className="w-full px-3.5 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500"
-                        placeholder="e.g. Kakoli Mondal, wife, 9876543210"
-                      />
+                    <div className="grid gap-4 sm:grid-cols-3">
+                      <div className="sm:col-span-2">
+                        <label className="block text-xs font-bold text-slate-700 mb-1">
+                          Reference (Name & Relation) <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          required
+                          type="text"
+                          value={form.reference}
+                          onChange={(e) => setForm({ ...form, reference: e.target.value })}
+                          className="w-full px-3.5 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500"
+                          placeholder="e.g. Kakoli Mondal, wife, 9876543210"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">
+                          Known since (years) <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          required
+                          type="text"
+                          inputMode="numeric"
+                          value={form.referenceYears}
+                          onChange={(e) =>
+                            setForm({ ...form, referenceYears: e.target.value.replace(/\D/g, "").slice(0, 2) })
+                          }
+                          className="w-full px-3.5 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500"
+                          placeholder="e.g. 8"
+                        />
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -2226,6 +2345,20 @@ export default function ApplyPage() {
                         onChange={(e) => setForm({ ...form, mobile: e.target.value.replace(/\D/g, "") })}
                         className="w-full px-3.5 py-2 border border-slate-300 rounded-lg text-sm font-mono bg-white"
                         placeholder="10-digit mobile"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Applicant email <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        required
+                        type="email"
+                        value={form.email}
+                        onChange={(e) => setForm({ ...form, email: e.target.value })}
+                        className="w-full px-3.5 py-2 border border-slate-300 rounded-lg text-sm bg-white"
+                        placeholder="applicant@email.com"
                       />
                     </div>
 
@@ -2524,7 +2657,7 @@ export default function ApplyPage() {
                   </div>
                 </div>
 
-                {/* SECTION 6: BANK DETAILS — only after approval */}
+                {/* SECTION 6: BANK DETAILS — optional now, required after selection */}
                 <div className="space-y-4 pt-2">
                   <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
                     <span className="w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center">
@@ -2534,13 +2667,117 @@ export default function ApplyPage() {
                       Bank Account Details (For Wage Credit)
                     </h3>
                   </div>
-                  <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
-                    <p className="font-bold text-xs uppercase tracking-wide mb-1">Note</p>
-                    <p>
-                      Bank details are needed only after you are selected and made an employee. You do not have to fill
-                      bank name, account number, IFSC, or passbook now.
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Willing to upload bank details now? <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      required
+                      value={form.uploadBankDetails}
+                      onChange={(e) => {
+                        const uploadBankDetails = e.target.value;
+                        setForm((prev) => ({
+                          ...prev,
+                          uploadBankDetails,
+                          ...(uploadBankDetails === "NO"
+                            ? {
+                                bankName: "",
+                                accountNo: "",
+                                ifsc: "",
+                                branchName: "",
+                                passbookFile: "",
+                                passbookFileName: "",
+                              }
+                            : {}),
+                        }));
+                      }}
+                      className="w-full sm:w-64 px-3.5 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">Select</option>
+                      <option value="YES">Yes</option>
+                      <option value="NO">No</option>
+                    </select>
+                    <p className="text-[11px] text-slate-500 mt-1">
+                      You may upload now, or wait until you are selected. Bank details are required only after approval.
                     </p>
                   </div>
+                  {form.uploadBankDetails === "YES" ? (
+                    <div className="grid gap-4 sm:grid-cols-2 p-4 bg-slate-50 border border-slate-200 rounded-xl">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">
+                          Bank name <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          required
+                          type="text"
+                          value={form.bankName}
+                          onChange={(e) => setForm({ ...form, bankName: e.target.value })}
+                          className="w-full px-3.5 py-2 border border-slate-300 rounded-lg text-sm bg-white"
+                          placeholder="e.g. State Bank of India"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">
+                          Account number <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          required
+                          type="text"
+                          value={form.accountNo}
+                          onChange={(e) => setForm({ ...form, accountNo: e.target.value.replace(/\D/g, "") })}
+                          className="w-full px-3.5 py-2 border border-slate-300 rounded-lg text-sm bg-white font-mono"
+                          placeholder="Account number"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">
+                          IFSC <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          required
+                          type="text"
+                          value={form.ifsc}
+                          onChange={(e) => setForm({ ...form, ifsc: e.target.value.toUpperCase() })}
+                          className="w-full px-3.5 py-2 border border-slate-300 rounded-lg text-sm bg-white font-mono"
+                          placeholder="e.g. SBIN0001234"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">
+                          Branch name <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          required
+                          type="text"
+                          value={form.branchName}
+                          onChange={(e) => setForm({ ...form, branchName: e.target.value })}
+                          className="w-full px-3.5 py-2 border border-slate-300 rounded-lg text-sm bg-white"
+                          placeholder="Branch"
+                        />
+                      </div>
+                      <div className="sm:col-span-2">
+                        <label className="block text-xs font-bold text-slate-700 mb-1">
+                          Bank passbook / cancelled cheque <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="file"
+                          accept="image/*,.pdf"
+                          required={!form.passbookFileName}
+                          onChange={(e) => handleFileUpload(e, "passbookFile", "passbookFileName")}
+                          className="w-full text-xs text-slate-600 file:mr-2 file:py-1 file:px-2.5 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-100 file:text-blue-800"
+                        />
+                        {form.passbookFileName ? (
+                          <div className="text-[11px] text-emerald-700 font-semibold mt-1 truncate">
+                            ✓ {form.passbookFileName}
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+                  ) : form.uploadBankDetails === "NO" ? (
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+                      Bank details will be taken after you are selected and made an employee.
+                    </div>
+                  ) : null}
                 </div>
 
                 {/* SECTION 7: VERIFICATION & DEPOSIT */}
@@ -2599,10 +2836,7 @@ export default function ApplyPage() {
                       </label>
                       <div className="rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-sm text-amber-950">
                         <p className="font-bold text-[11px] uppercase tracking-wide mb-0.5">Note</p>
-                        <p>
-                          Security deposit is taken only after you are selected. You do not have to fill or pay this
-                          now.
-                        </p>
+                        <p>The security deposit is collected only after you are selected.</p>
                       </div>
                     </div>
                   </div>
@@ -2619,7 +2853,7 @@ export default function ApplyPage() {
                     </h3>
                   </div>
 
-                  <div className="grid gap-4 sm:grid-cols-3">
+                  <div className="grid gap-4 sm:grid-cols-2">
                     <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
                       <div className="text-xs font-bold text-slate-800">
                         Aadhaar Card <span className="text-red-500">*</span>
@@ -2652,24 +2886,6 @@ export default function ApplyPage() {
                       {form.panFileName && (
                         <div className="text-[11px] text-emerald-700 font-semibold truncate">
                           ✓ {form.panFileName}
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl space-y-2">
-                      <div className="text-xs font-bold text-slate-800">Bank Passbook / Cheque</div>
-                      <p className="text-[11px] text-amber-950">
-                        Needed only after you are selected. You may skip this now.
-                      </p>
-                      <input
-                        type="file"
-                        accept="image/*,.pdf"
-                        onChange={(e) => handleFileUpload(e, "passbookFile", "passbookFileName")}
-                        className="w-full text-xs text-slate-600 file:mr-2 file:py-1 file:px-2.5 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-100 file:text-blue-800"
-                      />
-                      {form.passbookFileName && (
-                        <div className="text-[11px] text-emerald-700 font-semibold truncate">
-                          ✓ {form.passbookFileName}
                         </div>
                       )}
                     </div>
@@ -2779,9 +2995,19 @@ export default function ApplyPage() {
                 <div>
                   <h2 className="text-xl font-bold text-slate-900">Application Successfully Submitted!</h2>
                   <p className="text-xs text-slate-500 mt-1">
-                    Your candidate profile has been registered in the company&apos;s Applicant Book for review and verification.
+                    {officeAdmin
+                      ? "This form was filled up by admin and saved in the Applicant Book."
+                      : "Your candidate profile has been registered in the company's Applicant Book for review and verification."}
                   </p>
                 </div>
+                {officeAdmin ? (
+                  <div className="p-4 bg-indigo-50 border border-indigo-200 rounded-xl text-left text-xs space-y-1 max-w-sm w-full mx-auto">
+                    <div className="text-[10px] font-bold uppercase tracking-wide text-indigo-800">Form filled up by admin</div>
+                    <div className="font-semibold text-slate-900">{officeAdmin.name}</div>
+                    <div className="font-mono text-slate-700">Email: {officeAdmin.email || "—"}</div>
+                    <div className="font-mono text-slate-700">Admin ID: {officeAdmin.id}</div>
+                  </div>
+                ) : null}
 
                 <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl inline-block text-left text-xs space-y-1.5 max-w-sm w-full mx-auto font-mono">
                   <div className="flex justify-between">
@@ -2807,17 +3033,27 @@ export default function ApplyPage() {
                     onClick={() => {
                       setStep("ROLE");
                       setSubmittedRef("");
+                      setForm(initialForm());
                     }}
                     className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg shadow-sm"
                   >
-                    Apply for Another Role
+                    {officeAdmin ? "Fill another form" : "Apply for Another Role"}
                   </button>
-                  <button
-                    onClick={handleSignOut}
-                    className="px-4 py-2 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold rounded-lg border border-slate-300 shadow-xs transition"
-                  >
-                    Sign Out
-                  </button>
+                  {officeAdmin ? (
+                    <Link
+                      href={`/${companySlug}/applicants`}
+                      className="px-4 py-2 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold rounded-lg border border-slate-300 shadow-xs transition"
+                    >
+                      Back to New applicant
+                    </Link>
+                  ) : (
+                    <button
+                      onClick={handleSignOut}
+                      className="px-4 py-2 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold rounded-lg border border-slate-300 shadow-xs transition"
+                    >
+                      Sign Out
+                    </button>
+                  )}
                 </div>
               </div>
             )}

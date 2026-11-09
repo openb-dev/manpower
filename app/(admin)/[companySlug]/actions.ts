@@ -2,7 +2,7 @@
 
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { maskAadhaar } from "@/lib/crypto";
+import { decryptText, formatAadhaar } from "@/lib/crypto";
 import { ApplicantStatus, AttendanceStatus, Role } from "@prisma/client";
 import { listApplicants } from "@/modules/applicants/services";
 import { assignEmployeeSite, listEmployees } from "@/modules/employees/services";
@@ -78,6 +78,7 @@ export async function loadApplicantDetail(companySlug: string, applicantId: stri
     include: {
       jobRole: { select: { id: true, name: true, code: true } },
       roleCategory: { select: { id: true, name: true, code: true } },
+      employee: { select: { id: true, employeeCode: true } },
       remarks: {
         include: { user: { select: { name: true, email: true } } },
         orderBy: { createdAt: "desc" },
@@ -85,11 +86,12 @@ export async function loadApplicantDetail(companySlug: string, applicantId: stri
     },
   });
   if (!applicant) throw new Error("Applicant not found in this company.");
-  const { aadhaarEncrypted: _aadhaarEncrypted, aadhaarHash: _aadhaarHash, ...safe } = applicant;
+  const { aadhaarEncrypted, aadhaarHash: _aadhaarHash, ...safe } = applicant;
+  const aadhaarDisplay = formatAadhaar(decryptText(aadhaarEncrypted) || applicant.aadhaarLast4);
   return toClientJson({
     ...safe,
-    formData: maskFormSecrets(applicant.formData),
-    aadhaarDisplay: maskAadhaar(applicant.aadhaarLast4),
+    formData: revealFormAadhaar(applicant.formData, aadhaarDisplay),
+    aadhaarDisplay,
   });
 }
 
@@ -471,18 +473,10 @@ export async function loadCompanyReports(companySlug: string) {
   });
 }
 
-function maskFormSecrets(formData: unknown) {
+function revealFormAadhaar(formData: unknown, aadhaarDisplay: string) {
   if (!formData || typeof formData !== "object" || Array.isArray(formData)) return {};
   const copy = { ...(formData as Record<string, unknown>) };
-  if (copy.aadhaar) copy.aadhaar = maskAadhaar(String(copy.aadhaar));
-  if (Array.isArray(copy.family)) {
-    copy.family = copy.family.map((member) => {
-      if (!member || typeof member !== "object") return member;
-      const row = { ...(member as Record<string, unknown>) };
-      if (row.aadhaar) row.aadhaar = maskAadhaar(String(row.aadhaar));
-      return row;
-    });
-  }
+  if (aadhaarDisplay) copy.aadhaar = aadhaarDisplay;
   return copy;
 }
 
@@ -504,12 +498,13 @@ export async function loadReportPerson(
     });
     if (!applicant) throw new Error("Applicant not found in this company.");
 
-    const { aadhaarEncrypted: _aadhaarEncrypted, aadhaarHash: _aadhaarHash, ...safe } = applicant;
+    const { aadhaarEncrypted, aadhaarHash: _aadhaarHash, ...safe } = applicant;
+    const aadhaarDisplay = formatAadhaar(decryptText(aadhaarEncrypted) || applicant.aadhaarLast4);
     return toClientJson({
       kind: "applicant" as const,
       ...safe,
-      formData: maskFormSecrets(applicant.formData),
-      aadhaarDisplay: maskAadhaar(applicant.aadhaarLast4),
+      formData: revealFormAadhaar(applicant.formData, aadhaarDisplay),
+      aadhaarDisplay,
     });
   }
 
@@ -539,7 +534,8 @@ export async function loadReportPerson(
   });
   if (!employee) throw new Error("Employee not found in this company.");
 
-  const { aadhaarEncrypted: _aadhaarEncrypted, aadhaarHash: _aadhaarHash, ...safe } = employee;
+  const { aadhaarEncrypted, aadhaarHash: _aadhaarHash, ...safe } = employee;
+  const aadhaarDisplay = formatAadhaar(decryptText(aadhaarEncrypted) || employee.aadhaarLast4);
   return toClientJson({
     kind: "employee" as const,
     ...safe,
@@ -552,9 +548,9 @@ export async function loadReportPerson(
     exServiceNo: employee.applicant?.exServiceNo,
     armsLicenseNo: employee.applicant?.armsLicenseNo,
     pvcStatus: employee.applicant?.pvcStatus,
-    formData: maskFormSecrets(employee.applicant?.formData),
+    formData: revealFormAadhaar(employee.applicant?.formData, aadhaarDisplay),
     applicantDocuments: employee.applicant?.documents || [],
-    aadhaarDisplay: maskAadhaar(employee.aadhaarLast4),
+    aadhaarDisplay,
   });
 }
 

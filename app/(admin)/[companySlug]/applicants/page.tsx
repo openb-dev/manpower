@@ -8,6 +8,8 @@ import { statusLabel } from "@/components/admin/SimpleGuide";
 import { loadApplicantBook, loadApplicantDetail } from "../actions";
 import { downloadPaperFormPdf, paperFormFileName } from "@/lib/downloadPaperFormPdf";
 import { friendlyPublicError, readApiJson } from "@/lib/publicErrors";
+import { filledByAdminInfo, hasPassbookAttachment } from "@/lib/applicantFormFields";
+import FilledByAdminNote from "@/components/admin/FilledByAdminNote";
 
 const ApplicantPaperForm = dynamic(
   () => import("@/components/admin/ApplicantPaperForm").then((mod) => mod.ApplicantPaperForm),
@@ -42,6 +44,8 @@ export default function ApplicantBookPage() {
   const [joinIfsc, setJoinIfsc] = useState("");
   const [joinBranchName, setJoinBranchName] = useState("");
   const [joinSecurityMoney, setJoinSecurityMoney] = useState("");
+  const [officeApplicantId, setOfficeApplicantId] = useState("");
+  const [savingOfficeId, setSavingOfficeId] = useState(false);
 
   // Remark modal state
   const [newRemark, setNewRemark] = useState("");
@@ -163,10 +167,17 @@ export default function ApplicantBookPage() {
       const data = await readApiJson(res);
       if (!res.ok) throw new Error(data.error || "This person could not be made an employee.");
 
-      alert(`Done. This person is now an employee. Employee number: ${data.employeeCode}`);
+      alert(`Done. This person is now an employee. You can now enter the Employee ID No.`);
       setShowApproveModal(false);
-      setSelectedApplicant(null);
       loadApplicants();
+      try {
+        const detail = await loadApplicantDetail(companySlug, selectedApplicant.id);
+        setSelectedApplicant(detail);
+        setOfficeApplicantId(detail.employee?.employeeCode || data.employeeCode || "");
+      } catch {
+        setSelectedApplicant((prev: any) => (prev ? { ...prev, status: "APPROVED" } : prev));
+        setOfficeApplicantId(data.employeeCode || "");
+      }
     } catch (e: any) {
       setActionError(friendlyPublicError(e.message || "This person could not be made an employee."));
     } finally {
@@ -197,6 +208,40 @@ export default function ApplicantBookPage() {
       }
     } catch (e: any) {
       alert(friendlyPublicError(e.message || "The note could not be saved."));
+    }
+  }
+
+  async function handleSaveOfficeId() {
+    if (!selectedApplicant) return;
+    setSavingOfficeId(true);
+    try {
+      const res = await fetch(`/api/admin/${companySlug}`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "SAVE_OFFICE_ID",
+          applicantId: selectedApplicant.id,
+          officeApplicantId: officeApplicantId.trim(),
+        }),
+      });
+      const data = await readApiJson(res);
+      if (!res.ok) throw new Error(data.error || "The employee ID number could not be saved.");
+      const savedId = data.employeeCode || data.officeApplicantId || officeApplicantId.trim();
+      setOfficeApplicantId(savedId);
+      setSelectedApplicant((prev: any) =>
+        prev
+          ? {
+              ...prev,
+              formData: { ...(prev.formData || {}), officeApplicantId: savedId },
+              employee: { ...(prev.employee || {}), employeeCode: savedId },
+            }
+          : prev,
+      );
+    } catch (e: any) {
+      alert(friendlyPublicError(e.message || "The employee ID number could not be saved."));
+    } finally {
+      setSavingOfficeId(false);
     }
   }
 
@@ -281,6 +326,12 @@ export default function ApplicantBookPage() {
           >
             Search
           </button>
+          <a
+            href={`/apply/${companySlug}`}
+            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg shadow-xs transition"
+          >
+            Fill form for a person
+          </a>
           <button
             type="button"
             disabled={downloading || selectedIds.length === 0}
@@ -390,7 +441,14 @@ export default function ApplicantBookPage() {
                         className="h-4 w-4 rounded-full border-slate-400 text-blue-600 accent-blue-600"
                       />
                     </td>
-                    <td className="p-4 font-semibold text-slate-900">{a.fullName}</td>
+                    <td className="p-4 font-semibold text-slate-900">
+                      {a.fullName}
+                      {filledByAdminInfo(a) ? (
+                        <span className="block text-[10px] font-bold uppercase tracking-wide text-indigo-700 mt-0.5">
+                          Form filled up by admin
+                        </span>
+                      ) : null}
+                    </td>
                     <td className="p-4">
                       <span className="font-medium text-slate-800">{a.jobRole?.name}</span>
                       <span className="block text-xs text-slate-400">{a.roleCategory?.name}</span>
@@ -424,6 +482,9 @@ export default function ApplicantBookPage() {
                           try {
                             const detail = await loadApplicantDetail(companySlug, a.id);
                             setSelectedApplicant(detail);
+                            setOfficeApplicantId(
+                              detail.employee?.employeeCode || detail.formData?.officeApplicantId || "",
+                            );
                           } catch (err: any) {
                             alert(friendlyPublicError(err.message || "Could not open this form."));
                           }
@@ -464,9 +525,15 @@ export default function ApplicantBookPage() {
                 <div>
                   <h2 className="text-xl font-bold text-slate-900">{selectedApplicant.fullName}</h2>
                   <div className="flex flex-wrap items-center gap-2 mt-1 text-xs">
-                    <span className="font-mono bg-slate-100 text-slate-700 px-2 py-0.5 rounded font-semibold">
-                      ID: {selectedApplicant.id.slice(0, 13)}...
-                    </span>
+                    {selectedApplicant.status === "APPROVED" &&
+                    (selectedApplicant.employee?.employeeCode ||
+                      selectedApplicant.formData?.officeApplicantId) ? (
+                      <span className="font-mono bg-slate-100 text-slate-700 px-2 py-0.5 rounded font-semibold">
+                        Employee ID:{" "}
+                        {selectedApplicant.employee?.employeeCode ||
+                          selectedApplicant.formData?.officeApplicantId}
+                      </span>
+                    ) : null}
                     <span className="bg-blue-100 text-blue-800 px-2 py-0.5 rounded font-bold">
                       {selectedApplicant.jobRole?.name} ({selectedApplicant.roleCategory?.name})
                     </span>
@@ -483,7 +550,36 @@ export default function ApplicantBookPage() {
                     >
                       {statusLabel(selectedApplicant.status)}
                     </span>
+                    {filledByAdminInfo(selectedApplicant) ? (
+                      <span className="px-2 py-0.5 rounded font-bold bg-indigo-100 text-indigo-800">
+                        Form filled up by admin
+                      </span>
+                    ) : null}
                   </div>
+                  {selectedApplicant.status === "APPROVED" ? (
+                    <div className="flex flex-wrap items-center gap-2 mt-2">
+                      <label className="text-[10px] font-bold uppercase text-slate-500">Employee ID No.</label>
+                      <input
+                        type="text"
+                        value={officeApplicantId}
+                        onChange={(e) => setOfficeApplicantId(e.target.value)}
+                        placeholder="Type employee ID"
+                        className="px-2 py-1 border border-slate-300 rounded text-xs font-mono w-40"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleSaveOfficeId}
+                        disabled={savingOfficeId}
+                        className="px-2 py-1 bg-slate-800 hover:bg-slate-900 text-white text-[11px] font-bold rounded disabled:opacity-50"
+                      >
+                        {savingOfficeId ? "Saving..." : "Save ID"}
+                      </button>
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-slate-500 mt-2">
+                      Employee ID No. opens only after this applicant is approved.
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -511,6 +607,7 @@ export default function ApplicantBookPage() {
 
             {/* SCROLLABLE BODY CONTENT */}
             <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-6 print:overflow-visible print:p-0">
+              <FilledByAdminNote person={selectedApplicant} />
               <ApplicantPaperForm person={selectedApplicant} company={{ slug: companySlug }} />
               {/* SECTION 1: PERSONAL & GENERAL DETAILS */}
               <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 no-print">
@@ -607,9 +704,17 @@ export default function ApplicantBookPage() {
                     </span>
                   </div>
                   <div>
-                    <span className="text-slate-400 block font-semibold text-[10px] uppercase">Reference</span>
+                    <span className="text-slate-400 block font-semibold text-[10px] uppercase">Reference (Name & Relation)</span>
                     <span className="font-semibold text-slate-800">
                       {selectedApplicant.formData?.reference || "—"}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block font-semibold text-[10px] uppercase">Known since (years)</span>
+                    <span className="font-semibold text-slate-800">
+                      {selectedApplicant.formData?.referenceYears
+                        ? `${selectedApplicant.formData.referenceYears} years`
+                        : "—"}
                     </span>
                   </div>
                   <div>
@@ -712,8 +817,8 @@ export default function ApplicantBookPage() {
                     <span className="font-semibold font-mono text-emerald-800">{selectedApplicant.mobile}</span>
                   </div>
                   <div>
-                    <span className="text-slate-400 block font-semibold text-[10px] uppercase">Aadhaar (Masked)</span>
-                    <span className="font-semibold font-mono text-slate-800">{selectedApplicant.aadhaarDisplay}</span>
+                    <span className="text-slate-400 block font-semibold text-[10px] uppercase">Aadhaar Number</span>
+                    <span className="font-semibold font-mono text-slate-800">{selectedApplicant.aadhaarDisplay || selectedApplicant.formData?.aadhaar || "—"}</span>
                   </div>
                   <div>
                     <span className="text-slate-400 block font-semibold text-[10px] uppercase">PAN Card</span>
@@ -797,7 +902,7 @@ export default function ApplicantBookPage() {
                           <td className="px-4 py-2 text-slate-600">{member.relation || "—"}</td>
                           <td className="px-4 py-2 text-slate-600">{member.dateOfBirth || "—"}</td>
                           <td className="px-4 py-2 font-mono text-slate-600">
-                            {member.aadhaar ? `•••• ${member.aadhaar.slice(-4)}` : "—"}
+                            {member.aadhaar || "—"}
                           </td>
                         </tr>
                       ))}
@@ -811,8 +916,13 @@ export default function ApplicantBookPage() {
                 <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-3">
                   5. Bank Account & Security Deposit
                 </h3>
-                {selectedApplicant.formData?.bankName || selectedApplicant.formData?.accountNo ? (
+                {selectedApplicant.formData?.uploadBankDetails === "YES" &&
+                (selectedApplicant.formData?.bankName || selectedApplicant.formData?.accountNo) ? (
                 <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-xs">
+                  <div>
+                    <span className="text-slate-400 block font-semibold text-[10px] uppercase">Willing to upload</span>
+                    <span className="font-semibold text-slate-800">Yes</span>
+                  </div>
                   <div>
                     <span className="text-slate-400 block font-semibold text-[10px] uppercase">Bank Name</span>
                     <span className="font-semibold text-slate-800">{selectedApplicant.formData?.bankName || "—"}</span>
@@ -820,7 +930,7 @@ export default function ApplicantBookPage() {
                   <div>
                     <span className="text-slate-400 block font-semibold text-[10px] uppercase">Bank Account No.</span>
                     <span className="font-semibold font-mono text-slate-800">
-                      {selectedApplicant.formData?.accountNo ? `•••• ${selectedApplicant.formData.accountNo.slice(-4)}` : "—"}
+                      {selectedApplicant.formData?.accountNo || "—"}
                     </span>
                   </div>
                   <div>
@@ -831,16 +941,12 @@ export default function ApplicantBookPage() {
                     <span className="text-slate-400 block font-semibold text-[10px] uppercase">Branch Name</span>
                     <span className="font-semibold text-slate-800">{selectedApplicant.formData?.branchName || "—"}</span>
                   </div>
-                  <div>
-                    <span className="text-slate-400 block font-semibold text-[10px] uppercase">Security Deposit</span>
-                    <span className="font-semibold text-slate-800">
-                      {selectedApplicant.formData?.securityMoney ? `₹${selectedApplicant.formData.securityMoney}` : "—"}
-                    </span>
-                  </div>
                 </div>
                 ) : (
                   <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                    Bank details and security deposit are filled only when this person is made an employee.
+                    The security deposit is collected only after you are selected. Bank details are filled only when this
+                    person is made an employee
+                    {selectedApplicant.formData?.uploadBankDetails === "NO" ? " (applicant chose No on the form)." : "."}
                   </p>
                 )}
               </div>
@@ -854,19 +960,31 @@ export default function ApplicantBookPage() {
                   <div>
                     <span className="text-slate-400 block font-semibold text-[10px] uppercase">Aadhaar Document</span>
                     <span className="font-semibold text-emerald-700">
-                      {selectedApplicant.formData?.aadhaarFileName ? `✓ ${selectedApplicant.formData.aadhaarFileName}` : "Attached"}
+                      {selectedApplicant.formData?.aadhaarFileName
+                        ? `✓ ${selectedApplicant.formData.aadhaarFileName}`
+                        : Array.isArray(selectedApplicant.documents) &&
+                            selectedApplicant.documents.some((doc: any) => doc.docType === "AADHAAR")
+                          ? "Attached"
+                          : "—"}
                     </span>
                   </div>
                   <div>
                     <span className="text-slate-400 block font-semibold text-[10px] uppercase">PAN Card Document</span>
                     <span className="font-semibold text-emerald-700">
-                      {selectedApplicant.formData?.panFileName ? `✓ ${selectedApplicant.formData.panFileName}` : "Attached"}
+                      {selectedApplicant.formData?.panFileName
+                        ? `✓ ${selectedApplicant.formData.panFileName}`
+                        : Array.isArray(selectedApplicant.documents) &&
+                            selectedApplicant.documents.some((doc: any) => doc.docType === "PAN")
+                          ? "Attached"
+                          : "—"}
                     </span>
                   </div>
                   <div>
                     <span className="text-slate-400 block font-semibold text-[10px] uppercase">Bank Passbook</span>
-                    <span className="font-semibold text-emerald-700">
-                      {selectedApplicant.formData?.passbookFileName ? `✓ ${selectedApplicant.formData.passbookFileName}` : "Attached"}
+                    <span className={`font-semibold ${hasPassbookAttachment(selectedApplicant) ? "text-emerald-700" : "text-slate-500"}`}>
+                      {hasPassbookAttachment(selectedApplicant)
+                        ? `✓ ${selectedApplicant.formData?.passbookFileName || "Attached"}`
+                        : "Not attached"}
                     </span>
                   </div>
                   <div>

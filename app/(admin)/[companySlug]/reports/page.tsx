@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import { loadCompanyReports, loadReportPerson } from "../actions";
 import { statusLabel } from "@/components/admin/SimpleGuide";
 import { friendlyPublicError } from "@/lib/publicErrors";
+import FilledByAdminNote from "@/components/admin/FilledByAdminNote";
 
 const ApplicantPaperForm = dynamic(
   () => import("@/components/admin/ApplicantPaperForm").then((mod) => mod.ApplicantPaperForm),
@@ -697,19 +698,22 @@ function collectDocuments(person: any) {
     out.push({ docType: type, fileName: name, src: href || undefined });
   }
 
+  const fd = person?.formData || {};
+  const skipPassbook = String(fd.uploadBankDetails || "").toUpperCase() === "NO";
   const lists = [person?.documents, person?.applicantDocuments];
   for (const list of lists) {
     if (!Array.isArray(list)) continue;
     for (const doc of list) {
+      if (skipPassbook && String(doc?.docType || "").toUpperCase() === "PASSBOOK") continue;
       add(doc.docType, doc.fileName, doc.fileData || doc.fileKey);
     }
   }
-
-  const fd = person?.formData || {};
   add("PHOTO", fd.photoName || "Passport photo", fd.photo);
   add("AADHAAR", fd.aadhaarFileName || "Aadhaar document", fd.aadhaarFile);
   add("PAN", fd.panFileName || "PAN document", fd.panFile);
-  add("PASSBOOK", fd.passbookFileName || "Bank passbook", fd.passbookFile);
+  if (!skipPassbook && (fd.passbookFileName || fd.passbookFile)) {
+    add("PASSBOOK", fd.passbookFileName || "Bank passbook", fd.passbookFile);
+  }
   add("EDUCATION", fd.educationFileName || "Education certificate", fd.educationFile);
   add("OTHER_QUALIFICATION", fd.otherQualFileName || "Other qualification certificate", fd.otherQualFile);
   add("POLICE_VERIFICATION", fd.policeFileName || "Police verification document", fd.policeFile);
@@ -795,6 +799,7 @@ function PersonReportModal({
             <p className="text-sm text-slate-500 no-print">Loading full form details and documents...</p>
           ) : (
             <>
+              <FilledByAdminNote person={person} />
               <ApplicantPaperForm person={person} company={company} />
 
               <section className="bg-slate-50 border border-slate-200 rounded-xl p-4 no-print">

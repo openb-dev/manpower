@@ -7,6 +7,7 @@ import HrmHeader from "@/components/admin/HrmHeader";
 import { statusLabel } from "@/components/admin/SimpleGuide";
 import { assignStaffSite, loadEmployeeBook, loadReportPerson } from "../actions";
 import { friendlyPublicError, readApiJson } from "@/lib/publicErrors";
+import FilledByAdminNote from "@/components/admin/FilledByAdminNote";
 
 const ApplicantPaperForm = dynamic(
   () => import("@/components/admin/ApplicantPaperForm").then((mod) => mod.ApplicantPaperForm),
@@ -250,6 +251,7 @@ export default function EmployeeBookPage() {
               </div>
             </div>
 
+            <FilledByAdminNote person={selectedEmployee} />
             <ApplicantPaperForm person={selectedEmployee} company={{ slug: companySlug }} />
 
             <div className="grid grid-cols-2 gap-3 text-sm mt-6 no-print">

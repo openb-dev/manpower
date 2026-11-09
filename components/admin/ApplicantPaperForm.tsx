@@ -152,6 +152,8 @@ export function ApplicantPaperForm({
   const account = text(person?.bankAccountNo || fd.accountNo);
   const ifsc = text(person?.bankIfsc || fd.ifsc);
   const branch = [text(fd.bankName), text(person?.bankBranch || fd.branchName)].filter(Boolean).join(", ");
+  const employeeIdNo = text(person?.employeeCode || person?.employee?.employeeCode || fd.officeApplicantId);
+  const filledBy = fd.filledByAdmin && typeof fd.filledByAdmin === "object" ? fd.filledByAdmin : null;
 
   return (
     <div className="paper-form-pack text-black">
@@ -190,6 +192,15 @@ export function ApplicantPaperForm({
             <br />
             My Bio-data is given below :-
           </p>
+          <p className="mt-1 text-[12px] leading-snug">
+            Employee ID No. : <Blank value={employeeIdNo} min="8rem" />
+          </p>
+          {filledBy ? (
+            <p className="mt-1 text-[11px] leading-snug">
+              Form filled up by admin : <Blank value={filledBy.name} min="6rem" /> Email{" "}
+              <Blank value={filledBy.email} min="8rem" /> Admin ID <Blank value={filledBy.userId || filledBy.id} min="8rem" />
+            </p>
+          ) : null}
           {(person?.jobRole?.name || person?.roleCategory?.name || fd.skillCategory || fd.gemExperience) && (
             <p className="mt-1 text-[11px] leading-snug break-words">
               Post applied :{" "}
@@ -347,9 +358,10 @@ export function ApplicantPaperForm({
             <li className="flex gap-2">
               <span className="w-5 shrink-0">17.</span>
               <span className="flex-1">
-                Reference certificate (if any) :- certificate that the above named individual is known to me since last{" "}
-                <Blank value={fd.reference} className="min-w-[12rem]" /> yrs. he bears a good moral character and I assure
-                that he will surely discharge a complaint free service, if employed. I stand guarantor for him.
+                Reference : <Blank value={fd.reference} className="min-w-[10rem]" />. Certificate that the above named
+                individual is known to me since last <Blank value={fd.referenceYears} min="3rem" /> yrs. He bears a good
+                moral character and I assure that He will surely discharge a complaint free service, if employed. I stand
+                guarantor for him.
               </span>
             </li>
           </ol>

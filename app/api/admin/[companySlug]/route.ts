@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { Role } from "@prisma/client";
-import { addApplicantRemark, listApplicants, updateApplicantStatus } from "@/modules/applicants/services";
+import { addApplicantRemark, listApplicants, saveOfficeApplicantId, updateApplicantStatus } from "@/modules/applicants/services";
 import { approveApplicantAndCreateEmployee, assignEmployeeSite, listEmployees, softDeleteEmployee } from "@/modules/employees/services";
 import { bulkMarkAttendance, getMonthlyAttendanceSummary, lockMonthAttendance } from "@/modules/attendance/services";
 import { publicCatchMessage } from "@/lib/publicErrors";
@@ -141,6 +141,15 @@ export async function POST(
     const { companySlug } = await params;
     const { user, company } = await verifyTenantSession(companySlug);
     const body = await request.json();
+
+    if (body.action === "SAVE_OFFICE_ID") {
+      const data = await saveOfficeApplicantId({
+        companyId: company.id,
+        applicantId: body.applicantId,
+        officeApplicantId: String(body.officeApplicantId || ""),
+      });
+      return NextResponse.json(data);
+    }
 
     if (body.action === "ADD_REMARK") {
       const data = await addApplicantRemark({

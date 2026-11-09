@@ -4,6 +4,7 @@ import { requestApplicantOtp, verifyApplicantOtp } from "@/modules/otp/services"
 import { submitApplicant } from "@/modules/applicants/services";
 import { registerCandidate, loginCandidate, getCandidateApplications } from "@/modules/candidates/services";
 import { publicCatchMessage } from "@/lib/publicErrors";
+import { currentOfficeAdmin } from "@/lib/officeAdmin";
 
 export async function GET(
   request: Request,
@@ -133,10 +134,15 @@ export async function POST(
     }
 
     if (body.action === "SUBMIT_APPLICATION") {
-      const res = await submitApplicant({
-        ...body.data,
-        companySlug,
-      });
+      const officeAdmin = await currentOfficeAdmin(companySlug);
+      const res = await submitApplicant(
+        {
+          ...body.data,
+          companySlug,
+          ...(officeAdmin ? { candidateAccountId: undefined } : {}),
+        },
+        officeAdmin,
+      );
       return NextResponse.json(res);
     }
 

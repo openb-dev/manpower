@@ -1,12 +1,16 @@
 import { prisma, getTenantPrisma } from "../../lib/db/index.ts";
-import { encryptText, getAadhaarLast4, hashAadhaar, maskAadhaar } from "../../lib/crypto/index.ts";
+import { decryptText, encryptText, formatAadhaar, getAadhaarLast4, hashAadhaar } from "../../lib/crypto/index.ts";
 import { ApplicantStatus, Role, VerificationStatus } from "@prisma/client";
 import { z } from "zod";
 import { ApplicantSubmitSchema } from "./schema.ts";
 import { formDataWithoutFiles } from "../../lib/applicantFormFields.ts";
 import { firstZodMessage } from "../../lib/publicErrors.ts";
+import type { OfficeAdmin } from "../../lib/officeAdmin.ts";
 
-export async function submitApplicant(rawInput: z.infer<typeof ApplicantSubmitSchema>) {
+export async function submitApplicant(
+  rawInput: z.infer<typeof ApplicantSubmitSchema>,
+  officeAdmin?: OfficeAdmin | null,
+) {
   const parsed = ApplicantSubmitSchema.safeParse(rawInput);
   if (!parsed.success) throw new Error(firstZodMessage(parsed.error));
   const input = parsed.data;
@@ -16,9 +20,18 @@ export async function submitApplicant(rawInput: z.infer<typeof ApplicantSubmitSc
   });
   if (!company) throw new Error("Company not found.");
 
-  // Ensure candidate account is verified OR OTP was verified within the last 60 minutes
-  let isVerified = false;
-  if (input.candidateAccountId) {
+  const filledByAdmin = officeAdmin
+    ? {
+        userId: officeAdmin.id,
+        name: officeAdmin.name,
+        email: officeAdmin.email,
+        filledAt: new Date().toISOString(),
+      }
+    : null;
+
+  // Candidate OTP is required unless an office admin is filling this form.
+  let isVerified = Boolean(filledByAdmin);
+  if (!isVerified && input.candidateAccountId) {
     const candidate = await prisma.candidateAccount.findUnique({
       where: { id: input.candidateAccountId },
     });
@@ -90,7 +103,10 @@ export async function submitApplicant(rawInput: z.infer<typeof ApplicantSubmitSc
       armsExpiryDate: input.armsExpiryDate ? new Date(input.armsExpiryDate) : null,
       exServiceNo: input.exServiceNo?.trim() || null,
       pvcStatus,
-      formData: formDataWithoutFiles(input.formData || {}),
+      formData: {
+        ...formDataWithoutFiles(input.formData || {}),
+        ...(filledByAdmin ? { filledByAdmin } : {}),
+      },
       documents: input.documents,
       status: ApplicantStatus.NEW,
     },
@@ -100,10 +116,15 @@ export async function submitApplicant(rawInput: z.infer<typeof ApplicantSubmitSc
   await prisma.auditLog.create({
     data: {
       companyId: company.id,
+      userId: filledByAdmin?.userId || null,
       entityType: "APPLICANT",
       entityId: applicant.id,
-      action: "SUBMIT",
-      newValue: { fullName: applicant.fullName, status: applicant.status },
+      action: filledByAdmin ? "SUBMIT_BY_ADMIN" : "SUBMIT",
+      newValue: {
+        fullName: applicant.fullName,
+        status: applicant.status,
+        ...(filledByAdmin ? { filledByAdmin } : {}),
+      },
     },
   });
 
@@ -149,6 +170,10 @@ export async function listApplicants({
         fullName: true,
         mobile: true,
         email: true,
+        pan: true,
+        aadhaarEncrypted: true,
+        aadhaarLast4: true,
+        formData: true,
         status: true,
         createdAt: true,
         jobRole: { select: { id: true, name: true, code: true } },
@@ -161,10 +186,11 @@ export async function listApplicants({
     tenantDb.applicant.count({ where }),
   ]);
 
-  // Strip sensitive columns from response, preserve masked presentation
-  const safeItems = items.map((app) => ({
+  const safeItems = items.map(({ aadhaarEncrypted, aadhaarLast4, formData, ...app }) => ({
     ...app,
-    aadhaarDisplay: "",
+    officeApplicantId: String((formData as any)?.officeApplicantId || ""),
+    filledByAdmin: (formData as any)?.filledByAdmin || null,
+    aadhaarDisplay: formatAadhaar(decryptText(aadhaarEncrypted) || aadhaarLast4),
   }));
 
   return { items: safeItems, total, page, totalPages: Math.ceil(total / limit) };
@@ -267,4 +293,53 @@ export async function updateApplicantStatus({
   });
 
   return updated;
+}
+
+export async function saveOfficeApplicantId({
+  companyId,
+  applicantId,
+  officeApplicantId,
+}: {
+  companyId: string;
+  applicantId: string;
+  officeApplicantId: string;
+}) {
+  const applicant = await prisma.applicant.findFirst({
+    where: { id: applicantId, companyId, deletedAt: null },
+    include: { employee: { select: { id: true, employeeCode: true } } },
+  });
+  if (!applicant) throw new Error("Applicant not found in this company.");
+  if (applicant.status !== ApplicantStatus.APPROVED) {
+    throw new Error("Employee ID number can be entered only after the applicant is approved.");
+  }
+
+  const employeeIdNo = String(officeApplicantId || "").trim();
+  if (!employeeIdNo) throw new Error("Please enter the employee ID number.");
+
+  const formData = {
+    ...((applicant.formData as Record<string, unknown>) || {}),
+    officeApplicantId: employeeIdNo,
+  };
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      await tx.applicant.update({
+        where: { id: applicantId },
+        data: { formData },
+      });
+      if (applicant.employee?.id && applicant.employee.employeeCode !== employeeIdNo) {
+        await tx.employee.update({
+          where: { id: applicant.employee.id },
+          data: { employeeCode: employeeIdNo },
+        });
+      }
+    });
+  } catch (error: any) {
+    if (error?.code === "P2002") {
+      throw new Error("This employee ID number is already used.");
+    }
+    throw error;
+  }
+
+  return { officeApplicantId: employeeIdNo, employeeCode: employeeIdNo };
 }

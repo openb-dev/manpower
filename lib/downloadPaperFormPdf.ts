@@ -117,6 +117,8 @@ export async function buildPaperFormPdf(
   const present = text(person?.presentAddress || fd.presentAddress);
   const permanent = text(person?.permanentAddress || fd.permanentAddress);
   const religion = text(fd.religion);
+  const employeeIdNo = text(person?.employeeCode || person?.employee?.employeeCode || fd.officeApplicantId);
+  const filledBy = fd.filledByAdmin && typeof fd.filledByAdmin === "object" ? fd.filledByAdmin : null;
   const signedOn = dmy(person?.joiningDate || person?.createdAt);
   const postApplied = [person?.jobRole?.name, person?.roleCategory?.name, fd.skillCategory, fd.gemExperience]
     .filter(Boolean)
@@ -271,6 +273,16 @@ export async function buildPaperFormPdf(
   y += 5;
   write("My Bio-data is given below :-", left, y, 10.5);
   y += 6;
+  y = lineFill("Employee ID No. :", employeeIdNo, y);
+  if (filledBy) {
+    y = lineFill(
+      "Form filled up by admin :",
+      [text(filledBy.name), text(filledBy.email) && `Email ${text(filledBy.email)}`, (text(filledBy.userId) || text(filledBy.id)) && `ID ${text(filledBy.userId || filledBy.id)}`]
+        .filter(Boolean)
+        .join("  ·  "),
+      y,
+    );
+  }
   if (postApplied) y = lineFill("Post applied :", postApplied, y);
   y = lineFill("1. Name in full", name, y);
   y = lineFill("2. Father's / Husband Name", father, y);
@@ -341,7 +353,7 @@ export async function buildPaperFormPdf(
   );
   y = lineFill("16. Name of nominee / Relation", [text(fd.nominee), text(fd.nomineeRelation)].filter(Boolean).join(" / "), y);
   y = wrap(
-    `17. Reference : ${text(fd.reference) || "________________"}  - certificate that the above named individual is known to me. He/she bears a good moral character and I stand guarantor for him/her.`,
+    `17. Reference : ${text(fd.reference) || "________________"}  - certificate that the above named individual is known to me since last ${text(fd.referenceYears) || "____"} yrs. He bears a good moral character and I stand guarantor for him/her.`,
     left,
     y,
     width,

@@ -1,5 +1,5 @@
 import { prisma, getTenantPrisma } from "../../lib/db/index.ts";
-import { maskAadhaar } from "../../lib/crypto/index.ts";
+import { decryptText, formatAadhaar } from "../../lib/crypto/index.ts";
 import { ApplicantStatus, EmployeeStatus, Prisma } from "@prisma/client";
 
 export async function approveApplicantAndCreateEmployee({
@@ -229,6 +229,7 @@ export async function listEmployees({
         bankAccountNo: true,
         bankIfsc: true,
         aadhaarLast4: true,
+        aadhaarEncrypted: true,
         jobRole: { select: { id: true, name: true, code: true } },
         roleCategory: { select: { id: true, name: true, code: true } },
         site: { select: { id: true, name: true, code: true } },
@@ -241,11 +242,11 @@ export async function listEmployees({
     tenantDb.employee.count({ where }),
   ]);
 
-  const safeItems = items.map((emp) => ({
+  const safeItems = items.map(({ aadhaarEncrypted, ...emp }) => ({
     ...emp,
     aadhaarEncrypted: undefined,
     aadhaarHash: undefined,
-    aadhaarDisplay: maskAadhaar(emp.aadhaarLast4),
+    aadhaarDisplay: formatAadhaar(decryptText(aadhaarEncrypted) || emp.aadhaarLast4),
   }));
 
   return { items: safeItems, total, page, totalPages: Math.ceil(total / limit) };

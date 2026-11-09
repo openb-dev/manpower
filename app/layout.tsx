@@ -4,6 +4,14 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Manpower Management System",
   description: "Enterprise Multi-Tenant Manpower Architecture",
+  icons: {
+    icon: [
+      { url: "/favicon.svg?v=nk", type: "image/svg+xml" },
+      { url: "/favicon.ico?v=nk" },
+    ],
+    shortcut: "/favicon.ico?v=nk",
+    apple: "/icon.png?v=nk",
+  },
 };
 
 export default function RootLayout({

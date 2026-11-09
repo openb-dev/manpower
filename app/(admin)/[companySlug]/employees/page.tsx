@@ -8,6 +8,7 @@ import { statusLabel } from "@/components/admin/SimpleGuide";
 import { assignStaffSite, loadEmployeeBook, loadReportPerson } from "../actions";
 import { friendlyPublicError, readApiJson } from "@/lib/publicErrors";
 import FilledByAdminNote from "@/components/admin/FilledByAdminNote";
+import AttachedDocuments from "@/components/admin/AttachedDocuments";
 import { printPaperFormPdf } from "@/lib/downloadPaperFormPdf";
 
 const ApplicantPaperForm = dynamic(
@@ -322,22 +323,8 @@ export default function EmployeeBookPage() {
               </div>
             </div>
 
-            <div className="mt-6 border-t pt-4 no-print">
-              <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-2">
-                Documents & Private Storage
-              </h3>
-              {selectedEmployee.documents?.length > 0 ? (
-                <div className="space-y-1">
-                  {selectedEmployee.documents.map((d: any) => (
-                    <div key={d.id} className="text-xs p-2 bg-slate-50 rounded flex justify-between">
-                      <span className="font-medium text-slate-800">{d.docType}</span>
-                      <span className="text-slate-400 font-mono text-[10px]">{d.fileName}</span>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-xs text-slate-400 italic">No document attachments uploaded.</p>
-              )}
+            <div className="mt-6 no-print">
+              <AttachedDocuments person={selectedEmployee} />
             </div>
           </div>
         </div>

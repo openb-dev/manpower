@@ -7,6 +7,7 @@ import { loadCompanyReports, loadReportPerson } from "../actions";
 import { statusLabel } from "@/components/admin/SimpleGuide";
 import { friendlyPublicError } from "@/lib/publicErrors";
 import FilledByAdminNote from "@/components/admin/FilledByAdminNote";
+import AttachedDocuments from "@/components/admin/AttachedDocuments";
 import { printPaperFormPdf } from "@/lib/downloadPaperFormPdf";
 
 const ApplicantPaperForm = dynamic(
@@ -685,42 +686,6 @@ function isViewable(src?: unknown) {
   return typeof src === "string" && (src.startsWith("data:") || src.startsWith("http") || src.startsWith("blob:"));
 }
 
-function collectDocuments(person: any) {
-  const seen = new Set<string>();
-  const out: { docType: string; fileName: string; src?: string }[] = [];
-
-  function add(docType?: string, fileName?: string, src?: unknown) {
-    const type = String(docType || "DOCUMENT");
-    const name = String(fileName || type);
-    const href = typeof src === "string" ? src : "";
-    const key = `${type}|${name}|${href.slice(0, 48)}`;
-    if (seen.has(key)) return;
-    seen.add(key);
-    out.push({ docType: type, fileName: name, src: href || undefined });
-  }
-
-  const fd = person?.formData || {};
-  const skipPassbook = String(fd.uploadBankDetails || "").toUpperCase() === "NO";
-  const lists = [person?.documents, person?.applicantDocuments];
-  for (const list of lists) {
-    if (!Array.isArray(list)) continue;
-    for (const doc of list) {
-      if (skipPassbook && String(doc?.docType || "").toUpperCase() === "PASSBOOK") continue;
-      add(doc.docType, doc.fileName, doc.fileData || doc.fileKey);
-    }
-  }
-  add("PHOTO", fd.photoName || "Passport photo", fd.photo);
-  add("AADHAAR", fd.aadhaarFileName || "Aadhaar document", fd.aadhaarFile);
-  add("PAN", fd.panFileName || "PAN document", fd.panFile);
-  if (!skipPassbook && (fd.passbookFileName || fd.passbookFile)) {
-    add("PASSBOOK", fd.passbookFileName || "Bank passbook", fd.passbookFile);
-  }
-  add("EDUCATION", fd.educationFileName || "Education certificate", fd.educationFile);
-  add("OTHER_QUALIFICATION", fd.otherQualFileName || "Other qualification certificate", fd.otherQualFile);
-  add("POLICE_VERIFICATION", fd.policeFileName || "Police verification document", fd.policeFile);
-  return out;
-}
-
 function PersonReportModal({
   person,
   company,
@@ -734,7 +699,6 @@ function PersonReportModal({
 }) {
   const [printingForm, setPrintingForm] = useState(false);
   const fd = person?.formData || {};
-  const documents = person ? collectDocuments(person) : [];
   const title = person?.fullName || (person?.kind === "employee" ? "Employee" : "Applicant");
 
   return (
@@ -813,42 +777,7 @@ function PersonReportModal({
             <>
               <FilledByAdminNote person={person} />
               <ApplicantPaperForm person={person} company={company} />
-
-              <section className="bg-slate-50 border border-slate-200 rounded-xl p-4 no-print">
-                <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-3">
-                  Attached documents
-                </h3>
-                {documents.length === 0 ? (
-                  <p className="text-xs text-slate-400 italic">No document attachments uploaded.</p>
-                ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {documents.map((doc, idx) => (
-                      <div key={`${doc.docType}-${idx}`} className="border border-slate-200 rounded-lg p-3 bg-white">
-                        <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{doc.docType}</div>
-                        <div className="text-xs font-semibold text-slate-800 mt-0.5 break-all">{doc.fileName}</div>
-                        {isViewable(doc.src) ? (
-                          <div className="mt-2 space-y-2">
-                            {String(doc.src).startsWith("data:image/") || /\.(png|jpe?g|gif|webp)$/i.test(doc.fileName) ? (
-                              <img src={doc.src} alt={doc.fileName} className="max-h-40 rounded border border-slate-200 object-contain" />
-                            ) : null}
-                            <a
-                              href={doc.src}
-                              target="_blank"
-                              rel="noreferrer"
-                              download={doc.fileName}
-                              className="inline-block text-xs font-bold text-indigo-700 hover:underline"
-                            >
-                              Open / download
-                            </a>
-                          </div>
-                        ) : (
-                          <div className="text-[11px] text-slate-500 mt-1">Filed as {doc.fileName}</div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </section>
+              <AttachedDocuments person={person} />
             </>
           )}
         </div>

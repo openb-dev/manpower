@@ -8,8 +8,9 @@ import { statusLabel } from "@/components/admin/SimpleGuide";
 import { loadApplicantBook, loadApplicantDetail } from "../actions";
 import { downloadPaperFormPdf, paperFormFileName, printPaperFormPdf } from "@/lib/downloadPaperFormPdf";
 import { friendlyPublicError, readApiJson } from "@/lib/publicErrors";
-import { filledByAdminInfo, hasPassbookAttachment } from "@/lib/applicantFormFields";
+import { filledByAdminInfo } from "@/lib/applicantFormFields";
 import FilledByAdminNote from "@/components/admin/FilledByAdminNote";
+import AttachedDocuments from "@/components/admin/AttachedDocuments";
 
 const ApplicantPaperForm = dynamic(
   () => import("@/components/admin/ApplicantPaperForm").then((mod) => mod.ApplicantPaperForm),
@@ -962,73 +963,12 @@ export default function ApplicantBookPage() {
                 )}
               </div>
 
-              {/* SECTION 6: DOCUMENTS & LEGAL ACCEPTANCE */}
+              <AttachedDocuments person={selectedApplicant} title="6. Submitted documents" />
               <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 no-print">
-                <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-3">
-                  6. Submitted Documents & Legal Acceptance
-                </h3>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-                  <div>
-                    <span className="text-slate-400 block font-semibold text-[10px] uppercase">Aadhaar Document</span>
-                    <span className="font-semibold text-emerald-700">
-                      {selectedApplicant.formData?.aadhaarFileName
-                        ? `✓ ${selectedApplicant.formData.aadhaarFileName}`
-                        : Array.isArray(selectedApplicant.documents) &&
-                            selectedApplicant.documents.some((doc: any) => doc.docType === "AADHAAR")
-                          ? "Attached"
-                          : "—"}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-slate-400 block font-semibold text-[10px] uppercase">PAN Card Document</span>
-                    <span className="font-semibold text-emerald-700">
-                      {selectedApplicant.formData?.panFileName
-                        ? `✓ ${selectedApplicant.formData.panFileName}`
-                        : Array.isArray(selectedApplicant.documents) &&
-                            selectedApplicant.documents.some((doc: any) => doc.docType === "PAN")
-                          ? "Attached"
-                          : "—"}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-slate-400 block font-semibold text-[10px] uppercase">Bank Passbook</span>
-                    <span className={`font-semibold ${hasPassbookAttachment(selectedApplicant) ? "text-emerald-700" : "text-slate-500"}`}>
-                      {hasPassbookAttachment(selectedApplicant)
-                        ? `✓ ${selectedApplicant.formData?.passbookFileName || "Attached"}`
-                        : "Not attached"}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-slate-400 block font-semibold text-[10px] uppercase">Education certificate</span>
-                    <span className="font-semibold text-emerald-700">
-                      {selectedApplicant.formData?.educationFileName
-                        ? `✓ ${selectedApplicant.formData.educationFileName}`
-                        : "—"}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-slate-400 block font-semibold text-[10px] uppercase">Other qualification certificate</span>
-                    <span className="font-semibold text-emerald-700">
-                      {selectedApplicant.formData?.otherQualFileName
-                        ? `✓ ${selectedApplicant.formData.otherQualFileName}`
-                        : "—"}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-slate-400 block font-semibold text-[10px] uppercase">Police verification document</span>
-                    <span className="font-semibold text-emerald-700">
-                      {selectedApplicant.formData?.policeFileName
-                        ? `✓ ${selectedApplicant.formData.policeFileName}`
-                        : "—"}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-slate-400 block font-semibold text-[10px] uppercase">Joining Terms Version</span>
-                    <span className="font-mono text-slate-700 font-semibold">
-                      {selectedApplicant.formData?.termsVersion || "nk-joining-1"} (Accepted ✓)
-                    </span>
-                  </div>
-                </div>
+                <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-1">Legal acceptance</h3>
+                <p className="text-xs text-slate-700">
+                  Joining terms {selectedApplicant.formData?.termsVersion || "nk-joining-1"} accepted.
+                </p>
               </div>
 
             {/* Remarks History */}

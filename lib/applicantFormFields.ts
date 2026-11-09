@@ -131,9 +131,104 @@ export function applicantPhotoUrl(person: any) {
     if (!Array.isArray(list)) continue;
     const photo = list.find((doc: any) => {
       const type = String(doc?.docType || "").toUpperCase();
-      return type === "PHOTO" && typeof doc?.fileData === "string" && doc.fileData.startsWith("data:image");
+      const src = doc?.fileData || doc?.fileKey;
+      return type === "PHOTO" && typeof src === "string" && src.startsWith("data:image");
     });
-    if (photo?.fileData) return photo.fileData;
+    if (photo?.fileData || photo?.fileKey) return photo.fileData || photo.fileKey;
   }
   return "";
+}
+
+export type AttachedDocument = {
+  docType: string;
+  fileName: string;
+  src: string;
+};
+
+const DOC_LABELS: Record<string, string> = {
+  PHOTO: "Passport photo",
+  AADHAAR: "Aadhaar",
+  PAN: "PAN card",
+  PASSBOOK: "Bank passbook / cheque",
+  EDUCATION: "Education certificate",
+  OTHER_QUALIFICATION: "Other qualification",
+  POLICE_VERIFICATION: "Police verification",
+};
+
+export function documentTypeLabel(docType: string) {
+  const key = String(docType || "").toUpperCase();
+  return DOC_LABELS[key] || key.replace(/_/g, " ").toLowerCase();
+}
+
+function usableFileSrc(value: unknown) {
+  return typeof value === "string" &&
+    (value.startsWith("data:") || value.startsWith("blob:") || value.startsWith("http://") || value.startsWith("https://"))
+    ? value
+    : "";
+}
+
+export function collectAttachedDocuments(person: any): AttachedDocument[] {
+  const seen = new Set<string>();
+  const out: AttachedDocument[] = [];
+  const fd = person?.formData || {};
+  const skipPassbook = String(fd.uploadBankDetails || "").toUpperCase() === "NO";
+
+  function add(docType?: string, fileName?: string, src?: unknown) {
+    const type = String(docType || "DOCUMENT").toUpperCase();
+    if (skipPassbook && type === "PASSBOOK") return;
+    const href = usableFileSrc(src);
+    if (!href) return;
+    const name = String(fileName || documentTypeLabel(type) || "document");
+    const key = `${type}|${name}|${href.slice(0, 80)}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push({ docType: type, fileName: name, src: href });
+  }
+
+  const lists = [person?.documents, person?.applicantDocuments];
+  for (const list of lists) {
+    if (!Array.isArray(list)) continue;
+    for (const doc of list) {
+      add(doc?.docType, doc?.fileName, doc?.fileData || doc?.fileKey || doc?.src);
+    }
+  }
+  add("PHOTO", fd.photoName || "Passport photo", fd.photo);
+  add("AADHAAR", fd.aadhaarFileName || "Aadhaar document", fd.aadhaarFile);
+  add("PAN", fd.panFileName || "PAN document", fd.panFile);
+  add("PASSBOOK", fd.passbookFileName || "Bank passbook", fd.passbookFile);
+  add("EDUCATION", fd.educationFileName || "Education certificate", fd.educationFile);
+  add("OTHER_QUALIFICATION", fd.otherQualFileName || "Other qualification certificate", fd.otherQualFile);
+  add("POLICE_VERIFICATION", fd.policeFileName || "Police verification document", fd.policeFile);
+  return out;
+}
+
+export function attachmentBlobUrl(src: string) {
+  if (!src) return "";
+  if (src.startsWith("blob:") || src.startsWith("http://") || src.startsWith("https://")) return src;
+  if (!src.startsWith("data:")) return src;
+  const comma = src.indexOf(",");
+  if (comma < 0) return src;
+  const header = src.slice(0, comma);
+  const body = src.slice(comma + 1);
+  const mime = header.match(/data:([^;]+)/)?.[1] || "application/octet-stream";
+  const binary = atob(body);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+  return URL.createObjectURL(new Blob([bytes], { type: mime }));
+}
+
+export function downloadAttachedFile(src: string, fileName: string) {
+  const href = attachmentBlobUrl(src);
+  const link = document.createElement("a");
+  link.href = href;
+  link.download = fileName || "document";
+  link.rel = "noopener";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+}
+
+export function openAttachedFile(src: string) {
+  const href = attachmentBlobUrl(src);
+  window.open(href, "_blank", "noopener,noreferrer");
 }

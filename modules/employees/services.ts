@@ -117,18 +117,21 @@ export async function approveApplicantAndCreateEmployee({
     // 2d. Copy applicant documents to EmployeeDocument records
     const rawDocs = (applicant.documents as any[]) || [];
     for (const doc of rawDocs) {
-      if (doc.fileKey) {
-        await tx.employeeDocument.create({
-          data: {
-            employeeId: employee.id,
-            docType: doc.docType || "OTHER",
-            fileKey: doc.fileKey,
-            fileName: doc.fileName || "document",
-            mimeType: doc.mimeType || "application/octet-stream",
-            fileSize: Number(doc.fileSize) || 0,
-          },
-        });
-      }
+      const fileKey = String(doc.fileKey || doc.fileData || "");
+      if (!fileKey) continue;
+      const mimeType =
+        doc.mimeType ||
+        (fileKey.startsWith("data:") ? fileKey.slice(5, fileKey.indexOf(";")) : "application/octet-stream");
+      await tx.employeeDocument.create({
+        data: {
+          employeeId: employee.id,
+          docType: doc.docType || "OTHER",
+          fileKey,
+          fileName: doc.fileName || "document",
+          mimeType: String(mimeType || "application/octet-stream"),
+          fileSize: Number(doc.fileSize) || fileKey.length,
+        },
+      });
     }
 
     // 2e. Update applicant status to APPROVED

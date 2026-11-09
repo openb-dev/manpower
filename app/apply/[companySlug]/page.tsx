@@ -13,6 +13,7 @@ import {
   joinAddressParts,
 } from "@/lib/applicantFormFields";
 import { friendlyPublicError, readApiJson } from "@/lib/publicErrors";
+import { fileToCompressedUpload } from "@/lib/compressUpload";
 import {
   GEM_EXPERIENCE_BANDS,
   GEM_MANPOWER_PROFILES,
@@ -244,56 +245,6 @@ function missingPlace(label: string, pin: string, district: string, state: strin
   return "";
 }
 
-function readAsDataUrl(file: File) {
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result || ""));
-    reader.onerror = () => reject(new Error("Could not read the file."));
-    reader.readAsDataURL(file);
-  });
-}
-
-async function fileToUploadData(file: File) {
-  if (file.size > 8 * 1024 * 1024) {
-    throw new Error("Please choose a file smaller than 8 MB.");
-  }
-  if (!file.type.startsWith("image/")) {
-    if (file.size > 2 * 1024 * 1024) {
-      throw new Error("PDF files must be smaller than 2 MB.");
-    }
-    return readAsDataUrl(file);
-  }
-  return new Promise<string>((resolve, reject) => {
-    const img = new Image();
-    const url = URL.createObjectURL(file);
-    img.onload = () => {
-      URL.revokeObjectURL(url);
-      const max = 1280;
-      let width = img.width;
-      let height = img.height;
-      if (width > max || height > max) {
-        const scale = max / Math.max(width, height);
-        width = Math.round(width * scale);
-        height = Math.round(height * scale);
-      }
-      const canvas = document.createElement("canvas");
-      canvas.width = width;
-      canvas.height = height;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) {
-        readAsDataUrl(file).then(resolve, reject);
-        return;
-      }
-      ctx.drawImage(img, 0, 0, width, height);
-      resolve(canvas.toDataURL("image/jpeg", 0.72));
-    };
-    img.onerror = () => {
-      URL.revokeObjectURL(url);
-      readAsDataUrl(file).then(resolve, reject);
-    };
-    img.src = url;
-  });
-}
 
 const fieldCls = "w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white disabled:bg-slate-100 disabled:text-slate-600";
 
@@ -719,13 +670,13 @@ export default function ApplyPage() {
     const input = e.target;
     const file = input.files?.[0];
     if (!file) return;
-    fileToUploadData(file)
-      .then((dataUrl) => {
+    fileToCompressedUpload(file)
+      .then(({ dataUrl, fileName }) => {
         setError("");
         setForm((prev) => ({
           ...prev,
           [dataKey]: dataUrl,
-          [nameKey]: file.name,
+          [nameKey]: fileName || file.name,
         }));
       })
       .catch((err: any) => {

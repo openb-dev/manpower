@@ -8,6 +8,7 @@ import { statusLabel } from "@/components/admin/SimpleGuide";
 import { assignStaffSite, loadEmployeeBook, loadReportPerson } from "../actions";
 import { friendlyPublicError, readApiJson } from "@/lib/publicErrors";
 import FilledByAdminNote from "@/components/admin/FilledByAdminNote";
+import { printPaperFormPdf } from "@/lib/downloadPaperFormPdf";
 
 const ApplicantPaperForm = dynamic(
   () => import("@/components/admin/ApplicantPaperForm").then((mod) => mod.ApplicantPaperForm),
@@ -26,6 +27,7 @@ export default function EmployeeBookPage() {
   const [listError, setListError] = useState("");
   const [sites, setSites] = useState<any[]>([]);
   const [savingSite, setSavingSite] = useState("");
+  const [printingForm, setPrintingForm] = useState(false);
 
   function loadEmployees() {
     setLoading(true);
@@ -237,10 +239,20 @@ export default function EmployeeBookPage() {
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => window.print()}
-                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg"
+                  disabled={printingForm}
+                  onClick={async () => {
+                    setPrintingForm(true);
+                    try {
+                      await printPaperFormPdf(selectedEmployee, { slug: companySlug });
+                    } catch (err: any) {
+                      alert(friendlyPublicError(err.message || "The paper form could not be printed."));
+                    } finally {
+                      setPrintingForm(false);
+                    }
+                  }}
+                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg disabled:opacity-50"
                 >
-                  Print paper form
+                  {printingForm ? "Opening print..." : "Print paper form"}
                 </button>
                 <button
                   onClick={() => setSelectedEmployee(null)}

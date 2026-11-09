@@ -6,7 +6,7 @@ import dynamic from "next/dynamic";
 import HrmHeader from "@/components/admin/HrmHeader";
 import { statusLabel } from "@/components/admin/SimpleGuide";
 import { loadApplicantBook, loadApplicantDetail } from "../actions";
-import { downloadPaperFormPdf, paperFormFileName } from "@/lib/downloadPaperFormPdf";
+import { downloadPaperFormPdf, paperFormFileName, printPaperFormPdf } from "@/lib/downloadPaperFormPdf";
 import { friendlyPublicError, readApiJson } from "@/lib/publicErrors";
 import { filledByAdminInfo, hasPassbookAttachment } from "@/lib/applicantFormFields";
 import FilledByAdminNote from "@/components/admin/FilledByAdminNote";
@@ -52,6 +52,7 @@ export default function ApplicantBookPage() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [downloading, setDownloading] = useState(false);
   const [downloadStatus, setDownloadStatus] = useState("");
+  const [printingForm, setPrintingForm] = useState(false);
 
   function loadApplicants() {
     setLoading(true);
@@ -586,10 +587,20 @@ export default function ApplicantBookPage() {
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => window.print()}
-                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg"
+                  disabled={printingForm}
+                  onClick={async () => {
+                    setPrintingForm(true);
+                    try {
+                      await printPaperFormPdf(selectedApplicant, { slug: companySlug });
+                    } catch (err: any) {
+                      alert(friendlyPublicError(err.message || "The paper form could not be printed."));
+                    } finally {
+                      setPrintingForm(false);
+                    }
+                  }}
+                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg disabled:opacity-50"
                 >
-                  Print paper form
+                  {printingForm ? "Opening print..." : "Print paper form"}
                 </button>
                 <button
                   onClick={() => {

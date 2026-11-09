@@ -125,20 +125,31 @@ async function main() {
       {
         name: "Security Guard",
         code: "SEC-GUARD",
+        active: true,
         categories: [
           { name: "Civilian", code: "CIVILIAN", fields: STANDARD_GUARD_FIELDS },
-          { name: "BSF-ex-serviceman", code: "BSF_EX", fields: [...STANDARD_GUARD_FIELDS, ...EX_SERVICE_EXTRA_FIELDS] },
+          { name: "Ex-serviceman", code: "BSF_EX", fields: [...STANDARD_GUARD_FIELDS, ...EX_SERVICE_EXTRA_FIELDS] },
           { name: "Lady Guard", code: "LADY", fields: STANDARD_GUARD_FIELDS },
+          { name: "Gunman", code: "GUNMAN", fields: STANDARD_GUARD_FIELDS },
+          { name: "Others", code: "OTHERS", fields: STANDARD_GUARD_FIELDS },
         ],
+      },
+      {
+        name: "Manpower",
+        code: "MANPOWER",
+        active: true,
+        categories: [{ name: "Others", code: "OTHERS", fields: CLEANING_FIELDS }],
       },
       {
         name: "Sweeper",
         code: "SWEEPER",
+        active: false,
         categories: [{ name: "General Sweeper", code: "GEN_SWEEPER", fields: CLEANING_FIELDS }],
       },
       {
         name: "Housekeeper",
         code: "HOUSEKEEPER",
+        active: false,
         categories: [{ name: "General Housekeeper", code: "GEN_HOUSEKEEPER", fields: CLEANING_FIELDS }],
       },
     ];
@@ -146,11 +157,12 @@ async function main() {
     for (const r of rolesConfig) {
       const jobRole = await prisma.jobRole.upsert({
         where: { companyId_code: { companyId: company.id, code: r.code } },
-        update: { name: r.name },
+        update: { name: r.name, active: r.active !== false },
         create: {
           companyId: company.id,
           name: r.name,
           code: r.code,
+          active: r.active !== false,
         },
       });
 

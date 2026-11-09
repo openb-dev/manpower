@@ -105,6 +105,7 @@ export const GEM_MANPOWER_PROFILES = [
   "Data Entry Operator",
   "Stenographer",
   "Sanitation Supervisor",
+  "Others",
 ] as const;
 
 export function gemProfileCode(name: string) {

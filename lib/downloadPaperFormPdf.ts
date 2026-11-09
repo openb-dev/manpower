@@ -497,3 +497,44 @@ export async function downloadPaperFormPdf(
   saveBlob(pdf.output("blob"), filename);
   await new Promise((resolve) => setTimeout(resolve, 300));
 }
+
+export async function printPaperFormPdf(
+  person: any,
+  company?: { slug?: string; legalName?: string; shortName?: string },
+) {
+  const pdf = await buildPaperFormPdf(person, company);
+  const blob = pdf.output("blob");
+  const url = URL.createObjectURL(blob);
+  const frame = document.createElement("iframe");
+  frame.setAttribute("title", "Paper form");
+  frame.style.position = "fixed";
+  frame.style.right = "0";
+  frame.style.bottom = "0";
+  frame.style.width = "0";
+  frame.style.height = "0";
+  frame.style.border = "0";
+  document.body.appendChild(frame);
+  await new Promise<void>((resolve, reject) => {
+    const timer = window.setTimeout(() => {
+      frame.remove();
+      URL.revokeObjectURL(url);
+      reject(new Error("The paper form could not be opened for print."));
+    }, 20000);
+    frame.onload = () => {
+      window.clearTimeout(timer);
+      try {
+        frame.contentWindow?.focus();
+        frame.contentWindow?.print();
+        resolve();
+      } catch {
+        saveBlob(blob, paperFormFileName(person));
+        resolve();
+      }
+      window.setTimeout(() => {
+        frame.remove();
+        URL.revokeObjectURL(url);
+      }, 120000);
+    };
+    frame.src = url;
+  });
+}

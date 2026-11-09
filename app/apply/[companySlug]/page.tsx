@@ -13,6 +13,13 @@ import {
   joinAddressParts,
 } from "@/lib/applicantFormFields";
 import { friendlyPublicError, readApiJson } from "@/lib/publicErrors";
+import {
+  GEM_EXPERIENCE_BANDS,
+  GEM_MANPOWER_PROFILES,
+  GEM_SKILL_CATEGORIES,
+  isManpowerRole,
+  isSecurityGuardRole,
+} from "@/lib/gem";
 
 interface JobRole {
   id: string;
@@ -122,6 +129,9 @@ function initialForm() {
     reference: "",
     referenceYears: "",
     uploadBankDetails: "",
+    skillCategory: "",
+    gemProfile: "",
+    gemExperience: "",
     height: "",
     heightUnit: "cm" as string,
     heightCm: "",
@@ -186,17 +196,22 @@ function initialForm() {
   };
 }
 
-function isBsfExServicemanCategory(role?: JobRole | null, category?: { code?: string; name?: string } | null) {
-  const roleText = `${role?.code || ""} ${role?.name || ""}`.toLowerCase();
+function isExServicemanCategory(role?: JobRole | null, category?: { code?: string; name?: string } | null) {
   const catCode = String(category?.code || "").toUpperCase();
   const catName = String(category?.name || "").toLowerCase();
-  const isGuard = /sec-guard|security/.test(roleText);
+  const isGuard = isSecurityGuardRole(role);
   const isExCat =
     catCode === "BSF_EX" ||
-    catName.includes("bsf") ||
+    catCode === "EX_SERVICE" ||
+    catName === "ex-serviceman" ||
     catName.includes("ex-serviceman") ||
     catName.includes("ex serviceman");
   return isGuard && isExCat;
+}
+
+function isGunmanCategory(role?: JobRole | null, category?: { code?: string; name?: string } | null) {
+  const text = `${role?.code || ""} ${role?.name || ""} ${category?.code || ""} ${category?.name || ""}`.toLowerCase();
+  return text.includes("gunman") || text.includes("armed");
 }
 
 function heightText(form: ReturnType<typeof initialForm>) {
@@ -460,10 +475,8 @@ export default function ApplyPage() {
         if (!res.ok) throw new Error("Could not find company recruitment portal.");
         const data = await readApiJson(res);
         setCompany(data);
-        if (data.jobRoles?.[0]) {
-          setSelectedRole(data.jobRoles[0]);
-          setSelectedCategory(data.jobRoles[0].categories?.[0] || null);
-        }
+        setSelectedRole(null);
+        setSelectedCategory(null);
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
@@ -903,7 +916,7 @@ export default function ApplyPage() {
       return setError("Invalid PAN format. Must be 10 characters (e.g. ABCDE1234F).");
     }
 
-    const isExServiceman = isBsfExServicemanCategory(selectedRole, selectedCategory);
+    const isExServiceman = isExServicemanCategory(selectedRole, selectedCategory);
     if (isExServiceman) {
       if (!form.exServiceNo.trim() || form.exServiceNo.trim().toUpperCase() === "NA") {
         return setError("Please enter Ex-Serviceman No.");
@@ -1046,6 +1059,9 @@ export default function ApplyPage() {
           family: filledFamily,
           uploadBankDetails: form.uploadBankDetails,
           referenceYears: String(form.referenceYears || "").trim(),
+          skillCategory: form.skillCategory,
+          gemProfile: form.gemProfile,
+          gemExperience: form.gemExperience,
           bankName: wantsBank ? form.bankName.trim() : "",
           accountNo: wantsBank ? form.accountNo.trim() : "",
           ifsc: wantsBank ? form.ifsc.trim().toUpperCase() : "",
@@ -1096,12 +1112,13 @@ export default function ApplyPage() {
   }
 
   const canFillForm = Boolean(officeAdmin || candidate);
-  const isGunRole = Boolean(
-    selectedRole?.code === "GUNMAN" ||
-    selectedRole?.name?.toLowerCase().includes("gunman") ||
-    selectedRole?.name?.toLowerCase().includes("armed")
-  );
-  const isExServiceCategory = isBsfExServicemanCategory(selectedRole, selectedCategory);
+  const isGunRole = isGunmanCategory(selectedRole, selectedCategory);
+  const isExServiceCategory = isExServicemanCategory(selectedRole, selectedCategory);
+  const guardRole = company?.jobRoles.find((role) => isSecurityGuardRole(role)) || null;
+  const manpowerRole = company?.jobRoles.find((role) => isManpowerRole(role)) || null;
+  const manpowerCategories = manpowerRole?.categories || [];
+  const manpowerOthers =
+    manpowerCategories.find((cat) => String(cat.code).toUpperCase() === "OTHERS") || manpowerCategories[0] || null;
 
   return (
     <div className="min-h-screen bg-[#f8fafc] text-slate-800 flex flex-col">
@@ -1513,64 +1530,153 @@ export default function ApplyPage() {
                   <div className="mt-2">
                     <h2 className="text-lg font-bold text-slate-900">Step 1: Select trade / category</h2>
                     <p className="text-xs text-slate-500">
-                      Choose the trade / category you want to apply for at {company?.shortName || "N.K. Enterprise"}.
+                      Choose Security Guard or Manpower, then pick the category.
                     </p>
                   </div>
                 </div>
 
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                      Trade / category <span className="text-red-600">*</span>
-                    </label>
-                    <select
-                      required
-                      value={selectedRole?.id || ""}
-                      onChange={(e) => {
-                        const role = company?.jobRoles.find((item) => item.id === e.target.value) || null;
-                        setSelectedRole(role);
-                        setSelectedCategory(role?.categories?.[0] || null);
-                      }}
-                      className="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="">Select trade</option>
-                      {company?.jobRoles.map((role) => (
-                        <option key={role.id} value={role.id}>
-                          {role.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                      Job category <span className="text-red-600">*</span>
-                    </label>
-                    <select
-                      required
-                      value={selectedCategory?.id || ""}
-                      onChange={(e) => {
-                        const category =
-                          selectedRole?.categories.find((item) => item.id === e.target.value) || null;
-                        setSelectedCategory(category);
-                      }}
-                      disabled={!selectedRole}
-                      className="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100"
-                    >
-                      <option value="">{selectedRole ? "Select category" : "Select trade first"}</option>
-                      {selectedRole?.categories.map((cat) => (
-                        <option key={cat.id} value={cat.id}>
-                          {cat.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                  {[guardRole, manpowerRole].filter(Boolean).map((role) => {
+                    const selected = selectedRole?.id === role?.id;
+                    return (
+                      <button
+                        key={role!.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedRole(role);
+                          setSelectedCategory(null);
+                          setForm((prev) => ({ ...prev, gemProfile: "", skillCategory: "", gemExperience: "" }));
+                        }}
+                        className={`text-left rounded-2xl border-2 p-5 transition ${
+                          selected
+                            ? "border-blue-600 bg-blue-50 shadow-sm"
+                            : "border-slate-200 bg-white hover:border-blue-300"
+                        }`}
+                      >
+                        <div className="text-sm font-bold text-slate-900">{role!.name}</div>
+                        <p className="text-xs text-slate-500 mt-1">
+                          {isSecurityGuardRole(role)
+                            ? "Civilian, Ex-serviceman, Lady Guard, Gunman, Others"
+                            : "Office, trades, helpers and other manpower work"}
+                        </p>
+                      </button>
+                    );
+                  })}
                 </div>
+
+                {isSecurityGuardRole(selectedRole) ? (
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+                      Security Guard category <span className="text-red-600">*</span>
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      {(selectedRole?.categories || []).map((cat) => {
+                        const active = selectedCategory?.id === cat.id;
+                        return (
+                          <button
+                            key={cat.id}
+                            type="button"
+                            onClick={() => setSelectedCategory(cat)}
+                            className={`px-3 py-2 rounded-lg text-xs font-bold border transition ${
+                              active
+                                ? "bg-blue-600 text-white border-blue-600"
+                                : "bg-white text-slate-700 border-slate-300 hover:border-blue-400"
+                            }`}
+                          >
+                            {cat.name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : null}
+
+                {isManpowerRole(selectedRole) ? (
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                        Skill category <span className="text-red-600">*</span>
+                      </label>
+                      <select
+                        value={form.skillCategory}
+                        onChange={(e) => setForm({ ...form, skillCategory: e.target.value })}
+                        className="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-sm bg-white"
+                      >
+                        <option value="">Select skill</option>
+                        {GEM_SKILL_CATEGORIES.map((item) => (
+                          <option key={item} value={item}>
+                            {item}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                        Manpower profile <span className="text-red-600">*</span>
+                      </label>
+                      <select
+                        value={form.gemProfile}
+                        onChange={(e) => {
+                          const gemProfile = e.target.value;
+                          const match =
+                            manpowerCategories.find((cat) => cat.name === gemProfile) ||
+                            (gemProfile === "Others" ? manpowerOthers : null) ||
+                            manpowerOthers;
+                          setForm({ ...form, gemProfile });
+                          setSelectedCategory(match || null);
+                        }}
+                        className="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-sm bg-white"
+                      >
+                        <option value="">Select profile</option>
+                        {GEM_MANPOWER_PROFILES.map((item) => (
+                          <option key={item} value={item}>
+                            {item}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                        Experience <span className="text-red-600">*</span>
+                      </label>
+                      <select
+                        value={form.gemExperience}
+                        onChange={(e) => setForm({ ...form, gemExperience: e.target.value })}
+                        className="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-sm bg-white"
+                      >
+                        <option value="">Select experience</option>
+                        {GEM_EXPERIENCE_BANDS.map((item) => (
+                          <option key={item} value={item}>
+                            {item}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                ) : null}
 
                 <button
                   type="button"
-                  disabled={!selectedRole || !selectedCategory}
-                  onClick={() => setStep("FORM")}
-                  className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold py-3 rounded-xl shadow-md transition text-sm flex items-center justify-center gap-2"
+                  onClick={() => {
+                    if (!selectedRole) return setError("Please select Security Guard or Manpower.");
+                    if (isSecurityGuardRole(selectedRole) && !selectedCategory) {
+                      return setError("Please select a Security Guard category.");
+                    }
+                    if (isManpowerRole(selectedRole)) {
+                      if (!form.skillCategory) return setError("Please select skill category.");
+                      if (!form.gemProfile) return setError("Please select a manpower profile.");
+                      if (!form.gemExperience) return setError("Please select experience.");
+                      const category =
+                        selectedCategory ||
+                        manpowerCategories.find((cat) => cat.name === form.gemProfile) ||
+                        manpowerOthers;
+                      if (!category) return setError("Please select a manpower profile.");
+                      setSelectedCategory(category);
+                    }
+                    setError("");
+                    setStep("FORM");
+                  }}
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl shadow-md transition text-sm flex items-center justify-center gap-2"
                 >
                   <span>Continue to Complete Application Form</span>
                   <span>→</span>
@@ -1585,7 +1691,12 @@ export default function ApplyPage() {
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-200 gap-2">
                   <div>
                     <span className="text-xs uppercase font-extrabold tracking-wider bg-blue-100 text-blue-800 px-2.5 py-1 rounded">
-                      Applying for: {selectedRole?.name} ({selectedCategory?.name})
+                      Applying for: {selectedRole?.name}
+                      {isManpowerRole(selectedRole)
+                        ? ` / ${form.gemProfile || selectedCategory?.name || "Others"}`
+                        : selectedCategory?.name
+                          ? ` (${selectedCategory.name})`
+                          : ""}
                     </span>
                     <h2 className="text-xl font-bold text-slate-900 mt-2">Official Job Application Form</h2>
                     <p className="text-xs text-slate-500">
@@ -2210,7 +2321,7 @@ export default function ApplyPage() {
                   </div>
                 </div>
 
-                {/* SECTION 2: EX-SERVICEMAN — only for Security Guard / BSF-ex-serviceman */}
+                {/* SECTION 2: EX-SERVICEMAN — only for Security Guard / Ex-serviceman */}
                 {isExServiceCategory ? (
                 <div className="space-y-4 pt-2">
                   <div className="flex items-center gap-2 border-b border-slate-200 pb-2">

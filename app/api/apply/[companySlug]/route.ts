@@ -5,6 +5,7 @@ import { submitApplicant } from "@/modules/applicants/services";
 import { registerCandidate, loginCandidate, getCandidateApplications } from "@/modules/candidates/services";
 import { publicCatchMessage } from "@/lib/publicErrors";
 import { currentOfficeAdmin } from "@/lib/officeAdmin";
+import { applyRolesForForm, ensureApplyRoles } from "@/lib/applyRoles";
 
 export async function GET(
   request: Request,
@@ -13,6 +14,17 @@ export async function GET(
   try {
     const { companySlug } = await params;
     const company = await prisma.company.findUnique({
+      where: { slug: companySlug },
+      select: { id: true },
+    });
+
+    if (!company) {
+      return NextResponse.json({ error: "Company not found." }, { status: 404 });
+    }
+
+    await ensureApplyRoles(company.id);
+
+    const data = await prisma.company.findUnique({
       where: { slug: companySlug },
       select: {
         id: true,
@@ -44,11 +56,10 @@ export async function GET(
       },
     });
 
-    if (!company) {
-      return NextResponse.json({ error: "Company not found." }, { status: 404 });
-    }
-
-    return NextResponse.json(company);
+    return NextResponse.json({
+      ...data,
+      jobRoles: applyRolesForForm(data?.jobRoles || []),
+    });
   } catch (error: any) {
     return NextResponse.json({ error: publicCatchMessage(error) }, { status: 500 });
   }

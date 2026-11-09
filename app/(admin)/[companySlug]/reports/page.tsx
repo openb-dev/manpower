@@ -7,6 +7,7 @@ import { loadCompanyReports, loadReportPerson } from "../actions";
 import { statusLabel } from "@/components/admin/SimpleGuide";
 import { friendlyPublicError } from "@/lib/publicErrors";
 import FilledByAdminNote from "@/components/admin/FilledByAdminNote";
+import { printPaperFormPdf } from "@/lib/downloadPaperFormPdf";
 
 const ApplicantPaperForm = dynamic(
   () => import("@/components/admin/ApplicantPaperForm").then((mod) => mod.ApplicantPaperForm),
@@ -731,6 +732,7 @@ function PersonReportModal({
   loading: boolean;
   onClose: () => void;
 }) {
+  const [printingForm, setPrintingForm] = useState(false);
   const fd = person?.formData || {};
   const documents = person ? collectDocuments(person) : [];
   const title = person?.fullName || (person?.kind === "employee" ? "Employee" : "Applicant");
@@ -777,11 +779,21 @@ function PersonReportModal({
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => window.print()}
-              disabled={loading || !person}
+              onClick={async () => {
+                if (!person) return;
+                setPrintingForm(true);
+                try {
+                  await printPaperFormPdf(person, company || undefined);
+                } catch (err: any) {
+                  alert(friendlyPublicError(err.message || "The paper form could not be printed."));
+                } finally {
+                  setPrintingForm(false);
+                }
+              }}
+              disabled={loading || !person || printingForm}
               className="px-3 py-1.5 text-xs font-bold rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 disabled:opacity-50"
             >
-              Print / PDF
+              {printingForm ? "Opening print..." : "Print paper form"}
             </button>
             <button
               type="button"

@@ -864,10 +864,14 @@ function ApplyPageInner() {
       [job.employer, job.job, job.from, job.to].some((part) => String(part || "").trim())
     );
     if (form.experienceType === "EXPERIENCED") {
+      if (!form.previousEmployer.trim() || form.previousEmployer.trim().toUpperCase() === "NONE") {
+        return setError("Please enter previous employer name.");
+      }
       if (filledJobs.length === 0) return setError("Please add at least one work experience.");
-      const incompleteJob = filledJobs.find(
-        (job) => !job.employer.trim() || !job.job.trim() || !job.from.trim() || !job.to.trim()
-      );
+      const incompleteJob = filledJobs.find((job, idx) => {
+        const employer = String(idx === 0 ? form.previousEmployer || job.employer : job.employer).trim();
+        return !employer || !job.job.trim() || !job.from.trim() || !job.to.trim();
+      });
       if (incompleteJob) return setError("Please complete every work experience row, or remove it.");
     }
     if (!form.identificationMark.trim()) return setError("Please enter your identification mark.");
@@ -957,13 +961,11 @@ function ApplyPageInner() {
       form.experienceType === "FRESHER"
         ? "Fresher"
         : filledJobs.map((job) => `${job.job} at ${job.employer} (${job.from} to ${job.to})`).join("; ");
-    const previousEmployer = form.experienceType === "FRESHER" ? "None" : filledJobs[0]?.employer || "None";
-    const isPreviousEmployee = form.experienceType === "EXPERIENCED";
-    if (isPreviousEmployee) {
-      if (!form.uan.trim()) return setError("Please enter PF UAN (use NA if not allotted).");
-      if (!form.esiIp.trim()) return setError("Please enter ESI IP No. (use NA if not allotted).");
-      if (!form.preferredDispensary.trim()) return setError("Please enter preferred ESI dispensary.");
-    }
+    const previousEmployer =
+      form.experienceType === "FRESHER" ? "None" : form.previousEmployer.trim() || filledJobs[0]?.employer || "None";
+    if (!form.uan.trim()) return setError("Please enter PF UAN (use NA if not allotted).");
+    if (!form.esiIp.trim()) return setError("Please enter ESI IP No. (use NA if not allotted).");
+    if (!form.preferredDispensary.trim()) return setError("Please enter preferred ESI dispensary (use NA if not allotted).");
     if (!form.policeStatus) return setError("Please select police verification status.");
     if (form.policeStatus === "verified" && !form.policeFileName && !form.policeFile) {
       return setError("Please upload the police verification document.");
@@ -1079,9 +1081,9 @@ function ApplyPageInner() {
           experience: experienceSummary,
           workHistory: form.experienceType === "EXPERIENCED" ? filledJobs : [],
           previousEmployer,
-          uan: isPreviousEmployee ? form.uan.trim() : "NA",
-          esiIp: isPreviousEmployee ? form.esiIp.trim() : "NA",
-          preferredDispensary: isPreviousEmployee ? form.preferredDispensary.trim() : "",
+          uan: form.uan.trim(),
+          esiIp: form.esiIp.trim(),
+          preferredDispensary: form.preferredDispensary.trim(),
           nomineeRelation: form.nomineeRelation.trim(),
           otherQualification: form.otherQualification.trim(),
           characterCertificate: form.otherQualification.trim(),
@@ -2171,6 +2173,7 @@ function ApplyPageInner() {
                                 setForm((prev) => ({
                                   ...prev,
                                   experienceType: opt,
+                                  previousEmployer: opt === "FRESHER" ? "None" : prev.previousEmployer === "None" ? "" : prev.previousEmployer,
                                   workHistory: opt === "EXPERIENCED" ? jobList(prev.workHistory) : [blankJob()],
                                 }))
                               }
@@ -2182,11 +2185,34 @@ function ApplyPageInner() {
                         ))}
                       </div>
 
+                      <div className="text-xs font-bold text-slate-700">Previous Employees Details</div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                          a) Name of Previous Employer <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          required
+                          type="text"
+                          value={form.experienceType === "FRESHER" ? "None" : form.previousEmployer === "None" ? "" : form.previousEmployer}
+                          readOnly={form.experienceType === "FRESHER"}
+                          onChange={(e) => {
+                            const previousEmployer = e.target.value;
+                            setForm((prev) => {
+                              const jobs = jobList(prev.workHistory);
+                              const nextJobs = jobs.length ? [{ ...jobs[0], employer: previousEmployer }, ...jobs.slice(1)] : [{ ...blankJob(), employer: previousEmployer }];
+                              return { ...prev, previousEmployer, workHistory: nextJobs };
+                            });
+                          }}
+                          className={`w-full px-3.5 py-2 border border-slate-300 rounded-lg text-sm ${form.experienceType === "FRESHER" ? "bg-slate-50" : "bg-white"}`}
+                          placeholder={form.experienceType === "FRESHER" ? "None" : "Company name"}
+                        />
+                      </div>
+
                       {form.experienceType === "EXPERIENCED" ? (
                         <div className="space-y-3 rounded-xl border border-blue-200 bg-blue-50/40 p-3.5">
                           <div className="flex items-center justify-between gap-3">
                             <label className="block text-xs font-bold text-slate-700">
-                              Work experience <span className="text-red-500">*</span>
+                              Work / post and period <span className="text-red-500">*</span>
                             </label>
                             <button
                               type="button"
@@ -2210,19 +2236,21 @@ function ApplyPageInner() {
                                   Remove
                                 </button>
                               ) : null}
-                              <div>
-                                <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                                  Employer / company *
-                                </label>
-                                <input
-                                  required
-                                  type="text"
-                                  value={job.employer}
-                                  onChange={(e) => updateWorkJob(idx, "employer", e.target.value)}
-                                  className="w-full px-3 py-1.5 border border-slate-300 rounded-md bg-white text-xs"
-                                  placeholder="Company name"
-                                />
-                              </div>
+                              {idx > 0 ? (
+                                <div>
+                                  <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                                    Employer / company *
+                                  </label>
+                                  <input
+                                    required
+                                    type="text"
+                                    value={job.employer}
+                                    onChange={(e) => updateWorkJob(idx, "employer", e.target.value)}
+                                    className="w-full px-3 py-1.5 border border-slate-300 rounded-md bg-white text-xs"
+                                    placeholder="Company name"
+                                  />
+                                </div>
+                              ) : null}
                               <div>
                                 <label className="block text-[11px] font-bold text-slate-600 mb-1">
                                   Work / post *
@@ -2264,6 +2292,48 @@ function ApplyPageInner() {
                           ))}
                         </div>
                       ) : null}
+
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                            b) UAN No. (if allotted) <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            required
+                            type="text"
+                            value={form.uan}
+                            onChange={(e) => setForm({ ...form, uan: e.target.value })}
+                            className="w-full px-3.5 py-2 border border-slate-300 rounded-lg text-sm bg-white"
+                            placeholder="12-digit UAN or NA"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                            c) ESI IP No. <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            required
+                            type="text"
+                            value={form.esiIp}
+                            onChange={(e) => setForm({ ...form, esiIp: e.target.value })}
+                            className="w-full px-3.5 py-2 border border-slate-300 rounded-lg text-sm bg-white"
+                            placeholder="ESI IP Number or NA"
+                          />
+                        </div>
+                        <div className="sm:col-span-2">
+                          <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                            Preferred ESI Dispensary <span className="text-red-500">*</span>
+                          </label>
+                          <input
+                            required
+                            type="text"
+                            value={form.preferredDispensary}
+                            onChange={(e) => setForm({ ...form, preferredDispensary: e.target.value })}
+                            className="w-full px-3.5 py-2 border border-slate-300 rounded-lg text-sm bg-white"
+                            placeholder="e.g. New Town / Barasat / Salt Lake, or NA"
+                          />
+                        </div>
+                      </div>
                     </div>
 
                     <div>
@@ -2685,51 +2755,6 @@ function ApplyPageInner() {
                       />
                     </div>
 
-                    {form.experienceType === "EXPERIENCED" ? (
-                      <>
-                        <div>
-                          <label className="block text-xs font-bold text-slate-700 mb-1">
-                            PF Universal Account Number (UAN) <span className="text-red-500">*</span>
-                          </label>
-                          <input
-                            required
-                            type="text"
-                            value={form.uan}
-                            onChange={(e) => setForm({ ...form, uan: e.target.value })}
-                            className="w-full px-3.5 py-2 border border-slate-300 rounded-lg text-sm bg-white"
-                            placeholder="12-digit UAN or NA"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-xs font-bold text-slate-700 mb-1">
-                            ESI Insurance IP No. <span className="text-red-500">*</span>
-                          </label>
-                          <input
-                            required
-                            type="text"
-                            value={form.esiIp}
-                            onChange={(e) => setForm({ ...form, esiIp: e.target.value })}
-                            className="w-full px-3.5 py-2 border border-slate-300 rounded-lg text-sm bg-white"
-                            placeholder="ESI IP Number or NA"
-                          />
-                        </div>
-
-                        <div className="sm:col-span-2">
-                          <label className="block text-xs font-bold text-slate-700 mb-1">
-                            Preferred ESI Dispensary <span className="text-red-500">*</span>
-                          </label>
-                          <input
-                            required
-                            type="text"
-                            value={form.preferredDispensary}
-                            onChange={(e) => setForm({ ...form, preferredDispensary: e.target.value })}
-                            className="w-full px-3.5 py-2 border border-slate-300 rounded-lg text-sm bg-white"
-                            placeholder="e.g. New Town / Barasat / Salt Lake"
-                          />
-                        </div>
-                      </>
-                    ) : null}
                   </div>
                 </div>
 

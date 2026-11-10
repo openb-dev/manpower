@@ -8,13 +8,31 @@ import { statusLabel } from "@/components/admin/SimpleGuide";
 import { loadApplicantBook, loadApplicantDetail } from "../actions";
 import { downloadPaperFormPdf, paperFormFileName, printPaperFormPdf } from "@/lib/downloadPaperFormPdf";
 import { friendlyPublicError, readApiJson } from "@/lib/publicErrors";
-import { filledByAdminInfo, indianAddressLine } from "@/lib/applicantFormFields";
+import { applicantPhotoUrl, filledByAdminInfo, indianAddressLine } from "@/lib/applicantFormFields";
 import AttachedDocuments from "@/components/admin/AttachedDocuments";
 
 const ApplicantPaperForm = dynamic(
   () => import("@/components/admin/ApplicantPaperForm").then((mod) => mod.ApplicantPaperForm),
   { ssr: false },
 );
+
+function HeaderPhoto({ person, alt }: { person: any; alt: string }) {
+  const photo = applicantPhotoUrl(person);
+  if (!photo) {
+    return (
+      <div className="w-14 h-16 sm:w-16 sm:h-20 bg-slate-100 rounded-lg border border-slate-200 flex items-center justify-center text-slate-400 font-bold text-xs text-center p-1 shrink-0">
+        No Photo
+      </div>
+    );
+  }
+  return (
+    <img
+      src={photo}
+      alt={alt}
+      className="w-14 h-16 sm:w-16 sm:h-20 object-cover rounded-lg border border-slate-300 shadow-xs shrink-0"
+    />
+  );
+}
 
 export default function ApplicantBookPage() {
   const params = useParams();
@@ -519,17 +537,7 @@ export default function ApplicantBookPage() {
             {/* FIXED MODAL HEADER with Photo, Basic Info & Top Actions */}
             <div className="shrink-0 p-3 sm:p-4 border-b border-slate-200 bg-white flex items-start justify-between gap-3 no-print">
               <div className="flex items-center gap-4">
-                {selectedApplicant.formData?.photo ? (
-                  <img
-                    src={selectedApplicant.formData.photo}
-                    alt={selectedApplicant.fullName}
-                    className="w-14 h-16 sm:w-16 sm:h-20 object-cover rounded-lg border border-slate-300 shadow-xs shrink-0"
-                  />
-                ) : (
-                  <div className="w-14 h-16 sm:w-16 sm:h-20 bg-slate-100 rounded-lg border border-slate-200 flex items-center justify-center text-slate-400 font-bold text-xs text-center p-1 shrink-0">
-                    No Photo
-                  </div>
-                )}
+                <HeaderPhoto person={selectedApplicant} alt={selectedApplicant.fullName} />
                 <div>
                   <h2 className="text-xl font-bold text-slate-900">{selectedApplicant.fullName}</h2>
                   <div className="text-[11px] font-mono text-slate-600 mt-0.5 break-all">
@@ -834,22 +842,18 @@ export default function ApplicantBookPage() {
                     <span className="text-slate-400 block font-semibold text-[10px] uppercase">PAN Card</span>
                     <span className="font-semibold font-mono text-slate-800">{selectedApplicant.pan || selectedApplicant.formData?.pan || "—"}</span>
                   </div>
-                  {selectedApplicant.formData?.experienceType === "EXPERIENCED" ? (
-                    <>
-                      <div>
-                        <span className="text-slate-400 block font-semibold text-[10px] uppercase">UAN (PF Number)</span>
-                        <span className="font-semibold font-mono text-slate-800">{selectedApplicant.formData?.uan || "—"}</span>
-                      </div>
-                      <div>
-                        <span className="text-slate-400 block font-semibold text-[10px] uppercase">ESI IP Number</span>
-                        <span className="font-semibold font-mono text-slate-800">{selectedApplicant.formData?.esiIp || "—"}</span>
-                      </div>
-                      <div>
-                        <span className="text-slate-400 block font-semibold text-[10px] uppercase">Preferred Dispensary</span>
-                        <span className="font-semibold text-slate-800">{selectedApplicant.formData?.preferredDispensary || "—"}</span>
-                      </div>
-                    </>
-                  ) : null}
+                  <div>
+                    <span className="text-slate-400 block font-semibold text-[10px] uppercase">UAN (PF Number)</span>
+                    <span className="font-semibold font-mono text-slate-800">{selectedApplicant.formData?.uan || "—"}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block font-semibold text-[10px] uppercase">ESI IP Number</span>
+                    <span className="font-semibold font-mono text-slate-800">{selectedApplicant.formData?.esiIp || "—"}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block font-semibold text-[10px] uppercase">Preferred Dispensary</span>
+                    <span className="font-semibold text-slate-800">{selectedApplicant.formData?.preferredDispensary || "—"}</span>
+                  </div>
                   <div>
                     <span className="text-slate-400 block font-semibold text-[10px] uppercase">Previous Employer</span>
                     <span className="font-semibold text-slate-800">

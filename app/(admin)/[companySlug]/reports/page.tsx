@@ -7,6 +7,7 @@ import { loadCompanyReports, loadReportPerson } from "../actions";
 import { statusLabel } from "@/components/admin/SimpleGuide";
 import { friendlyPublicError } from "@/lib/publicErrors";
 import AttachedDocuments from "@/components/admin/AttachedDocuments";
+import { applicantPhotoUrl } from "@/lib/applicantFormFields";
 import { printPaperFormPdf } from "@/lib/downloadPaperFormPdf";
 
 const ApplicantPaperForm = dynamic(
@@ -681,10 +682,6 @@ function ReportTable({
   );
 }
 
-function isViewable(src?: unknown) {
-  return typeof src === "string" && (src.startsWith("data:") || src.startsWith("http") || src.startsWith("blob:"));
-}
-
 function PersonReportModal({
   person,
   company,
@@ -697,7 +694,7 @@ function PersonReportModal({
   onClose: () => void;
 }) {
   const [printingForm, setPrintingForm] = useState(false);
-  const fd = person?.formData || {};
+  const photo = applicantPhotoUrl(person);
   const title = person?.fullName || (person?.kind === "employee" ? "Employee" : "Applicant");
 
   return (
@@ -705,9 +702,9 @@ function PersonReportModal({
       <div className="bg-white rounded-2xl shadow-2xl max-w-[860px] w-full max-h-[92vh] flex flex-col overflow-hidden border border-slate-200 print:max-w-none print:max-h-none print:shadow-none print:rounded-none print:border-0 print:overflow-visible">
         <div className="shrink-0 p-5 sm:p-6 border-b border-slate-200 bg-white flex items-start justify-between gap-4 no-print">
           <div className="flex items-center gap-4">
-            {isViewable(fd.photo) ? (
+            {photo ? (
               <img
-                src={fd.photo}
+                src={photo}
                 alt={title}
                 className="w-14 h-16 sm:w-16 sm:h-20 object-cover rounded-lg border border-slate-300 shadow-xs shrink-0"
               />

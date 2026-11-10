@@ -2156,26 +2156,31 @@ function ApplyPageInner() {
                     </div>
 
                     <div className="sm:col-span-2 space-y-3">
-                      <label className="block text-xs font-bold text-slate-700 mb-1">
-                        Fresher / Experienced <span className="text-red-500">*</span>
-                      </label>
-                      <select
-                        required
-                        value={form.experienceType}
-                        onChange={(e) => {
-                          const experienceType = e.target.value;
-                          setForm((prev) => ({
-                            ...prev,
-                            experienceType,
-                            workHistory: experienceType === "EXPERIENCED" ? jobList(prev.workHistory) : [blankJob()],
-                          }));
-                        }}
-                        className="w-full sm:w-64 px-3.5 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500"
-                      >
-                        <option value="">Select</option>
-                        <option value="FRESHER">Fresher</option>
-                        <option value="EXPERIENCED">Experienced</option>
-                      </select>
+                      <p className="block text-xs font-bold text-slate-700 mb-2">
+                        Experience, if any <span className="text-red-500">*</span>
+                      </p>
+                      <div className="flex gap-8">
+                        {(["FRESHER", "EXPERIENCED"] as const).map((opt) => (
+                          <label key={opt} className="flex items-center gap-2 text-sm font-medium text-slate-800 cursor-pointer">
+                            <input
+                              type="radio"
+                              name="experienceType"
+                              value={opt}
+                              checked={form.experienceType === opt}
+                              onChange={() =>
+                                setForm((prev) => ({
+                                  ...prev,
+                                  experienceType: opt,
+                                  workHistory: opt === "EXPERIENCED" ? jobList(prev.workHistory) : [blankJob()],
+                                }))
+                              }
+                              className="w-4 h-4 border-slate-400 text-blue-600"
+                              required
+                            />
+                            {opt === "FRESHER" ? "Fresher" : "Experienced"}
+                          </label>
+                        ))}
+                      </div>
 
                       {form.experienceType === "EXPERIENCED" ? (
                         <div className="space-y-3 rounded-xl border border-blue-200 bg-blue-50/40 p-3.5">

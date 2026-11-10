@@ -64,6 +64,21 @@ function experienceShown(fd: Record<string, any>) {
   return text(fd?.experience);
 }
 
+function experienceIsFresher(fd: Record<string, any>) {
+  const t = String(fd?.experienceType || "").toUpperCase();
+  if (t === "FRESHER") return true;
+  if (t === "EXPERIENCED") return false;
+  return String(fd?.experience || "").toUpperCase() === "FRESHER";
+}
+
+function experienceIsExperienced(fd: Record<string, any>) {
+  if (experienceIsFresher(fd)) return false;
+  const t = String(fd?.experienceType || "").toUpperCase();
+  if (t === "EXPERIENCED") return true;
+  const shown = experienceShown(fd);
+  return Boolean(shown && shown.toUpperCase() !== "FRESHER");
+}
+
 function heightShown(fd: Record<string, any>) {
   if (fd?.heightUnit === "ft") {
     const ft = text(fd.heightFt);
@@ -418,7 +433,19 @@ export async function buildPaperFormPdf(
   y = lineFill("9. Gun No. (SSSL / DBBL)", text(fd.gunNo) || "NA", y);
   y = lineFill("10. Qualification", text(fd.qualification), y);
   y = lineFill("11. Other qualification", text(fd.otherQualification || fd.characterCertificate), y);
-  y = lineFill("12. Experience, if any", experienceShown(fd), y);
+  write("12. Experience, if any :", left, y);
+  const expX = left + 52;
+  tickBox(expX, y, experienceIsFresher(fd));
+  pdf.setFont("times", "normal");
+  pdf.setFontSize(10.5);
+  pdf.text("Fresher", expX + 5, y);
+  tickBox(expX + 32, y, experienceIsExperienced(fd));
+  pdf.text("Experienced", expX + 37, y);
+  y += 8;
+  if (experienceIsExperienced(fd)) {
+    const details = experienceShown(fd);
+    if (details && details.toUpperCase() !== "FRESHER") y = lineFill("Details", details, y);
+  }
   write("Previous Employees Details", left + 6, y, 10.5);
   y += 6;
   y = lineFill("a) Name of Previous Employer", text(fd.previousEmployer) || (String(fd.experienceType || "").toUpperCase() === "FRESHER" ? "None" : ""), y);

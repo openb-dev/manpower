@@ -66,6 +66,21 @@ function experienceShown(fd: Record<string, any>) {
   return text(fd?.experience);
 }
 
+function experienceIsFresher(fd: Record<string, any>) {
+  const t = String(fd?.experienceType || "").toUpperCase();
+  if (t === "FRESHER") return true;
+  if (t === "EXPERIENCED") return false;
+  return String(fd?.experience || "").toUpperCase() === "FRESHER";
+}
+
+function experienceIsExperienced(fd: Record<string, any>) {
+  if (experienceIsFresher(fd)) return false;
+  const t = String(fd?.experienceType || "").toUpperCase();
+  if (t === "EXPERIENCED") return true;
+  const shown = experienceShown(fd);
+  return Boolean(shown && shown.toUpperCase() !== "FRESHER");
+}
+
 function heightShown(fd: Record<string, any>) {
   if (fd?.heightUnit === "ft") {
     const ft = text(fd.heightFt);
@@ -457,7 +472,18 @@ export function ApplicantPaperForm({
             <li className="flex gap-2">
               <span className="w-5 shrink-0">12.</span>
               <div className="flex-1 min-w-0 space-y-1">
-                <LineField label="Experience, if any" value={experienceShown(fd)} />
+                <span className="flex flex-wrap items-center gap-x-4">
+                  Experience, if any :
+                  <span>
+                    <Tick on={experienceIsFresher(fd)} /> Fresher
+                  </span>
+                  <span>
+                    <Tick on={experienceIsExperienced(fd)} /> Experienced
+                  </span>
+                </span>
+                {experienceIsExperienced(fd) && experienceShown(fd) && experienceShown(fd).toUpperCase() !== "FRESHER" ? (
+                  <LineField label="Details" value={experienceShown(fd)} />
+                ) : null}
                 <div>Previous Employees Details</div>
                 <LineField
                   label="a) Name of Previous Employer"

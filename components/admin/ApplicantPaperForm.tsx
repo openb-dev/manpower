@@ -457,7 +457,19 @@ export function ApplicantPaperForm({
             </li>
             <li className="flex gap-2">
               <span className="w-5 shrink-0">12.</span>
-              <LineField label="Experience, if any" value={experienceShown(fd)} className="flex-1" />
+              <div className="flex-1 min-w-0 space-y-1">
+                <LineField label="Experience, if any" value={experienceShown(fd)} />
+                <div>Previous Employees Details</div>
+                <LineField
+                  label="a) Name of Previous Employer"
+                  value={
+                    text(fd.previousEmployer) ||
+                    (String(fd.experienceType || "").toUpperCase() === "FRESHER" ? "None" : "")
+                  }
+                />
+                <LineField label="b) UAN No. (if allotted)" value={text(person?.uan || fd.uan) || "NA"} />
+                <LineField label="c) ESI IP No." value={text(person?.esicNo || fd.esiIp) || "NA"} />
+              </div>
             </li>
             <li className="flex gap-2 items-center">
               <span className="w-5 shrink-0">13.</span>

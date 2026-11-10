@@ -179,6 +179,17 @@ export async function buildPaperFormPdf(
     return y + lines.length * (size * 0.42);
   };
 
+  const tickBox = (x: number, y: number, on: boolean) => {
+    pdf.setDrawColor(0);
+    pdf.setLineWidth(0.28);
+    pdf.rect(x, y - 3.2, 3.2, 3.2);
+    if (on) {
+      pdf.setLineWidth(0.5);
+      pdf.line(x + 0.55, y - 1.4, x + 1.3, y - 0.45);
+      pdf.line(x + 1.3, y - 0.45, x + 2.6, y - 2.65);
+    }
+  };
+
   const dashLine = (x1: number, y1: number, x2: number) => {
     pdf.setDrawColor(0);
     pdf.setLineWidth(0.22);
@@ -408,15 +419,15 @@ export async function buildPaperFormPdf(
   y = lineFill("10. Qualification", text(fd.qualification), y);
   y = lineFill("11. Other qualification", text(fd.otherQualification || fd.characterCertificate), y);
   y = lineFill("12. Experience, if any", experienceShown(fd), y);
+  write("Previous Employees Details", left + 6, y, 10.5);
+  y += 6;
+  y = lineFill("a) Name of Previous Employer", text(fd.previousEmployer) || (String(fd.experienceType || "").toUpperCase() === "FRESHER" ? "None" : ""), y);
+  y = lineFill("b) UAN No. (if allotted)", text(person?.uan || fd.uan) || "NA", y);
+  y = lineFill("c) ESI IP No.", text(person?.esicNo || fd.esiIp) || "NA", y);
   write("13. Religion :", left, y);
   const relX = left + 32;
   const mark = (label: string, on: boolean, x: number) => {
-    pdf.rect(x, y - 3.2, 3.2, 3.2);
-    if (on) {
-      pdf.setFont("times", "bold");
-      pdf.setFontSize(9);
-      pdf.text("X", x + 0.6, y - 0.4);
-    }
+    tickBox(x, y, on);
     pdf.setFont("times", "normal");
     pdf.setFontSize(10.5);
     pdf.text(label, x + 5, y);
@@ -454,12 +465,7 @@ export async function buildPaperFormPdf(
   pdf.setFontSize(10.5);
   pdf.text("18. Family Member Details :", left, y);
   const familyMark = (label: string, on: boolean, x: number) => {
-    pdf.rect(x, y - 3.2, 3.2, 3.2);
-    if (on) {
-      pdf.setFont("times", "bold");
-      pdf.setFontSize(9);
-      pdf.text("X", x + 0.6, y - 0.4);
-    }
+    tickBox(x, y, on);
     pdf.setFont("times", "normal");
     pdf.setFontSize(10.5);
     pdf.text(label, x + 5, y);

@@ -1640,7 +1640,7 @@ function ApplyPageInner() {
         )}
 
         {canFillForm && (!officeAdmin || adminFiller.confirmed) && (
-          <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+          <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-visible">
             {/* Step 1: Role Selection */}
             {step === "ROLE" && (
               <div className="p-6 sm:p-8 space-y-6">
@@ -2157,185 +2157,6 @@ function ApplyPageInner() {
                       ) : null}
                     </div>
 
-                    <div className="sm:col-span-2 space-y-3">
-                      <p className="block text-xs font-bold text-slate-700 mb-2">
-                        Experience, if any <span className="text-red-500">*</span>
-                      </p>
-                      <div className="flex gap-8">
-                        {(["FRESHER", "EXPERIENCED"] as const).map((opt) => (
-                          <label key={opt} className="flex items-center gap-2 text-sm font-medium text-slate-800 cursor-pointer">
-                            <input
-                              type="radio"
-                              name="experienceType"
-                              value={opt}
-                              checked={form.experienceType === opt}
-                              onChange={() =>
-                                setForm((prev) => ({
-                                  ...prev,
-                                  experienceType: opt,
-                                  previousEmployer: opt === "FRESHER" ? "None" : prev.previousEmployer === "None" ? "" : prev.previousEmployer,
-                                  workHistory: opt === "EXPERIENCED" ? jobList(prev.workHistory) : [blankJob()],
-                                }))
-                              }
-                              className="w-4 h-4 border-slate-400 text-blue-600"
-                              required
-                            />
-                            {opt === "FRESHER" ? "Fresher" : "Experienced"}
-                          </label>
-                        ))}
-                      </div>
-
-                      <div className="text-xs font-bold text-slate-700">Previous Employees Details</div>
-                      <div>
-                        <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                          a) Name of Previous Employer <span className="text-red-500">*</span>
-                        </label>
-                        <input
-                          required
-                          type="text"
-                          value={form.experienceType === "FRESHER" ? "None" : form.previousEmployer === "None" ? "" : form.previousEmployer}
-                          readOnly={form.experienceType === "FRESHER"}
-                          onChange={(e) => {
-                            const previousEmployer = e.target.value;
-                            setForm((prev) => {
-                              const jobs = jobList(prev.workHistory);
-                              const nextJobs = jobs.length ? [{ ...jobs[0], employer: previousEmployer }, ...jobs.slice(1)] : [{ ...blankJob(), employer: previousEmployer }];
-                              return { ...prev, previousEmployer, workHistory: nextJobs };
-                            });
-                          }}
-                          className={`w-full px-3.5 py-2 border border-slate-300 rounded-lg text-sm ${form.experienceType === "FRESHER" ? "bg-slate-50" : "bg-white"}`}
-                          placeholder={form.experienceType === "FRESHER" ? "None" : "Company name"}
-                        />
-                      </div>
-
-                      {form.experienceType === "EXPERIENCED" ? (
-                        <div className="space-y-3 rounded-xl border border-blue-200 bg-blue-50/40 p-3.5">
-                          <div className="flex items-center justify-between gap-3">
-                            <label className="block text-xs font-bold text-slate-700">
-                              Work / post and period <span className="text-red-500">*</span>
-                            </label>
-                            <button
-                              type="button"
-                              onClick={addWorkJob}
-                              className="text-xs font-bold text-blue-600 hover:text-blue-800"
-                            >
-                              + Add more
-                            </button>
-                          </div>
-                          {jobList(form.workHistory).map((job, idx) => (
-                            <div
-                              key={idx}
-                              className="p-3.5 bg-white border border-slate-200 rounded-xl grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 relative"
-                            >
-                              {jobList(form.workHistory).length > 1 ? (
-                                <button
-                                  type="button"
-                                  onClick={() => removeWorkJob(idx)}
-                                  className="absolute top-2 right-2 text-[11px] font-bold text-rose-600"
-                                >
-                                  Remove
-                                </button>
-                              ) : null}
-                              {idx > 0 ? (
-                                <div>
-                                  <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                                    Employer / company *
-                                  </label>
-                                  <input
-                                    required
-                                    type="text"
-                                    value={job.employer}
-                                    onChange={(e) => updateWorkJob(idx, "employer", e.target.value)}
-                                    className="w-full px-3 py-1.5 border border-slate-300 rounded-md bg-white text-xs"
-                                    placeholder="Company name"
-                                  />
-                                </div>
-                              ) : null}
-                              <div>
-                                <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                                  Work / post *
-                                </label>
-                                <input
-                                  required
-                                  type="text"
-                                  value={job.job}
-                                  onChange={(e) => updateWorkJob(idx, "job", e.target.value)}
-                                  className="w-full px-3 py-1.5 border border-slate-300 rounded-md bg-white text-xs"
-                                  placeholder="e.g. Security Guard"
-                                />
-                              </div>
-                              <div>
-                                <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                                  From *
-                                </label>
-                                <input
-                                  required
-                                  type="month"
-                                  value={job.from}
-                                  onChange={(e) => updateWorkJob(idx, "from", e.target.value)}
-                                  className="w-full px-3 py-1.5 border border-slate-300 rounded-md bg-white text-xs"
-                                />
-                              </div>
-                              <div>
-                                <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                                  To *
-                                </label>
-                                <input
-                                  required
-                                  type="month"
-                                  value={job.to}
-                                  onChange={(e) => updateWorkJob(idx, "to", e.target.value)}
-                                  className="w-full px-3 py-1.5 border border-slate-300 rounded-md bg-white text-xs"
-                                />
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      ) : null}
-
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        <div>
-                          <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                            b) UAN No. (if allotted) <span className="text-red-500">*</span>
-                          </label>
-                          <input
-                            required
-                            type="text"
-                            value={form.uan}
-                            onChange={(e) => setForm({ ...form, uan: e.target.value })}
-                            className="w-full px-3.5 py-2 border border-slate-300 rounded-lg text-sm bg-white"
-                            placeholder="12-digit UAN or NA"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                            c) ESI IP No. <span className="text-red-500">*</span>
-                          </label>
-                          <input
-                            required
-                            type="text"
-                            value={form.esiIp}
-                            onChange={(e) => setForm({ ...form, esiIp: e.target.value })}
-                            className="w-full px-3.5 py-2 border border-slate-300 rounded-lg text-sm bg-white"
-                            placeholder="ESI IP Number or NA"
-                          />
-                        </div>
-                        <div className="sm:col-span-2">
-                          <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                            Preferred ESI Dispensary <span className="text-red-500">*</span>
-                          </label>
-                          <input
-                            required
-                            type="text"
-                            value={form.preferredDispensary}
-                            onChange={(e) => setForm({ ...form, preferredDispensary: e.target.value })}
-                            className="w-full px-3.5 py-2 border border-slate-300 rounded-lg text-sm bg-white"
-                            placeholder="e.g. New Town / Barasat / Salt Lake, or NA"
-                          />
-                        </div>
-                      </div>
-                    </div>
-
                     <div>
                       <label className="block text-xs font-bold text-slate-700 mb-1">
                         Other qualification
@@ -2683,6 +2504,199 @@ function ApplyPageInner() {
                     </div>
                   </div>
                 )}
+
+                {/* SECTION 3: EXPERIENCE / PF / ESI */}
+                <div className="space-y-4 pt-2">
+                  <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
+                    <span className="w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center">
+                      3
+                    </span>
+                    <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
+                      Experience, PF & ESI
+                    </h3>
+                  </div>
+
+                  <div className="rounded-xl border border-blue-200 bg-blue-50/40 p-4 space-y-4">
+                    <div>
+                      <p className="block text-xs font-bold text-slate-700 mb-2">
+                        Experience, if any <span className="text-red-500">*</span>
+                      </p>
+                      <div className="flex flex-wrap gap-8">
+                        {(["FRESHER", "EXPERIENCED"] as const).map((opt) => (
+                          <label key={opt} className="flex items-center gap-2 text-sm font-medium text-slate-800 cursor-pointer">
+                            <input
+                              type="radio"
+                              name="experienceType"
+                              value={opt}
+                              checked={form.experienceType === opt}
+                              onChange={() =>
+                                setForm((prev) => ({
+                                  ...prev,
+                                  experienceType: opt,
+                                  previousEmployer: opt === "FRESHER" ? "None" : prev.previousEmployer === "None" ? "" : prev.previousEmployer,
+                                  workHistory: opt === "EXPERIENCED" ? jobList(prev.workHistory) : [blankJob()],
+                                }))
+                              }
+                              className="w-4 h-4 border-slate-400 text-blue-600"
+                              required
+                            />
+                            {opt === "FRESHER" ? "Fresher" : "Experienced"}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="text-xs font-bold uppercase tracking-wide text-slate-800">Previous Employees Details</div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        a) Name of Previous Employer <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        required
+                        type="text"
+                        value={form.experienceType === "FRESHER" ? "None" : form.previousEmployer === "None" ? "" : form.previousEmployer}
+                        readOnly={form.experienceType === "FRESHER"}
+                        onChange={(e) => {
+                          const previousEmployer = e.target.value;
+                          setForm((prev) => {
+                            const jobs = jobList(prev.workHistory);
+                            const nextJobs = jobs.length ? [{ ...jobs[0], employer: previousEmployer }, ...jobs.slice(1)] : [{ ...blankJob(), employer: previousEmployer }];
+                            return { ...prev, previousEmployer, workHistory: nextJobs };
+                          });
+                        }}
+                        className={`w-full px-3.5 py-2 border border-slate-300 rounded-lg text-sm ${form.experienceType === "FRESHER" ? "bg-slate-50" : "bg-white"}`}
+                        placeholder={form.experienceType === "FRESHER" ? "None" : "Company name"}
+                      />
+                    </div>
+
+                    {form.experienceType === "EXPERIENCED" ? (
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <label className="block text-xs font-bold text-slate-700">
+                            Work / post and period <span className="text-red-500">*</span>
+                          </label>
+                          <button
+                            type="button"
+                            onClick={addWorkJob}
+                            className="text-xs font-bold text-blue-600 hover:text-blue-800"
+                          >
+                            + Add more
+                          </button>
+                        </div>
+                        {jobList(form.workHistory).map((job, idx) => (
+                          <div
+                            key={idx}
+                            className="p-3.5 bg-white border border-slate-200 rounded-xl grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 relative"
+                          >
+                            {jobList(form.workHistory).length > 1 ? (
+                              <button
+                                type="button"
+                                onClick={() => removeWorkJob(idx)}
+                                className="absolute top-2 right-2 text-[11px] font-bold text-rose-600"
+                              >
+                                Remove
+                              </button>
+                            ) : null}
+                            {idx > 0 ? (
+                              <div>
+                                <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                                  Employer / company *
+                                </label>
+                                <input
+                                  required
+                                  type="text"
+                                  value={job.employer}
+                                  onChange={(e) => updateWorkJob(idx, "employer", e.target.value)}
+                                  className="w-full px-3 py-1.5 border border-slate-300 rounded-md bg-white text-xs"
+                                  placeholder="Company name"
+                                />
+                              </div>
+                            ) : null}
+                            <div>
+                              <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                                Work / post *
+                              </label>
+                              <input
+                                required
+                                type="text"
+                                value={job.job}
+                                onChange={(e) => updateWorkJob(idx, "job", e.target.value)}
+                                className="w-full px-3 py-1.5 border border-slate-300 rounded-md bg-white text-xs"
+                                placeholder="e.g. Security Guard"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                                From *
+                              </label>
+                              <input
+                                required
+                                type="month"
+                                value={job.from}
+                                onChange={(e) => updateWorkJob(idx, "from", e.target.value)}
+                                className="w-full px-3 py-1.5 border border-slate-300 rounded-md bg-white text-xs"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                                To *
+                              </label>
+                              <input
+                                required
+                                type="month"
+                                value={job.to}
+                                onChange={(e) => updateWorkJob(idx, "to", e.target.value)}
+                                className="w-full px-3 py-1.5 border border-slate-300 rounded-md bg-white text-xs"
+                              />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">
+                          b) UAN No. / PF (if allotted) <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          required
+                          type="text"
+                          value={form.uan}
+                          onChange={(e) => setForm({ ...form, uan: e.target.value })}
+                          className="w-full px-3.5 py-2 border border-slate-300 rounded-lg text-sm bg-white"
+                          placeholder="12-digit UAN or NA"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">
+                          c) ESI IP No. <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          required
+                          type="text"
+                          value={form.esiIp}
+                          onChange={(e) => setForm({ ...form, esiIp: e.target.value })}
+                          className="w-full px-3.5 py-2 border border-slate-300 rounded-lg text-sm bg-white"
+                          placeholder="ESI IP Number or NA"
+                        />
+                      </div>
+                      <div className="sm:col-span-2">
+                        <label className="block text-xs font-bold text-slate-700 mb-1">
+                          Preferred ESI Dispensary <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          required
+                          type="text"
+                          value={form.preferredDispensary}
+                          onChange={(e) => setForm({ ...form, preferredDispensary: e.target.value })}
+                          className="w-full px-3.5 py-2 border border-slate-300 rounded-lg text-sm bg-white"
+                          placeholder="e.g. New Town / Barasat / Salt Lake, or NA"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
 
                 {/* SECTION 4: DECLARATION & STATUTORY DETAILS */}
                 <div className="space-y-4 pt-2">

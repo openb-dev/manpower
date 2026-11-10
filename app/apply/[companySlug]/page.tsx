@@ -3182,9 +3182,9 @@ function ApplyPageInner() {
                 ) : null}
 
                 <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl inline-block text-left text-xs space-y-1.5 max-w-sm w-full mx-auto font-mono">
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Applicant ID:</span>
-                    <span className="font-bold text-slate-800">{submittedRef.slice(0, 13)}...</span>
+                  <div>
+                    <span className="text-slate-500 block">Application ID:</span>
+                    <span className="font-bold text-slate-800 break-all">{submittedRef || "—"}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-slate-500">Company:</span>

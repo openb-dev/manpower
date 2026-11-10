@@ -142,6 +142,10 @@ export default function ApplicantBookPage() {
       setActionError("Security deposit amount is required when making an employee.");
       return;
     }
+    if (!officeApplicantId.trim()) {
+      setActionError("Employee ID No. is required when making an employee.");
+      return;
+    }
 
     setProcessing(true);
     try {
@@ -160,6 +164,7 @@ export default function ApplicantBookPage() {
           ifsc: joinIfsc.trim().toUpperCase(),
           branchName: joinBranchName.trim(),
           securityMoney: String(joinSecurityMoney).trim(),
+          officeApplicantId: officeApplicantId.trim(),
           uan: selectedApplicant.formData?.uan,
           esicNo: selectedApplicant.formData?.esiIp,
           remark: approvalRemark.trim(),
@@ -418,6 +423,7 @@ export default function ApplicantBookPage() {
                     />
                   </th>
                   <th className="p-4">Name</th>
+                  <th className="p-4">Application ID</th>
                   <th className="p-4">Job</th>
                   <th className="p-4">Mobile</th>
                   <th className="p-4">Aadhaar</th>
@@ -450,6 +456,7 @@ export default function ApplicantBookPage() {
                         </span>
                       ) : null}
                     </td>
+                    <td className="p-4 font-mono text-[11px] text-slate-700 break-all max-w-[11rem]">{a.id}</td>
                     <td className="p-4">
                       <span className="font-medium text-slate-800">{a.jobRole?.name}</span>
                       <span className="block text-xs text-slate-400">{a.roleCategory?.name}</span>
@@ -525,6 +532,9 @@ export default function ApplicantBookPage() {
                 )}
                 <div>
                   <h2 className="text-xl font-bold text-slate-900">{selectedApplicant.fullName}</h2>
+                  <div className="text-[11px] font-mono text-slate-600 mt-0.5 break-all">
+                    Application ID: {selectedApplicant.id}
+                  </div>
                   <div className="flex flex-wrap items-center gap-2 mt-1 text-xs">
                     {selectedApplicant.status === "APPROVED" &&
                     (selectedApplicant.employee?.employeeCode ||
@@ -1120,6 +1130,20 @@ export default function ApplicantBookPage() {
             )}
 
             <div className="space-y-3 text-sm">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Employee ID No. <span className="text-red-600">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={officeApplicantId}
+                  onChange={(e) => setOfficeApplicantId(e.target.value)}
+                  className="w-full px-3 py-1.5 border rounded text-slate-900 font-mono"
+                  placeholder="Type employee ID"
+                />
+              </div>
+
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
                   Monthly salary (₹) <span className="text-red-600">*</span>

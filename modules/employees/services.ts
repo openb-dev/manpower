@@ -17,6 +17,7 @@ export async function approveApplicantAndCreateEmployee({
   branchName,
   securityMoney,
   remark,
+  officeApplicantId,
 }: {
   companyId: string;
   userId: string;
@@ -32,6 +33,7 @@ export async function approveApplicantAndCreateEmployee({
   branchName?: string;
   securityMoney?: string;
   remark?: string;
+  officeApplicantId?: string;
 }) {
   const tenantDb = getTenantPrisma(companyId);
 
@@ -66,7 +68,15 @@ export async function approveApplicantAndCreateEmployee({
     });
 
     const currentNumber = updatedSeq.nextNumber - 1;
-    const employeeCode = `${seq.prefix}-${String(currentNumber).padStart(4, "0")}`;
+    const typedId = String(officeApplicantId || "").trim();
+    const employeeCode = typedId || `${seq.prefix}-${String(currentNumber).padStart(4, "0")}`;
+    if (typedId) {
+      const taken = await tx.employee.findFirst({
+        where: { companyId, employeeCode: typedId, deletedAt: null },
+        select: { id: true },
+      });
+      if (taken) throw new Error("This Employee ID No. is already used. Please type a different one.");
+    }
 
     // 2b. Bank details and security deposit are collected at approval time
     const formData = (applicant.formData as Record<string, any>) || {};
@@ -146,6 +156,7 @@ export async function approveApplicantAndCreateEmployee({
           ifsc: bankIfsc,
           branchName: bankBranch,
           securityMoney: savedSecurity,
+          officeApplicantId: employeeCode,
         } as Prisma.InputJsonValue,
       },
     });

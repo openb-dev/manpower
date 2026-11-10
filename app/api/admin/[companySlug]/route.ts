@@ -188,6 +188,7 @@ export async function POST(
         branchName: body.branchName,
         securityMoney: body.securityMoney,
         remark: body.remark,
+        officeApplicantId: body.officeApplicantId,
       });
       return NextResponse.json(data);
     }

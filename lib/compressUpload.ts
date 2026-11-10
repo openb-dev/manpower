@@ -1,11 +1,17 @@
-const TARGET_BYTES = 1.6 * 1024 * 1024;
-const HARD_MAX_INPUT = 25 * 1024 * 1024;
+const TARGET_BYTES = 200 * 1024;
+const HARD_MAX_INPUT = 40 * 1024 * 1024;
 
-function dataUrlBytes(dataUrl: string) {
+export function dataUrlBytes(dataUrl: string) {
   const comma = dataUrl.indexOf(",");
   const b64 = comma >= 0 ? dataUrl.slice(comma + 1) : dataUrl;
   const padding = (b64.match(/=+$/) || [""])[0].length;
   return Math.max(0, Math.floor((b64.length * 3) / 4) - padding);
+}
+
+export function prettyBytes(n: number) {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${Math.max(1, Math.round(n / 1024))} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function readAsDataUrl(file: Blob) {
@@ -26,23 +32,9 @@ function loadImageFromUrl(url: string) {
   });
 }
 
-async function loadImage(file: Blob) {
+async function loadSource(file: Blob) {
   try {
-    const bitmap = await createImageBitmap(file);
-    const canvas = document.createElement("canvas");
-    canvas.width = bitmap.width;
-    canvas.height = bitmap.height;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) throw new Error("no canvas");
-    ctx.drawImage(bitmap, 0, 0);
-    bitmap.close();
-    const img = new Image();
-    await new Promise<void>((resolve, reject) => {
-      img.onload = () => resolve();
-      img.onerror = () => reject(new Error("Could not read that picture."));
-      img.src = canvas.toDataURL("image/jpeg", 0.92);
-    });
-    return img;
+    return await createImageBitmap(file);
   } catch {
     const url = URL.createObjectURL(file);
     try {
@@ -53,9 +45,19 @@ async function loadImage(file: Blob) {
   }
 }
 
-function drawJpeg(img: HTMLImageElement, maxEdge: number, quality: number) {
-  let width = img.width || 1;
-  let height = img.height || 1;
+type ImageSource = HTMLImageElement | ImageBitmap;
+
+function sourceSize(img: ImageSource) {
+  if ("naturalWidth" in img && img.naturalWidth) {
+    return { width: img.naturalWidth, height: img.naturalHeight };
+  }
+  return { width: img.width || 1, height: img.height || 1 };
+}
+
+function drawJpeg(img: ImageSource, maxEdge: number, quality: number) {
+  const size = sourceSize(img);
+  let width = size.width;
+  let height = size.height;
   if (width > maxEdge || height > maxEdge) {
     const scale = maxEdge / Math.max(width, height);
     width = Math.max(1, Math.round(width * scale));
@@ -73,19 +75,30 @@ function drawJpeg(img: HTMLImageElement, maxEdge: number, quality: number) {
 }
 
 async function compressImageBlob(file: Blob) {
-  const img = await loadImage(file);
-  const edges = [1600, 1280, 1100, 960, 800, 640];
-  const qualities = [0.72, 0.62, 0.52, 0.42, 0.34, 0.26];
+  const img = await loadSource(file);
+  const edges = [1600, 1280, 1100, 960, 800, 640, 480];
+  const qualities = [0.7, 0.58, 0.48, 0.38, 0.3, 0.22];
   let best = drawJpeg(img, edges[0], qualities[0]);
-  if (dataUrlBytes(best) <= TARGET_BYTES) return best;
+  if (dataUrlBytes(best) <= TARGET_BYTES) {
+    closeSource(img);
+    return best;
+  }
   for (const edge of edges) {
     for (const quality of qualities) {
       const next = drawJpeg(img, edge, quality);
       if (dataUrlBytes(next) < dataUrlBytes(best)) best = next;
-      if (dataUrlBytes(best) <= TARGET_BYTES) return best;
+      if (dataUrlBytes(best) <= TARGET_BYTES) {
+        closeSource(img);
+        return best;
+      }
     }
   }
+  closeSource(img);
   return best;
+}
+
+function closeSource(img: ImageSource) {
+  if ("close" in img && typeof img.close === "function") img.close();
 }
 
 function extractLargestJpeg(bytes: Uint8Array) {
@@ -107,17 +120,35 @@ function jpegFileName(name: string) {
   return name.replace(/\.[a-z0-9]+$/i, "") + ".jpg";
 }
 
+export function dataUrlToBlob(dataUrl: string) {
+  const comma = dataUrl.indexOf(",");
+  const meta = comma >= 0 ? dataUrl.slice(0, comma) : "";
+  const b64 = comma >= 0 ? dataUrl.slice(comma + 1) : dataUrl;
+  const mime = /data:([^;]+)/.exec(meta)?.[1] || "application/octet-stream";
+  const binary = atob(b64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+  return new Blob([bytes], { type: mime });
+}
+
 export async function fileToCompressedUpload(file: File) {
   if (file.size > HARD_MAX_INPUT) {
-    throw new Error("That file is too large to compress. Please choose a file under 25 MB.");
+    throw new Error("That file is too large to compress. Please choose a file under 40 MB.");
   }
 
   const isPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
   const isImage = file.type.startsWith("image/") || /\.(jpe?g|png|webp|gif|heic|heif|bmp)$/i.test(file.name);
 
   if (isImage) {
-    const dataUrl = await compressImageBlob(file);
-    return { dataUrl, fileName: jpegFileName(file.name) };
+    try {
+      const dataUrl = await compressImageBlob(file);
+      return { dataUrl, fileName: jpegFileName(file.name) };
+    } catch {
+      if (file.size <= TARGET_BYTES) {
+        return { dataUrl: await readAsDataUrl(file), fileName: file.name };
+      }
+      throw new Error("Could not read that picture. Please upload a JPG or PNG photo.");
+    }
   }
 
   if (isPdf) {
@@ -128,13 +159,17 @@ export async function fileToCompressedUpload(file: File) {
     const jpeg = extractLargestJpeg(bytes);
     if (jpeg) {
       const blob = new Blob([new Uint8Array(jpeg)], { type: "image/jpeg" });
-      const dataUrl = await compressImageBlob(blob);
-      return { dataUrl, fileName: jpegFileName(file.name) };
+      try {
+        const dataUrl = await compressImageBlob(blob);
+        return { dataUrl, fileName: jpegFileName(file.name) };
+      } catch {
+        return { dataUrl: await readAsDataUrl(blob), fileName: jpegFileName(file.name) };
+      }
     }
-    if (file.size <= 8 * 1024 * 1024) {
+    if (file.size <= 2.5 * 1024 * 1024) {
       return { dataUrl: await readAsDataUrl(file), fileName: file.name };
     }
-    throw new Error("Could not compress that PDF. Please upload a photo of the document.");
+    throw new Error("That PDF is too heavy to compress. Please upload a photo of the document instead.");
   }
 
   if (file.size <= TARGET_BYTES) {

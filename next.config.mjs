@@ -4,9 +4,9 @@ const nextConfig = {
   experimental: {
     agentUpgrade: "security",
     proxyClientMaxBodySize: "20mb",
-  },
-  serverActions: {
-    bodySizeLimit: "20mb",
+    serverActions: {
+      bodySizeLimit: "20mb",
+    },
   },
   typescript: {
     ignoreBuildErrors: true,

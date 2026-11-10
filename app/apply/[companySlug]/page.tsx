@@ -13,7 +13,7 @@ import {
   indianAddressLine,
 } from "@/lib/applicantFormFields";
 import { friendlyPublicError, readApiJson } from "@/lib/publicErrors";
-import { fileToCompressedUpload } from "@/lib/compressUpload";
+import { dataUrlBytes, dataUrlToBlob, fileToCompressedUpload, prettyBytes } from "@/lib/compressUpload";
 import {
   GEM_EXPERIENCE_BANDS,
   GEM_MANPOWER_PROFILES,
@@ -242,6 +242,11 @@ function qualificationShown(form: ReturnType<typeof initialForm>) {
   return form.qualification.trim();
 }
 
+function attachedNote(name: string, dataUrl: string) {
+  const size = dataUrl ? prettyBytes(dataUrlBytes(dataUrl)) : "";
+  return size ? `✓ ${name} (${size})` : `✓ ${name}`;
+}
+
 function missingPlace(label: string, pin: string, district: string, state: string, country: string) {
   if (!pin.trim() || pin.replace(/\D/g, "").length !== 6) return `Please enter a 6-digit PIN for ${label}.`;
   if (!district.trim()) return `Please enter district for ${label}.`;
@@ -435,6 +440,7 @@ function ApplyPageInner() {
   const [form, setForm] = useState(initialForm);
   const [submitting, setSubmitting] = useState(false);
   const [submittedRef, setSubmittedRef] = useState("");
+  const [compressingLabel, setCompressingLabel] = useState("");
 
   // Check for saved candidate session in localStorage
   useEffect(() => {
@@ -741,9 +747,10 @@ function ApplyPageInner() {
     const input = e.target;
     const file = input.files?.[0];
     if (!file) return;
+    setError("");
+    setCompressingLabel(file.name);
     fileToCompressedUpload(file)
       .then(({ dataUrl, fileName }) => {
-        setError("");
         setForm((prev) => ({
           ...prev,
           [dataKey]: dataUrl,
@@ -753,7 +760,8 @@ function ApplyPageInner() {
       .catch((err: any) => {
         setError(err.message || "Could not read that file.");
         input.value = "";
-      });
+      })
+      .finally(() => setCompressingLabel(""));
   }
 
   function updatePresent(
@@ -827,6 +835,7 @@ function ApplyPageInner() {
     e.preventDefault();
     setError("");
 
+    if (compressingLabel) return setError("Please wait for the file to finish compressing.");
     if (!officeAdmin && !candidate) {
       setError("Please sign in or register before submitting your application.");
       return;
@@ -1110,20 +1119,29 @@ function ApplyPageInner() {
           joiningTerms: Boolean(form.declarationAccepted && form.termsAccepted),
           termsVersion: JOINING_VERSION,
         },
-        documents: documentsPayload,
+        documents: documentsPayload.map(({ docType, fileName }) => ({ docType, fileName })),
       };
 
-      const res = await fetch(`/api/apply/${companySlug}`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      const submitBody = new FormData();
+      submitBody.append(
+        "payload",
+        JSON.stringify({
           action: "SUBMIT_APPLICATION",
           data: payload,
           fillByAdmin: Boolean(officeAdmin),
           adminFillerName: officeAdmin ? adminFiller.name.trim() : undefined,
           adminFillerPhone: officeAdmin ? adminFiller.phone.replace(/\D/g, "").slice(-10) : undefined,
         }),
+      );
+      for (const doc of documentsPayload) {
+        if (!doc.fileData) continue;
+        submitBody.append(`file:${doc.docType}`, dataUrlToBlob(doc.fileData), doc.fileName);
+      }
+
+      const res = await fetch(`/api/apply/${companySlug}`, {
+        method: "POST",
+        credentials: "include",
+        body: submitBody,
       });
 
       const data = await readApiJson(res);
@@ -1243,6 +1261,11 @@ function ApplyPageInner() {
             <button onClick={() => setSuccessMsg("")} className="text-emerald-500 hover:text-emerald-800 font-bold ml-2">✕</button>
           </div>
         )}
+        {compressingLabel ? (
+          <div className="mb-6 p-4 rounded-xl bg-blue-50 border border-blue-200 text-blue-800 text-xs font-semibold">
+            Compressing {compressingLabel} so it can be saved. Please wait…
+          </div>
+        ) : null}
 
         {/* =========================================================================
             STATE 1: NOT AUTHENTICATED -> CANDIDATE REGISTRATION / SIGN IN
@@ -2155,7 +2178,7 @@ function ApplyPageInner() {
                       />
                       {form.educationFileName ? (
                         <div className="text-[11px] text-emerald-700 font-semibold mt-1 truncate">
-                          ✓ {form.educationFileName}
+                          {attachedNote(form.educationFileName, form.educationFile)}
                         </div>
                       ) : null}
                     </div>
@@ -2288,7 +2311,7 @@ function ApplyPageInner() {
                       />
                       {form.otherQualFileName ? (
                         <div className="text-[11px] text-emerald-700 font-semibold mt-1 truncate">
-                          ✓ {form.otherQualFileName}
+                          {attachedNote(form.otherQualFileName, form.otherQualFile)}
                         </div>
                       ) : null}
                     </div>
@@ -2495,7 +2518,7 @@ function ApplyPageInner() {
                         />
                         {form.photoName && (
                           <div className="text-[11px] text-emerald-700 font-semibold mt-1">
-                            ✓ {form.photoName} attached
+                            {attachedNote(form.photoName, form.photo)}
                           </div>
                         )}
                       </div>
@@ -3032,7 +3055,7 @@ function ApplyPageInner() {
                         />
                         {form.passbookFileName ? (
                           <div className="text-[11px] text-emerald-700 font-semibold mt-1 truncate">
-                            ✓ {form.passbookFileName}
+                            {attachedNote(form.passbookFileName, form.passbookFile)}
                           </div>
                         ) : null}
                       </div>
@@ -3084,7 +3107,7 @@ function ApplyPageInner() {
                           />
                           {form.policeFileName ? (
                             <div className="text-[11px] text-emerald-700 font-semibold mt-1 truncate">
-                              ✓ {form.policeFileName}
+                              {attachedNote(form.policeFileName, form.policeFile)}
                             </div>
                           ) : (
                             <p className="text-[11px] text-slate-500 mt-1">
@@ -3131,7 +3154,7 @@ function ApplyPageInner() {
                       />
                       {form.aadhaarFileName && (
                         <div className="text-[11px] text-emerald-700 font-semibold truncate">
-                          ✓ {form.aadhaarFileName}
+                          {attachedNote(form.aadhaarFileName, form.aadhaarFile)}
                         </div>
                       )}
                     </div>
@@ -3149,7 +3172,7 @@ function ApplyPageInner() {
                       />
                       {form.panFileName && (
                         <div className="text-[11px] text-emerald-700 font-semibold truncate">
-                          ✓ {form.panFileName}
+                          {attachedNote(form.panFileName, form.panFile)}
                         </div>
                       )}
                     </div>
@@ -3240,7 +3263,7 @@ function ApplyPageInner() {
                 <div className="pt-4 border-t border-slate-200">
                   <button
                     type="submit"
-                    disabled={submitting}
+                    disabled={submitting || Boolean(compressingLabel)}
                     className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold py-3.5 rounded-xl shadow-md transition text-sm flex items-center justify-center gap-2"
                   >
                     <span>{submitting ? "Submitting Official Application..." : "Submit Official Application"}</span>

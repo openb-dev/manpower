@@ -8,10 +8,10 @@ export function friendlyPublicError(raw: unknown) {
       text,
     )
   ) {
-    return "The form could not be saved. Please use a smaller photo and documents (under 2 MB each) and try again.";
+    return "The form could not be saved. Please wait for the files to finish compressing, then try again.";
   }
   if (/payload too large|entity too large|\b413\b/i.test(text)) {
-    return "The photo or documents are too large. Please upload files under 2 MB each and try again.";
+    return "The form could not be saved. Please wait for the files to finish compressing, then try again.";
   }
   if (/failed to fetch|networkerror|load failed|network request failed/i.test(text)) {
     return "Could not connect. Please check your internet and try again.";

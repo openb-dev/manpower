@@ -7,6 +7,36 @@ import { publicCatchMessage } from "@/lib/publicErrors";
 import { currentOfficeAdmin } from "@/lib/officeAdmin";
 import { applyRolesForForm, ensureApplyRoles } from "@/lib/applyRoles";
 
+async function fileToDataUrl(file: File) {
+  const buf = Buffer.from(await file.arrayBuffer());
+  const mime = file.type || "application/octet-stream";
+  return `data:${mime};base64,${buf.toString("base64")}`;
+}
+
+async function readApplyBody(request: Request) {
+  const contentType = request.headers.get("content-type") || "";
+  if (contentType.includes("multipart/form-data")) {
+    const form = await request.formData();
+    const raw = String(form.get("payload") || "");
+    const body = raw ? JSON.parse(raw) : {};
+    const documents: { docType: string; fileName: string; fileData: string }[] = [];
+    for (const [key, value] of form.entries()) {
+      if (!key.startsWith("file:") || typeof value === "string") continue;
+      const file = value as File;
+      documents.push({
+        docType: key.slice(5),
+        fileName: file.name || "document",
+        fileData: await fileToDataUrl(file),
+      });
+    }
+    if (documents.length) {
+      body.data = { ...(body.data || {}), documents };
+    }
+    return body;
+  }
+  return request.json();
+}
+
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ companySlug: string }> }
@@ -73,12 +103,11 @@ export async function POST(
     const { companySlug } = await params;
     let body: any;
     try {
-      body = await request.json();
+      body = await readApplyBody(request);
     } catch {
       return NextResponse.json(
         {
-          error:
-            "The form could not be saved. Please use a smaller photo and documents (under 2 MB each) and try again.",
+          error: "The form could not be saved. Please wait for the files to finish compressing, then try again.",
         },
         { status: 400 },
       );

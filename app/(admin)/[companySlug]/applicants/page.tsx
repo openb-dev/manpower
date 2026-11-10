@@ -9,7 +9,6 @@ import { loadApplicantBook, loadApplicantDetail } from "../actions";
 import { downloadPaperFormPdf, paperFormFileName, printPaperFormPdf } from "@/lib/downloadPaperFormPdf";
 import { friendlyPublicError, readApiJson } from "@/lib/publicErrors";
 import { filledByAdminInfo, indianAddressLine } from "@/lib/applicantFormFields";
-import FilledByAdminNote from "@/components/admin/FilledByAdminNote";
 import AttachedDocuments from "@/components/admin/AttachedDocuments";
 
 const ApplicantPaperForm = dynamic(
@@ -511,7 +510,7 @@ export default function ApplicantBookPage() {
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-6 print:static print:bg-white print:p-0 print:overflow-visible print:block">
           <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[92vh] flex flex-col overflow-hidden border border-slate-200 print:max-w-none print:max-h-none print:shadow-none print:rounded-none print:border-0 print:overflow-visible">
             {/* FIXED MODAL HEADER with Photo, Basic Info & Top Actions */}
-            <div className="shrink-0 p-5 sm:p-6 border-b border-slate-200 bg-white flex items-start justify-between gap-4 no-print">
+            <div className="shrink-0 p-3 sm:p-4 border-b border-slate-200 bg-white flex items-start justify-between gap-3 no-print">
               <div className="flex items-center gap-4">
                 {selectedApplicant.formData?.photo ? (
                   <img
@@ -577,11 +576,7 @@ export default function ApplicantBookPage() {
                         {savingOfficeId ? "Saving..." : "Save ID"}
                       </button>
                     </div>
-                  ) : (
-                    <p className="text-[11px] text-slate-500 mt-2">
-                      Employee ID No. opens only after this applicant is approved.
-                    </p>
-                  )}
+                  ) : null}
                 </div>
               </div>
 
@@ -618,8 +613,7 @@ export default function ApplicantBookPage() {
             </div>
 
             {/* SCROLLABLE BODY CONTENT */}
-            <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-6 print:overflow-visible print:p-0">
-              <FilledByAdminNote person={selectedApplicant} />
+            <div className="flex-1 min-h-0 overflow-y-auto p-5 sm:p-6 space-y-6 print:overflow-visible print:p-0">
               <ApplicantPaperForm person={selectedApplicant} company={{ slug: companySlug }} />
               {/* SECTION 1: PERSONAL & GENERAL DETAILS */}
               <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 no-print">
@@ -654,36 +648,29 @@ export default function ApplicantBookPage() {
                     </span>
                   </div>
                   <div className="col-span-2">
-                    <span className="text-slate-400 block font-semibold text-[10px] uppercase">Local Address</span>
+                    <span className="text-slate-400 block font-semibold text-[10px] uppercase">Present Address</span>
                     <span className="text-slate-700">
                       {indianAddressLine({
-                        locality: selectedApplicant.formData?.localAddress || selectedApplicant.presentAddress,
-                        careOf: selectedApplicant.formData?.localCareOf,
-                        houseNo: selectedApplicant.formData?.localHouseNo,
-                        po: selectedApplicant.formData?.localPO,
-                        ps: selectedApplicant.formData?.localPS,
-                        district: selectedApplicant.formData?.localDistrict,
-                        state: selectedApplicant.formData?.localState,
-                        pin: selectedApplicant.formData?.localPin,
-                        country: selectedApplicant.formData?.localCountry,
-                      }) || "—"}
+                        locality: selectedApplicant.formData?.presentAddress || selectedApplicant.presentAddress,
+                        po: selectedApplicant.formData?.presentPO || selectedApplicant.formData?.localPO,
+                        ps: selectedApplicant.formData?.presentPS || selectedApplicant.formData?.localPS,
+                        district: selectedApplicant.formData?.presentDistrict || selectedApplicant.formData?.localDistrict,
+                        state: selectedApplicant.formData?.presentState || selectedApplicant.formData?.localState,
+                        pin: selectedApplicant.formData?.presentPin || selectedApplicant.formData?.localPin,
+                      }) || selectedApplicant.presentAddress || "—"}
                     </span>
                   </div>
                   <div className="col-span-2">
-                    <span className="text-slate-400 block font-semibold text-[10px] uppercase">Village Address</span>
+                    <span className="text-slate-400 block font-semibold text-[10px] uppercase">Permanent Address</span>
                     <span className="text-slate-700">
                       {indianAddressLine({
-                        locality: selectedApplicant.formData?.villageAddress || selectedApplicant.permanentAddress,
-                        careOf: selectedApplicant.formData?.villageCareOf,
-                        houseOwner: selectedApplicant.formData?.villageHouseOwner,
-                        po: selectedApplicant.formData?.villagePO,
-                        viaPO: selectedApplicant.formData?.villageViaPO,
-                        ps: selectedApplicant.formData?.villagePS,
-                        district: selectedApplicant.formData?.villageDistrict,
-                        state: selectedApplicant.formData?.villageState,
-                        pin: selectedApplicant.formData?.villagePin,
-                        country: selectedApplicant.formData?.villageCountry,
-                      }) || "—"}
+                        locality: selectedApplicant.formData?.permanentAddress || selectedApplicant.permanentAddress,
+                        po: selectedApplicant.formData?.permanentPO || selectedApplicant.formData?.villagePO,
+                        ps: selectedApplicant.formData?.permanentPS || selectedApplicant.formData?.villagePS,
+                        district: selectedApplicant.formData?.permanentDistrict || selectedApplicant.formData?.villageDistrict,
+                        state: selectedApplicant.formData?.permanentState || selectedApplicant.formData?.villageState,
+                        pin: selectedApplicant.formData?.permanentPin || selectedApplicant.formData?.villagePin,
+                      }) || selectedApplicant.permanentAddress || "—"}
                     </span>
                   </div>
                   <div>
@@ -878,25 +865,22 @@ export default function ApplicantBookPage() {
                           : "—"}
                     </span>
                   </div>
-                  <div className="col-span-2">
-                    <span className="text-slate-400 block font-semibold text-[10px] uppercase">Present Address & PIN</span>
-                    <span className="text-slate-700">{selectedApplicant.presentAddress}</span>
-                  </div>
-                  <div className="col-span-2">
-                    <span className="text-slate-400 block font-semibold text-[10px] uppercase">Permanent Address & PIN</span>
-                    <span className="text-slate-700">{selectedApplicant.permanentAddress || "—"}</span>
-                  </div>
                 </div>
               </div>
 
               {/* SECTION 4: FAMILY MEMBERS TABLE */}
-              {Array.isArray(selectedApplicant.formData?.family) && selectedApplicant.formData.family.length > 0 && (
-                <div className="border border-slate-200 rounded-xl overflow-hidden no-print">
-                  <div className="bg-slate-50 px-4 py-2.5 border-b border-slate-200">
-                    <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-                      4. Family Members & Dependents
-                    </h3>
-                  </div>
+              <div className="border border-slate-200 rounded-xl overflow-hidden no-print">
+                <div className="bg-slate-50 px-4 py-2.5 border-b border-slate-200">
+                  <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                    4. Family Members & Dependents
+                  </h3>
+                </div>
+                {selectedApplicant.formData?.includeFamily === "NO" ||
+                (!selectedApplicant.formData?.includeFamily &&
+                  (!Array.isArray(selectedApplicant.formData?.family) ||
+                    selectedApplicant.formData.family.length === 0)) ? (
+                  <p className="px-4 py-3 text-xs text-slate-600">Family member details : No</p>
+                ) : (
                   <table className="w-full text-xs text-left">
                     <thead className="bg-slate-50/50 text-[11px] font-bold text-slate-600 border-b border-slate-100">
                       <tr>
@@ -908,21 +892,19 @@ export default function ApplicantBookPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {selectedApplicant.formData.family.map((member: any, idx: number) => (
+                      {(selectedApplicant.formData?.family || []).map((member: any, idx: number) => (
                         <tr key={idx} className="hover:bg-slate-50">
                           <td className="px-4 py-2 font-mono text-slate-400">{idx + 1}</td>
                           <td className="px-4 py-2 font-semibold text-slate-800">{member.name || "—"}</td>
                           <td className="px-4 py-2 text-slate-600">{member.relation || "—"}</td>
                           <td className="px-4 py-2 text-slate-600">{member.dateOfBirth || "—"}</td>
-                          <td className="px-4 py-2 font-mono text-slate-600">
-                            {member.aadhaar || "—"}
-                          </td>
+                          <td className="px-4 py-2 font-mono text-slate-600">{member.aadhaar || "—"}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
-                </div>
-              )}
+                )}
+              </div>
 
               {/* SECTION 5: BANK & DEPOSIT */}
               <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 no-print">
@@ -951,7 +933,7 @@ export default function ApplicantBookPage() {
                     <span className="font-semibold font-mono text-slate-800">{selectedApplicant.formData?.ifsc || "—"}</span>
                   </div>
                   <div>
-                    <span className="text-slate-400 block font-semibold text-[10px] uppercase">Branch Name</span>
+                    <span className="text-slate-400 block font-semibold text-[10px] uppercase">Branch name & address</span>
                     <span className="font-semibold text-slate-800">{selectedApplicant.formData?.branchName || "—"}</span>
                   </div>
                 </div>
@@ -1229,7 +1211,7 @@ export default function ApplicantBookPage() {
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Branch name <span className="text-red-600">*</span>
+                      Branch name &amp; address <span className="text-red-600">*</span>
                     </label>
                     <input
                       type="text"
@@ -1237,7 +1219,7 @@ export default function ApplicantBookPage() {
                       value={joinBranchName}
                       onChange={(e) => setJoinBranchName(e.target.value)}
                       className="w-full px-3 py-1.5 border rounded text-slate-900"
-                      placeholder="Branch"
+                      placeholder="Branch name and address"
                     />
                   </div>
                 </div>

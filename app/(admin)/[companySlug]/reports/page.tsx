@@ -6,7 +6,6 @@ import { useParams } from "next/navigation";
 import { loadCompanyReports, loadReportPerson } from "../actions";
 import { statusLabel } from "@/components/admin/SimpleGuide";
 import { friendlyPublicError } from "@/lib/publicErrors";
-import FilledByAdminNote from "@/components/admin/FilledByAdminNote";
 import AttachedDocuments from "@/components/admin/AttachedDocuments";
 import { printPaperFormPdf } from "@/lib/downloadPaperFormPdf";
 
@@ -770,12 +769,11 @@ function PersonReportModal({
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-6 print:overflow-visible print:p-0">
+        <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-5 space-y-6 print:overflow-visible print:p-0">
           {loading ? (
             <p className="text-sm text-slate-500 no-print">Loading full form details and documents...</p>
           ) : (
             <>
-              <FilledByAdminNote person={person} />
               <ApplicantPaperForm person={person} company={company} />
               <AttachedDocuments person={person} />
             </>

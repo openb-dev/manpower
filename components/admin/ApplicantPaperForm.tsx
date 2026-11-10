@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { DECLARATION, TERMS } from "@/server/data/joiningText.js";
 import { applicantPhotoUrl } from "@/lib/applicantFormFields";
 
@@ -31,6 +31,22 @@ function dmy(value: unknown) {
   const d = new Date(raw);
   if (Number.isNaN(d.getTime())) return raw;
   return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
+}
+
+function hm(value: unknown) {
+  if (!value) return "";
+  const raw = String(value);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw) || /^\d{2}\/\d{2}\/\d{4}$/.test(raw)) return "";
+  const d = new Date(raw);
+  if (Number.isNaN(d.getTime())) return "";
+  return new Intl.DateTimeFormat("en-IN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+    timeZone: "Asia/Kolkata",
+  })
+    .format(d)
+    .replace(/\s*(am|pm)$/i, (part) => ` ${part.trim().toUpperCase()}`);
 }
 
 function experienceShown(fd: Record<string, any>) {
@@ -75,13 +91,33 @@ function Blank({
   min?: string;
 }) {
   const filled = text(value);
+  const fill = className.includes("flex-1") || className.includes("w-full");
   return (
     <span
-      className={`inline border-b border-black px-1 leading-snug break-words align-bottom min-w-0 ${className}`}
-      style={{ minWidth: min }}
+      className={`${fill ? "block min-w-0" : "inline-block"} border-b border-dotted border-black px-1 leading-snug align-bottom ${className}`}
+      style={fill ? { minWidth: 0 } : { minWidth: min }}
     >
-      {filled ? <span className="font-semibold">{filled}</span> : <span>&nbsp;</span>}
+      {filled ? <span className="font-semibold break-words">{filled}</span> : <span>&nbsp;</span>}
     </span>
+  );
+}
+
+function LineField({
+  label,
+  value,
+  className = "",
+}: {
+  label: string;
+  value?: unknown;
+  className?: string;
+}) {
+  return (
+    <div className={`flex items-end gap-1.5 min-w-0 ${className}`}>
+      <span className="shrink-0">{label} :</span>
+      <span className="flex-1 min-w-0 overflow-hidden border-b border-dotted border-black font-semibold leading-snug break-words min-h-[1.15em]">
+        {text(value) || "\u00a0"}
+      </span>
+    </div>
   );
 }
 
@@ -93,11 +129,11 @@ function Tick({ on }: { on: boolean }) {
   );
 }
 
-function Footer({ date, name, label }: { date: string; name: string; label: string }) {
+function Footer({ date, time, name, label }: { date: string; time?: string; name: string; label: string }) {
   return (
     <div className="mt-auto shrink-0 pt-6 flex justify-between items-end gap-6 text-[12px]">
       <div>
-        Date : <Blank value={date} min="8rem" />
+        Date : <Blank value={date} min="8rem" /> Time : <Blank value={time} min="6rem" />
       </div>
       <div className="text-right min-w-[14rem]">
         <div className="border-b border-black min-h-[1.4em] font-semibold">{name || "\u00a0"}</div>
@@ -107,10 +143,145 @@ function Footer({ date, name, label }: { date: string; name: string; label: stri
   );
 }
 
-function familyRows(family: unknown) {
-  const rows = Array.isArray(family) ? family.slice(0, 5) : [];
-  while (rows.length < 5) rows.push({ name: "", relation: "", dateOfBirth: "", aadhaar: "" });
+function familyYes(fd: Record<string, any>) {
+  const choice = String(fd?.includeFamily || "").toUpperCase();
+  if (choice === "NO") return false;
+  if (choice === "YES") return true;
+  const rows = Array.isArray(fd?.family) ? fd.family : [];
+  return rows.some((member: any) =>
+    [member?.name, member?.relation, member?.dateOfBirth, member?.aadhaar].some((part) => String(part || "").trim()),
+  );
+}
+
+function familyRows(fd: Record<string, any>) {
+  if (!familyYes(fd)) return [];
+  const rows = Array.isArray(fd?.family) ? fd.family.filter((member: any) => text(member?.name)).slice(0, 5) : [];
   return rows;
+}
+
+function bankYes(fd: Record<string, any>) {
+  return String(fd?.uploadBankDetails || "").toUpperCase() === "YES";
+}
+
+function FamilyTable({ fd }: { fd: Record<string, any> }) {
+  return (
+    <table className="w-full border-collapse border border-black text-[11px] mt-1">
+      <thead>
+        <tr>
+          <th className="border border-black w-8 py-0.5 font-semibold">Sl.</th>
+          <th className="border border-black py-0.5 font-semibold">Name</th>
+          <th className="border border-black py-0.5 font-semibold">Relation</th>
+          <th className="border border-black py-0.5 font-semibold">Date of Birth</th>
+          <th className="border border-black py-0.5 font-semibold">Aadhaar No.</th>
+        </tr>
+      </thead>
+      <tbody>
+        {familyRows(fd).map((member: any, idx: number) => (
+          <tr key={idx}>
+            <td className="border border-black text-center py-0.5">{idx + 1}</td>
+            <td className="border border-black px-1 py-0.5">{text(member.name)}</td>
+            <td className="border border-black px-1 py-0.5">{text(member.relation)}</td>
+            <td className="border border-black px-1 py-0.5">{dmy(member.dateOfBirth)}</td>
+            <td className="border border-black px-1 py-0.5">{text(member.aadhaar)}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+function BankFields({
+  account,
+  ifsc,
+  bankName,
+  branch,
+}: {
+  account?: unknown;
+  ifsc?: unknown;
+  bankName?: unknown;
+  branch?: unknown;
+}) {
+  return (
+    <div className="mt-1 space-y-1">
+      <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-x-4">
+        <LineField label="SB A/C No." value={account} />
+        <LineField label="IFSC" value={ifsc} />
+      </div>
+      <LineField label="Bank Name" value={bankName} />
+      <LineField label="Branch name & address" value={branch} />
+    </div>
+  );
+}
+
+function AddressLines({
+  locality,
+  po,
+  ps,
+  district,
+  state,
+  pin,
+}: {
+  locality?: unknown;
+  po?: unknown;
+  ps?: unknown;
+  district?: unknown;
+  state?: unknown;
+  pin?: unknown;
+}) {
+  return (
+    <div className="w-full min-w-0 space-y-1">
+      <LineField label="Vill. / Locality" value={locality} />
+      <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-x-4 gap-y-1">
+        <LineField label="P.O." value={po} />
+        <LineField label="P.S." value={ps} />
+      </div>
+      <LineField label="Dist." value={district} />
+      <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-x-4 gap-y-1">
+        <LineField label="State" value={state} />
+        <LineField label="PIN" value={pin} />
+      </div>
+    </div>
+  );
+}
+
+function ScaledPaper({ children }: { children: React.ReactNode }) {
+  const boxRef = useRef<HTMLDivElement>(null);
+  const innerRef = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(1);
+  const [innerH, setInnerH] = useState(0);
+
+  useEffect(() => {
+    const box = boxRef.current;
+    const inner = innerRef.current;
+    if (!box || !inner) return;
+    const fit = () => {
+      const natural = 210 * (96 / 25.4);
+      setScale(Math.min(1, box.clientWidth / Math.max(natural, 1)));
+      setInnerH(inner.scrollHeight);
+    };
+    fit();
+    const ro = new ResizeObserver(fit);
+    ro.observe(box);
+    ro.observe(inner);
+    return () => ro.disconnect();
+  }, []);
+
+  return (
+    <div ref={boxRef} className="paper-form-scale-box">
+      <div className="overflow-hidden" style={{ height: innerH ? innerH * scale : undefined }}>
+        <div
+          ref={innerRef}
+          className="paper-form-pack"
+          style={{
+            transform: `scale(${scale})`,
+            transformOrigin: "top left",
+          }}
+        >
+          {children}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function letterhead(company?: { legalName?: string; shortName?: string; slug?: string }) {
@@ -138,72 +309,59 @@ export function ApplicantPaperForm({
   const father = text(person?.fatherOrHusband || fd.fatherOrHusband);
   const dob = dmy(person?.dateOfBirth || fd.dateOfBirth);
   const age = text(fd.age);
-  const local = text(fd.localAddress || person?.presentAddress);
-  const village = text(fd.villageAddress || person?.permanentAddress);
-  const present = text(person?.presentAddress || fd.presentAddress);
-  const permanent = text(person?.permanentAddress || fd.permanentAddress);
-  const presentPin = text(fd.presentPin);
-  const permanentPin = text(fd.permanentPin);
+  const presentLocality = text(fd.presentAddress) || text(fd.localAddress) || text(person?.presentAddress);
+  const permanentLocality = text(fd.permanentAddress) || text(fd.villageAddress) || text(person?.permanentAddress);
+  const presentPO = text(fd.presentPO || fd.localPO);
+  const presentPS = text(fd.presentPS || fd.localPS);
+  const presentDistrict = text(fd.presentDistrict || fd.localDistrict);
+  const presentState = text(fd.presentState || fd.localState);
+  const presentPin = text(fd.presentPin || fd.localPin);
+  const permanentPO = text(fd.permanentPO || fd.villagePO);
+  const permanentPS = text(fd.permanentPS || fd.villagePS);
+  const permanentDistrict = text(fd.permanentDistrict || fd.villageDistrict);
+  const permanentState = text(fd.permanentState || fd.villageState);
+  const permanentPin = text(fd.permanentPin || fd.villagePin);
   const religion = text(fd.religion).toLowerCase();
   const photo = applicantPhotoUrl(person);
-  const signedOn = dmy(person?.joiningDate || person?.createdAt);
-  const aadhaar = text(person?.aadhaarDisplay || fd.aadhaar);
-  const pan = text(person?.pan || fd.pan);
+  const signedAt = fd.submittedAt || person?.createdAt || person?.joiningDate;
+  const signedOn = dmy(signedAt);
+  const signedTime = hm(fd.submittedAt || person?.createdAt);
   const account = text(person?.bankAccountNo || fd.accountNo);
   const ifsc = text(person?.bankIfsc || fd.ifsc);
-  const branch = [text(fd.bankName), text(person?.bankBranch || fd.branchName)].filter(Boolean).join(", ");
-  const employeeIdNo = text(person?.employeeCode || person?.employee?.employeeCode || fd.officeApplicantId);
-  const filledBy = fd.filledByAdmin && typeof fd.filledByAdmin === "object" ? fd.filledByAdmin : null;
-
+  const extraDetails = familyYes(fd) || bankYes(fd);
   return (
-    <div className="paper-form-pack text-black">
+    <ScaledPaper>
+    <div className="text-black">
       <section className="paper-form-page">
         <div className="paper-form-sheet flex flex-col">
-          <div className="flex justify-center -mt-1 mb-3">
-            <div className="bg-black text-white text-center text-[13px] font-bold px-6 py-1.5 rounded-sm">
+          <div className="flex justify-center mb-2">
+            <div className="bg-black text-white text-center text-[12px] font-bold px-6 py-1 rounded-sm">
               APPLICATION FOR EMPLOYMENT
             </div>
           </div>
-          <div className="flex gap-4 items-start">
-            <div className="flex-1 min-w-0 pr-2">
-              <div className="text-[22px] font-bold leading-none">{head.name}</div>
-              {head.address.map((line) => (
-                <div key={line} className="text-[11px] leading-snug">
-                  {line}
-                </div>
-              ))}
-              <div className="text-[11px] leading-snug mt-0.5">
-                {head.website ? <>Website : {head.website}, </> : null}
-                {head.email ? <>Email : {head.email}</> : null}
-              </div>
-              {head.mobile ? <div className="text-[11px]">Mobile : {head.mobile}</div> : null}
-            </div>
-            <div className="w-[78px] h-[100px] border border-black shrink-0 bg-white overflow-hidden flex items-center justify-center">
+          <div className="relative min-h-[90px] mb-2 pr-[84px]">
+            <div className="absolute top-0 right-0 w-[72px] h-[90px] border border-black bg-white overflow-hidden flex items-center justify-center">
               {photo ? (
                 <img src={photo} alt={name} className="max-w-full max-h-full object-contain" />
               ) : null}
             </div>
+            <div className="min-w-0">
+              <div className="text-[20px] font-bold leading-tight">{head.name}</div>
+              {head.address.map((line) => (
+                <div key={line} className="text-[10px] leading-snug">
+                  {line}
+                </div>
+              ))}
+              <div className="text-[10px] leading-snug mt-0.5">
+                {head.website ? <>Website : {head.website}, </> : null}
+                {head.email ? <>Email : {head.email}</> : null}
+              </div>
+              {head.mobile ? <div className="text-[10px]">Mobile : {head.mobile}</div> : null}
+            </div>
           </div>
 
-          <p className="mt-3 text-[12px] leading-relaxed">
-            Dear Sir,
-            <br />
-            I seek for Employment in your Organisation with Immediate Effect.
-            <br />
-            My Bio-data is given below :-
-          </p>
-          <p className="mt-1 text-[12px] leading-snug">
-            Employee ID No. : <Blank value={employeeIdNo} min="8rem" />
-          </p>
-          {filledBy ? (
-            <p className="mt-1 text-[11px] leading-snug">
-              Form filled up by admin : <Blank value={filledBy.name} min="6rem" /> Phone{" "}
-              <Blank value={filledBy.phone} min="6rem" /> Email <Blank value={filledBy.email} min="8rem" /> Admin ID{" "}
-              <Blank value={filledBy.userId || filledBy.id} min="8rem" />
-            </p>
-          ) : null}
           {(person?.jobRole?.name || person?.roleCategory?.name || fd.skillCategory || fd.gemExperience) && (
-            <p className="mt-1 text-[11px] leading-snug break-words">
+            <p className="mt-2 text-[11px] leading-snug break-words">
               Post applied :{" "}
               <span className="font-semibold">
                 {[
@@ -213,125 +371,98 @@ export function ApplicantPaperForm({
                   fd.gemExperience,
                 ]
                   .filter(Boolean)
-                  .join(" / ")}
+                  .join(" - ")}
               </span>
             </p>
           )}
 
-          <ol className="mt-2 space-y-1.5 text-[12px] leading-snug list-none">
+          <ol className="mt-2 space-y-1.5 text-[11.5px] leading-snug list-none">
             <li className="flex gap-2">
               <span className="w-5 shrink-0">1.</span>
-              <span className="flex-1 min-w-0 flex flex-wrap items-end gap-x-1">
-                Name in full <Blank value={name} className="flex-1" min="8rem" />
-              </span>
+              <LineField label="Name in full" value={name} className="flex-1" />
             </li>
             <li className="flex gap-2">
               <span className="w-5 shrink-0">2.</span>
-              <span className="flex-1 min-w-0 flex flex-wrap items-end gap-x-1">
-                Father&apos;s / Husband Name <Blank value={father} className="flex-1" min="8rem" />
-              </span>
+              <LineField label="Father's / Husband Name" value={father} className="flex-1" />
             </li>
             <li className="flex gap-2">
               <span className="w-5 shrink-0">3.</span>
-              <span className="flex-1 flex flex-wrap items-end gap-x-1">
-                Date of Birth <Blank value={dob} min="7rem" /> Age <Blank value={age} min="3rem" />
-              </span>
+              <div className="flex-1 min-w-0 grid grid-cols-[minmax(0,1fr)_7rem] gap-x-4">
+                <LineField label="Date of Birth" value={dob} />
+                <LineField label="Age" value={age} />
+              </div>
             </li>
             <li className="flex gap-2">
               <span className="w-5 shrink-0">4.</span>
-              <span className="flex-1 min-w-0 space-y-1">
-                <span className="block min-w-0">
-                  Local Address : Vill. / Locality <Blank value={local} className="w-full" min="0" />
-                </span>
-                <span className="block">C/o. <Blank value={fd.localCareOf} className="w-[85%]" /></span>
-                <span className="flex flex-wrap items-end gap-x-2">
-                  No. <Blank value={fd.localHouseNo} min="4rem" /> P.O. <Blank value={fd.localPO} min="6rem" /> P.S.{" "}
-                  <Blank value={fd.localPS} min="6rem" />
-                </span>
-                <span className="flex flex-wrap items-end gap-x-2">
-                  Dist. <Blank value={fd.localDistrict} min="6rem" /> State <Blank value={fd.localState} min="6rem" /> PIN{" "}
-                  <Blank value={fd.localPin} min="4rem" />
-                </span>
-                <span className="flex flex-wrap items-end gap-x-2">
-                  Country <Blank value={fd.localCountry} min="6rem" />
-                </span>
-              </span>
+              <div className="flex-1 min-w-0">
+                <div className="mb-0.5">Present Address :</div>
+                <AddressLines
+                  locality={presentLocality}
+                  po={presentPO}
+                  ps={presentPS}
+                  district={presentDistrict}
+                  state={presentState}
+                  pin={presentPin}
+                />
+              </div>
             </li>
             <li className="flex gap-2">
               <span className="w-5 shrink-0">5.</span>
-              <span className="flex-1 min-w-0 space-y-1">
-                <span className="block min-w-0">
-                  Village Address : Vill. / Locality <Blank value={village} className="w-full" min="0" />
-                </span>
-                <span className="flex flex-wrap items-end gap-x-2">
-                  Father&apos;s Name <Blank value={father} min="8rem" /> H/W (Bariwala){" "}
-                  <Blank value={fd.villageHouseOwner} min="5rem" />
-                </span>
-                <span className="block">C/o. D/o. W/o. <Blank value={fd.villageCareOf} className="w-[70%]" /></span>
-                <span className="flex flex-wrap items-end gap-x-2">
-                  Vill. <Blank value={village} min="7rem" /> P.O. <Blank value={fd.villagePO} min="7rem" />
-                </span>
-                <span className="flex flex-wrap items-end gap-x-2">
-                  Big P.O. - or Via <Blank value={fd.villageViaPO} min="6rem" /> P.S. <Blank value={fd.villagePS} min="6rem" />
-                </span>
-                <span className="flex flex-wrap items-end gap-x-2">
-                  Dist. <Blank value={fd.villageDistrict} min="6rem" /> State <Blank value={fd.villageState} min="6rem" /> PIN{" "}
-                  <Blank value={fd.villagePin} min="4rem" />
-                </span>
-                <span className="flex flex-wrap items-end gap-x-2">
-                  Country <Blank value={fd.villageCountry} min="6rem" />
-                </span>
-              </span>
+              <div className="flex-1 min-w-0">
+                <div className="mb-0.5">Permanent Address :</div>
+                <AddressLines
+                  locality={permanentLocality}
+                  po={permanentPO}
+                  ps={permanentPS}
+                  district={permanentDistrict}
+                  state={permanentState}
+                  pin={permanentPin}
+                />
+              </div>
             </li>
             <li className="flex gap-2">
               <span className="w-5 shrink-0">6.</span>
-              <span className="flex-1 flex flex-wrap items-end gap-x-1">
-                No. &amp; Rank if Ex-Service man{" "}
-                <Blank value={[text(person?.exServiceNo || fd.exServiceNo), text(fd.exRank)].filter(Boolean).join(" / ")} className="flex-1" />
-              </span>
+              <div className="flex-1 min-w-0 grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-x-4">
+                <LineField label="Ex-Service No." value={person?.exServiceNo || fd.exServiceNo} />
+                <LineField label="Rank" value={fd.exRank} />
+              </div>
             </li>
             <li className="flex gap-2">
               <span className="w-5 shrink-0">7.</span>
-              <span className="flex-1 flex flex-wrap items-end gap-x-1">
-                If Ex-Service Man Date of Discharge <Blank value={dmy(fd.exDischargeDate)} min="6rem" /> Discharge Book No.{" "}
-                <Blank value={fd.exDischargeBook} min="5rem" />
-              </span>
+              <div className="flex-1 min-w-0 grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-x-4">
+                <LineField label="Date of Discharge" value={dmy(fd.exDischargeDate)} />
+                <LineField label="Discharge Book No." value={fd.exDischargeBook} />
+              </div>
             </li>
             <li className="flex gap-2">
               <span className="w-5 shrink-0">8.</span>
-              <span className="flex-1 flex flex-wrap items-end gap-x-1">
-                Gun Licence No. (with date of validity &amp; Area){" "}
-                <Blank value={person?.armsLicenseNo || fd.gunLicence} className="flex-1" />
-              </span>
+              <LineField
+                label="Gun Licence No. (with date of validity & Area)"
+                value={person?.armsLicenseNo || fd.gunLicence}
+                className="flex-1"
+              />
             </li>
             <li className="flex gap-2">
               <span className="w-5 shrink-0">9.</span>
-              <span className="flex-1 flex flex-wrap items-end gap-x-1">
-                Gun No. (SSSL / DBBL) <Blank value={fd.gunNo} className="flex-1" />
-              </span>
+              <LineField label="Gun No. (SSSL / DBBL)" value={fd.gunNo} className="flex-1" />
             </li>
             <li className="flex gap-2">
               <span className="w-5 shrink-0">10.</span>
-              <span className="flex-1 flex flex-wrap items-end gap-x-1">
-                Qualification <Blank value={fd.qualification} className="flex-1" />
-              </span>
+              <LineField label="Qualification" value={fd.qualification} className="flex-1" />
             </li>
-            <li className="pl-5 text-[11px] italic">Xerox copies of certificate :</li>
+            <li className="pl-5 text-[10px] italic">Xerox copies of certificate :</li>
             <li className="flex gap-2">
               <span className="w-5 shrink-0">11.</span>
-              <span className="flex-1 flex flex-wrap items-end gap-x-1">
-                Other qualification : <Blank value={fd.otherQualification || fd.characterCertificate} className="flex-1" />
-              </span>
+              <LineField label="Other qualification" value={fd.otherQualification || fd.characterCertificate} className="flex-1" />
             </li>
             <li className="flex gap-2">
               <span className="w-5 shrink-0">12.</span>
-              <span className="flex-1 min-w-0 flex flex-wrap items-end gap-x-1">
-                Experience, if any <Blank value={experienceShown(fd)} className="flex-1" min="0" />
-              </span>
+              <LineField label="Experience, if any" value={experienceShown(fd)} className="flex-1" />
             </li>
             <li className="flex gap-2 items-center">
               <span className="w-5 shrink-0">13.</span>
               <span className="flex flex-wrap items-center gap-x-4">
+                <span className="shrink-0">Religion :</span>
                 <span>
                   <Tick on={religion.includes("hindu")} /> Hindu
                 </span>
@@ -345,23 +476,22 @@ export function ApplicantPaperForm({
             </li>
             <li className="flex gap-2">
               <span className="w-5 shrink-0">14.</span>
-              <span className="flex-1 flex flex-wrap items-end gap-x-1">
-                Identification Mark <Blank value={fd.identificationMark} className="flex-1" />
-              </span>
+              <LineField label="Identification Mark" value={fd.identificationMark} className="flex-1" />
             </li>
             <li className="flex gap-2">
               <span className="w-5 shrink-0">15.</span>
-              <span className="flex-1 flex flex-wrap items-end gap-x-2">
-                a) Nationality <Blank value={fd.nationality} min="5rem" />
-                b) Height <Blank value={heightShown(fd)} min="5rem" />
-                c) Weight <Blank value={fd.weight} min="3rem" /> Kgs.
-              </span>
+              <div className="flex-1 min-w-0 grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)] gap-x-3">
+                <LineField label="Nationality" value={fd.nationality} />
+                <LineField label="Height" value={heightShown(fd)} />
+                <LineField label="Weight" value={fd.weight ? `${text(fd.weight)} Kgs` : ""} />
+              </div>
             </li>
             <li className="flex gap-2">
               <span className="w-5 shrink-0">16.</span>
-              <span className="flex-1 flex flex-wrap items-end gap-x-1">
-                Name of nominee <Blank value={fd.nominee} min="8rem" /> Relation <Blank value={fd.nomineeRelation} min="6rem" />
-              </span>
+              <div className="flex-1 min-w-0 grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-x-4">
+                <LineField label="Name of nominee" value={fd.nominee} />
+                <LineField label="Relation" value={fd.nomineeRelation} />
+              </div>
             </li>
             <li className="flex gap-2">
               <span className="w-5 shrink-0">17.</span>
@@ -372,15 +502,101 @@ export function ApplicantPaperForm({
                 guarantor for him.
               </span>
             </li>
+            <li className="flex gap-2">
+              <span className="w-5 shrink-0">18.</span>
+              <span className="flex-1 min-w-0">
+                <span className="flex flex-wrap items-center gap-x-4">
+                  Family Member Details :
+                  <span>
+                    <Tick on={familyYes(fd)} /> Yes
+                  </span>
+                  <span>
+                    <Tick on={!familyYes(fd)} /> No
+                  </span>
+                </span>
+                {extraDetails ? (
+                  <div className="text-[10px] italic mt-0.5">Details on next page</div>
+                ) : null}
+              </span>
+            </li>
+            <li className="flex gap-2">
+              <span className="w-5 shrink-0">19.</span>
+              <span className="flex-1 min-w-0 space-y-0.5">
+                <span className="flex flex-wrap items-center gap-x-4">
+                  Bank Details :
+                  <span>
+                    <Tick on={bankYes(fd)} /> Yes
+                  </span>
+                  <span>
+                    <Tick on={!bankYes(fd)} /> No
+                  </span>
+                </span>
+                {extraDetails ? (
+                  <div className="text-[10px] italic mt-0.5">Details on next page</div>
+                ) : null}
+              </span>
+            </li>
           </ol>
 
-          <Footer date={signedOn} name={name} label="Full Signature of the Applicant" />
+          <Footer date={signedOn} time={signedTime} name={name} label="Full Signature of the Applicant" />
+        </div>
+      </section>
+
+      {extraDetails ? (
+      <section className="paper-form-page">
+        <div className="paper-form-sheet flex flex-col">
+          <div className="flex justify-center mb-2">
+            <div className="bg-black text-white text-center text-[12px] font-bold px-6 py-1 rounded-sm">
+              APPLICATION FOR EMPLOYMENT (Contd.)
+            </div>
+          </div>
+          <div className="text-[16px] font-bold leading-tight mb-2">{head.name}</div>
+          <ol className="space-y-3 text-[11.5px] leading-snug list-none flex-1">
+            {familyYes(fd) ? (
+              <li className="flex gap-2">
+                <span className="w-5 shrink-0">18.</span>
+                <div className="flex-1 min-w-0">
+                  <div>Family Member Details :</div>
+                  <FamilyTable fd={fd} />
+                </div>
+              </li>
+            ) : null}
+            {bankYes(fd) ? (
+              <li className="flex gap-2">
+                <span className="w-5 shrink-0">19.</span>
+                <div className="flex-1 min-w-0">
+                  <div>Bank Details :</div>
+                  <BankFields
+                    account={account}
+                    ifsc={ifsc}
+                    bankName={fd.bankName}
+                    branch={person?.bankBranch || fd.branchName}
+                  />
+                </div>
+              </li>
+            ) : null}
+          </ol>
+          <Footer date={signedOn} time={signedTime} name={name} label="Full Signature of the Applicant" />
+        </div>
+      </section>
+      ) : null}
+
+      <section className="paper-form-page">
+        <div className="paper-form-sheet flex flex-col min-h-[297mm]">
+          <h2 className="text-center text-[22px] font-bold mb-3">DECLARATION</h2>
+          <p className="text-[13px] mb-3">{DECLARATION.intro}</p>
+          <ol className="flex-1 space-y-1.5 text-[11.5px] leading-snug list-decimal pl-5">
+            {DECLARATION.points.map((point: string) => (
+              <li key={point}>{point}</li>
+            ))}
+          </ol>
+          <Footer date={signedOn} time={signedTime} name={name} label="Full Signature of the Applicant" />
         </div>
       </section>
 
       <section className="paper-form-page">
-        <div className="paper-form-sheet flex flex-col">
-          <div className="text-center">
+        <div className="paper-form-sheet flex flex-col min-h-[297mm]">
+          <div className="text-center mb-3">
             <div className="text-[22px] font-bold leading-none">{head.name}</div>
             {head.address.map((line) => (
               <div key={line} className="text-[11px] leading-snug">
@@ -393,186 +609,17 @@ export function ApplicantPaperForm({
               {head.mobile ? <>Mobile : {head.mobile}</> : null}
             </div>
           </div>
-          <div className="bg-black text-white text-center text-[13px] font-bold py-1.5 mt-3 mb-3">
-            EMPLOYEE&apos;S DECLARATION
-          </div>
-
-          <ol className="space-y-1.5 text-[12px] leading-relaxed list-none">
-            <li className="flex gap-2">
-              <span className="w-5 shrink-0">1.</span>
-              <span className="flex-1 flex flex-wrap items-end gap-x-1">
-                Name (Capital letter as per Aadhaar) : <Blank value={name.toUpperCase()} className="flex-1" />
-              </span>
-            </li>
-            <li className="flex gap-2">
-              <span className="w-5 shrink-0">2.</span>
-              <span className="flex-1 flex flex-wrap items-end gap-x-1">
-                Father&apos;s Name (as per Aadhaar) : <Blank value={father} className="flex-1" />
-              </span>
-            </li>
-            <li className="flex gap-2">
-              <span className="w-5 shrink-0">3.</span>
-              <span className="flex-1 flex flex-wrap items-end gap-x-1">
-                Date of Birth (as per Aadhaar) : <Blank value={dob} className="flex-1" />
-              </span>
-            </li>
-            <li className="flex gap-2">
-              <span className="w-5 shrink-0">4.</span>
-              <span className="flex-1 space-y-1">
-                <span className="block min-w-0">
-                  Present Address : Vill. / Locality{" "}
-                  <Blank value={text(fd.presentAddress) || present} className="w-full" min="0" />
-                </span>
-                <span className="flex flex-wrap items-end gap-x-2">
-                  P.O. <Blank value={fd.presentPO} min="6rem" /> P.S. <Blank value={fd.presentPS} min="6rem" />
-                </span>
-                <span className="flex flex-wrap items-end gap-x-2">
-                  Dist. <Blank value={fd.presentDistrict} min="6rem" /> State <Blank value={fd.presentState} min="6rem" /> PIN{" "}
-                  <Blank value={presentPin} min="4rem" />
-                </span>
-                <span className="flex flex-wrap items-end gap-x-2">
-                  Country <Blank value={fd.presentCountry} min="5rem" />
-                </span>
-              </span>
-            </li>
-            <li className="flex gap-2">
-              <span className="w-5 shrink-0">5.</span>
-              <span className="flex-1 space-y-1">
-                <span className="block min-w-0">
-                  Permanent Address : Vill. / Locality{" "}
-                  <Blank value={text(fd.permanentAddress) || permanent} className="w-full" min="0" />
-                </span>
-                <span className="flex flex-wrap items-end gap-x-2">
-                  P.O. <Blank value={fd.permanentPO} min="6rem" /> P.S. <Blank value={fd.permanentPS} min="6rem" />
-                </span>
-                <span className="flex flex-wrap items-end gap-x-2">
-                  Dist. <Blank value={fd.permanentDistrict} min="6rem" /> State <Blank value={fd.permanentState} min="6rem" /> PIN{" "}
-                  <Blank value={permanentPin} min="4rem" />
-                </span>
-                <span className="flex flex-wrap items-end gap-x-2">
-                  Country <Blank value={fd.permanentCountry} min="5rem" />
-                </span>
-              </span>
-            </li>
-            <li className="flex gap-2">
-              <span className="w-5 shrink-0">6.</span>
-              <span className="flex-1 flex flex-wrap items-end gap-x-1">
-                Contact Mobile No. : <Blank value={person?.mobile || fd.mobile} className="flex-1" />
-              </span>
-            </li>
-            <li className="flex gap-2">
-              <span className="w-5 shrink-0">7.</span>
-              <span className="flex-1 flex flex-wrap items-end gap-x-1">
-                Educational Qualification : <Blank value={fd.qualification} className="flex-1" />
-              </span>
-            </li>
-            <li className="flex gap-2">
-              <span className="w-5 shrink-0">8.</span>
-              <span className="flex-1 flex flex-wrap items-end gap-x-1">
-                Aadhaar No. &amp; PAN No. (own) : <Blank value={aadhaar} min="8rem" /> / <Blank value={pan} min="7rem" />
-              </span>
-            </li>
-            <li className="flex gap-2">
-              <span className="w-5 shrink-0">9.</span>
-              <span className="flex-1 space-y-1">
-                <span className="flex flex-wrap items-end gap-x-1">
-                  Previous Employee Details a) Name of Previous Employer : <Blank value={fd.previousEmployer} className="flex-1" />
-                </span>
-                <span className="flex flex-wrap items-end gap-x-1">
-                  b) UAN No. (if allotted) : <Blank value={person?.uan || fd.uan} className="flex-1" />
-                </span>
-                <span className="flex flex-wrap items-end gap-x-1">
-                  c) ESI IP No. : <Blank value={person?.esicNo || fd.esiIp} className="flex-1" />
-                </span>
-              </span>
-            </li>
-          </ol>
-
-          <div className="mt-2 text-[12px]">10. Family Details :</div>
-          <table className="w-full border-collapse border border-black text-[11px] mt-1">
-            <thead>
-              <tr>
-                <th className="border border-black w-10 py-1 font-semibold">Sl. No.</th>
-                <th className="border border-black py-1 font-semibold">Name of Family Members</th>
-                <th className="border border-black py-1 font-semibold">Relation</th>
-                <th className="border border-black py-1 font-semibold">Date of Birth</th>
-                <th className="border border-black py-1 font-semibold">Aadhaar No.</th>
-              </tr>
-            </thead>
-            <tbody>
-              {familyRows(fd.family).map((member: any, idx: number) => (
-                <tr key={idx}>
-                  <td className="border border-black text-center py-1.5">{idx + 1}</td>
-                  <td className="border border-black px-2 py-1.5">{text(member.name)}</td>
-                  <td className="border border-black px-2 py-1.5">{text(member.relation)}</td>
-                  <td className="border border-black px-2 py-1.5">{dmy(member.dateOfBirth)}</td>
-                  <td className="border border-black px-2 py-1.5">{text(member.aadhaar)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <p className="text-[11px] mt-1">
-            Xerox copy of Aadhaar must be attached with form. Use separate sheet if family members than five person.
-          </p>
-
-          <ol className="mt-2 space-y-1.5 text-[12px] leading-relaxed list-none" start={11}>
-            <li className="flex gap-2">
-              <span className="w-6 shrink-0">11.</span>
-              <span className="flex-1 space-y-1">
-                <span className="flex flex-wrap items-end gap-x-1">
-                  Bank Details : SB A/C No. <Blank value={account} min="8rem" /> IFSC Code : <Blank value={ifsc} min="7rem" />
-                </span>
-                <span className="flex flex-wrap items-end gap-x-1">
-                  Bank Name &amp; Branch add. <Blank value={branch} className="flex-1" />
-                </span>
-              </span>
-            </li>
-            <li className="flex gap-2">
-              <span className="w-6 shrink-0">12.</span>
-              <span className="flex-1 flex flex-wrap items-end gap-x-1">
-                Nominee Name <Blank value={fd.nominee} min="8rem" /> Relation <Blank value={fd.nomineeRelation} min="6rem" />
-              </span>
-            </li>
-            <li className="flex gap-2">
-              <span className="w-6 shrink-0">13.</span>
-              <span className="flex-1 flex flex-wrap items-end gap-x-1">
-                Write dispensary or Dr. Name where IP preferred <Blank value={fd.preferredDispensary} className="flex-1" />
-              </span>
-            </li>
-          </ol>
-
-          <Footer date={signedOn} name={name} label="Signature of Employee" />
-          <p className="text-[11px] mt-3">
-            **Note : Xerox copy of Aadhaar, PAN and Bank Pass Book / Cancelled Cheque attached with self-attested.
-          </p>
-        </div>
-      </section>
-
-      <section className="paper-form-page">
-        <div className="paper-form-sheet flex flex-col">
-          <h2 className="text-center text-[22px] font-bold mb-3">18. DECLARATION</h2>
-          <p className="text-[12px] mb-2">{DECLARATION.intro}</p>
-          <ol className="space-y-1.5 text-[11.5px] leading-snug list-decimal pl-5">
-            {DECLARATION.points.map((point: string) => (
-              <li key={point}>{point}</li>
-            ))}
-          </ol>
-          <Footer date={signedOn} name={name} label="Full Signature of the Applicant" />
-        </div>
-      </section>
-
-      <section className="paper-form-page">
-        <div className="paper-form-sheet flex flex-col">
-          <h2 className="text-center text-[22px] font-bold">TERMS &amp; CONDITIONS</h2>
+          <h2 className="text-center text-[18px] font-bold">TERMS &amp; CONDITIONS</h2>
           <p className="text-center text-[12px] mb-3">({TERMS.note})</p>
-          <ol className="space-y-1.5 text-[11px] leading-snug list-decimal pl-5">
+          <ol className="flex-1 space-y-1 text-[10.5px] leading-snug list-decimal pl-5">
             {TERMS.points.map((point: string) => (
               <li key={point}>{point}</li>
             ))}
           </ol>
-          <Footer date={signedOn} name={name} label="Full Signature of the Applicant" />
+          <Footer date={signedOn} time={signedTime} name={name} label="Full Signature of the Applicant" />
         </div>
       </section>
     </div>
+    </ScaledPaper>
   );
 }

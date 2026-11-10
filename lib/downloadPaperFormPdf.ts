@@ -31,6 +31,22 @@ function dmy(value: unknown) {
   return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
 }
 
+function hm(value: unknown) {
+  if (!value) return "";
+  const raw = String(value);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw) || /^\d{2}\/\d{2}\/\d{4}$/.test(raw)) return "";
+  const d = new Date(raw);
+  if (Number.isNaN(d.getTime())) return "";
+  return new Intl.DateTimeFormat("en-IN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+    timeZone: "Asia/Kolkata",
+  })
+    .format(d)
+    .replace(/\s*(am|pm)$/i, (part) => ` ${part.trim().toUpperCase()}`);
+}
+
 function experienceShown(fd: Record<string, any>) {
   if (String(fd?.experienceType || "").toUpperCase() === "FRESHER") return "Fresher";
   const jobs = Array.isArray(fd?.workHistory) ? fd.workHistory : [];
@@ -63,10 +79,24 @@ function heightShown(fd: Record<string, any>) {
   return `${n} cm`;
 }
 
-function familyRows(family: unknown) {
-  const rows = Array.isArray(family) ? family.slice(0, 5) : [];
-  while (rows.length < 5) rows.push({ name: "", relation: "", dateOfBirth: "", aadhaar: "" });
+function familyYes(fd: Record<string, any>) {
+  const choice = String(fd?.includeFamily || "").toUpperCase();
+  if (choice === "NO") return false;
+  if (choice === "YES") return true;
+  const rows = Array.isArray(fd?.family) ? fd.family : [];
+  return rows.some((member: any) =>
+    [member?.name, member?.relation, member?.dateOfBirth, member?.aadhaar].some((part) => String(part || "").trim()),
+  );
+}
+
+function familyRows(fd: Record<string, any>) {
+  if (!familyYes(fd)) return [];
+  const rows = Array.isArray(fd?.family) ? fd.family.filter((member: any) => text(member?.name)).slice(0, 5) : [];
   return rows;
+}
+
+function bankYes(fd: Record<string, any>) {
+  return String(fd?.uploadBankDetails || "").toUpperCase() === "YES";
 }
 
 function saveBlob(blob: Blob, filename: string) {
@@ -112,14 +142,12 @@ export async function buildPaperFormPdf(
   const father = text(person?.fatherOrHusband || fd.fatherOrHusband);
   const dob = dmy(person?.dateOfBirth || fd.dateOfBirth);
   const age = text(fd.age);
-  const local = text(fd.localAddress || person?.presentAddress);
-  const village = text(fd.villageAddress || person?.permanentAddress);
-  const present = text(person?.presentAddress || fd.presentAddress);
-  const permanent = text(person?.permanentAddress || fd.permanentAddress);
+  const presentLocality = text(fd.presentAddress) || text(fd.localAddress) || text(person?.presentAddress);
+  const permanentLocality = text(fd.permanentAddress) || text(fd.villageAddress) || text(person?.permanentAddress);
   const religion = text(fd.religion);
-  const employeeIdNo = text(person?.employeeCode || person?.employee?.employeeCode || fd.officeApplicantId);
-  const filledBy = fd.filledByAdmin && typeof fd.filledByAdmin === "object" ? fd.filledByAdmin : null;
-  const signedOn = dmy(person?.joiningDate || person?.createdAt);
+  const signedAt = fd.submittedAt || person?.createdAt || person?.joiningDate;
+  const signedOn = dmy(signedAt);
+  const signedTime = hm(fd.submittedAt || person?.createdAt);
   const postApplied = [
     person?.jobRole?.name,
     fd.otherCategory || fd.gemProfile || person?.roleCategory?.name,
@@ -127,7 +155,7 @@ export async function buildPaperFormPdf(
     fd.gemExperience,
   ]
     .filter(Boolean)
-    .join(" / ");
+    .join(" - ");
   const photo = applicantPhotoUrl(person);
 
   const pdf = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
@@ -151,26 +179,57 @@ export async function buildPaperFormPdf(
     return y + lines.length * (size * 0.42);
   };
 
+  const dashLine = (x1: number, y1: number, x2: number) => {
+    pdf.setDrawColor(0);
+    pdf.setLineWidth(0.22);
+    const dash = 0.9;
+    const gap = 0.55;
+    let x = x1;
+    while (x < x2 - 0.2) {
+      pdf.line(x, y1, Math.min(x + dash, x2), y1);
+      x += dash + gap;
+    }
+  };
+
   const lineFill = (label: string, value: string, y: number, size = 10.5) => {
     pdf.setFont("times", "normal");
     pdf.setFontSize(size);
-    const labelW = pdf.getTextWidth(label + " ");
-    pdf.text(label, left, y);
+    const tag = label.endsWith(":") ? `${label} ` : `${label} : `;
+    const labelW = pdf.getTextWidth(tag);
+    pdf.text(tag, left, y);
     const val = value || "";
     pdf.setFont("times", "bold");
     const lines = pdf.splitTextToSize(val, width - labelW - 2);
     pdf.text(lines, left + labelW, y);
     const used = Math.max(1, lines.length) * (size * 0.42);
     const underlineY = y + 1.1;
-    pdf.setDrawColor(0);
-    pdf.setLineWidth(0.2);
-    pdf.line(left + labelW, underlineY, right, underlineY);
+    dashLine(left + labelW, underlineY, right);
     if (lines.length > 1) {
       for (let i = 1; i < lines.length; i += 1) {
-        pdf.line(left, y + i * (size * 0.42) + 1.1, right, y + i * (size * 0.42) + 1.1);
+        dashLine(left, y + i * (size * 0.42) + 1.1, right);
       }
     }
     return y + used + 3.2;
+  };
+
+  const rowFields = (items: { label: string; value: string }[], y: number, size = 10.5) => {
+    const n = Math.max(items.length, 1);
+    const gap = 4;
+    const colW = (width - gap * (n - 1)) / n;
+    pdf.setFontSize(size);
+    items.forEach((item, i) => {
+      const x = left + i * (colW + gap);
+      const tag = `${item.label} : `;
+      pdf.setFont("times", "normal");
+      const lw = pdf.getTextWidth(tag);
+      pdf.text(tag, x, y);
+      pdf.setFont("times", "bold");
+      const maxVal = Math.max(8, colW - lw - 1);
+      const shown = pdf.splitTextToSize(item.value || "", maxVal)[0] || "";
+      pdf.text(shown, x + lw, y);
+      dashLine(x + lw, y + 1.2, x + colW);
+    });
+    return y + 8;
   };
 
   const banner = (title: string, y: number) => {
@@ -185,7 +244,12 @@ export async function buildPaperFormPdf(
   };
 
   const footer = (label: string) => {
-    write(`Date : ${signedOn}`, left, 278, 10);
+    const dateTimeTag = `Date : ${signedOn}     Time : `;
+    write(`${dateTimeTag}${signedTime}`, left, 278, 10);
+    if (!signedTime) {
+      const tagW = pdf.getTextWidth(dateTimeTag);
+      dashLine(left + tagW, 279.2, left + tagW + 24);
+    }
     pdf.setFont("times", "bold");
     pdf.text(name, right, 274, { align: "right" });
     pdf.setLineWidth(0.2);
@@ -272,27 +336,6 @@ export async function buildPaperFormPdf(
   // Page 1
   let y = banner("APPLICATION FOR EMPLOYMENT", 16);
   y = letterhead(y + 4, true);
-  write("Dear Sir,", left, y, 10.5);
-  y += 5;
-  write("I seek for Employment in your Organisation with Immediate Effect.", left, y, 10.5);
-  y += 5;
-  write("My Bio-data is given below :-", left, y, 10.5);
-  y += 6;
-  y = lineFill("Employee ID No. :", employeeIdNo, y);
-  if (filledBy) {
-    y = lineFill(
-      "Form filled up by admin :",
-      [
-        text(filledBy.name),
-        text(filledBy.phone) && `Phone ${text(filledBy.phone)}`,
-        text(filledBy.email) && `Email ${text(filledBy.email)}`,
-        (text(filledBy.userId) || text(filledBy.id)) && `ID ${text(filledBy.userId || filledBy.id)}`,
-      ]
-        .filter(Boolean)
-        .join("  ·  "),
-      y,
-    );
-  }
   if (postApplied) y = lineFill("Post applied :", postApplied, y);
   y = lineFill("1. Name in full", name, y);
   y = lineFill("2. Father's / Husband Name", father, y);
@@ -302,59 +345,71 @@ export async function buildPaperFormPdf(
   const dobLabelW = pdf.getTextWidth("3. Date of Birth ");
   pdf.setFont("times", "bold");
   pdf.text(dob || "", left + dobLabelW, y);
-  pdf.setDrawColor(0);
-  pdf.setLineWidth(0.2);
-  pdf.line(left + dobLabelW, y + 1.1, left + 92, y + 1.1);
+  dashLine(left + dobLabelW, y + 1.1, left + 92);
   pdf.setFont("times", "normal");
-  pdf.text("Age", left + 96, y);
-  const ageLabelW = pdf.getTextWidth("Age ");
+  pdf.text("Age :", left + 96, y);
+  const ageLabelW = pdf.getTextWidth("Age : ");
   pdf.setFont("times", "bold");
   pdf.text(age || "", left + 96 + ageLabelW, y);
-  pdf.line(left + 96 + ageLabelW, y + 1.1, right, y + 1.1);
+  dashLine(left + 96 + ageLabelW, y + 1.1, right);
   y += 8.5;
-  y = lineFill("4. Local Address : Vill. / Locality", local, y);
-  y = lineFill("     C/o.", text(fd.localCareOf), y);
-  y = lineFill(
-    "     No. / P.O. / P.S.",
-    [text(fd.localHouseNo), text(fd.localPO), text(fd.localPS)].filter(Boolean).join(" / "),
+  write("4. Present Address :", left, y, 10.5);
+  y += 6;
+  y = lineFill("Vill. / Locality", presentLocality, y);
+  y = rowFields(
+    [
+      { label: "P.O.", value: text(fd.presentPO || fd.localPO) },
+      { label: "P.S.", value: text(fd.presentPS || fd.localPS) },
+    ],
     y,
   );
-  y = lineFill(
-    "     Dist. / State / PIN / Country",
-    [text(fd.localDistrict), text(fd.localState), text(fd.localPin), text(fd.localCountry)].filter(Boolean).join(" / "),
+  y = lineFill("Dist.", text(fd.presentDistrict || fd.localDistrict), y);
+  y = rowFields(
+    [
+      { label: "State", value: text(fd.presentState || fd.localState) },
+      { label: "PIN", value: text(fd.presentPin || fd.localPin) },
+    ],
     y,
   );
-  y = lineFill("5. Village Address : Vill. / Locality", village, y);
-  y = lineFill(
-    "     Father's Name / H/W (Bariwala)",
-    [father, text(fd.villageHouseOwner)].filter(Boolean).join(" / "),
+  write("5. Permanent Address :", left, y, 10.5);
+  y += 6;
+  y = lineFill("Vill. / Locality", permanentLocality, y);
+  y = rowFields(
+    [
+      { label: "P.O.", value: text(fd.permanentPO || fd.villagePO) },
+      { label: "P.S.", value: text(fd.permanentPS || fd.villagePS) },
+    ],
     y,
   );
-  y = lineFill("     C/o. D/o. W/o.", text(fd.villageCareOf), y);
-  y = lineFill("     Vill. / P.O.", [village, text(fd.villagePO)].filter(Boolean).join(" / "), y);
-  y = lineFill(
-    "     Big P.O. / Via / P.S.",
-    [text(fd.villageViaPO), text(fd.villagePS)].filter(Boolean).join(" / "),
+  y = lineFill("Dist.", text(fd.permanentDistrict || fd.villageDistrict), y);
+  y = rowFields(
+    [
+      { label: "State", value: text(fd.permanentState || fd.villageState) },
+      { label: "PIN", value: text(fd.permanentPin || fd.villagePin) },
+    ],
     y,
   );
-  y = lineFill(
-    "     Dist. / State / PIN / Country",
-    [text(fd.villageDistrict), text(fd.villageState), text(fd.villagePin), text(fd.villageCountry)].filter(Boolean).join(" / "),
+  y = rowFields(
+    [
+      { label: "6. Ex-Service No.", value: text(person?.exServiceNo || fd.exServiceNo) },
+      { label: "Rank", value: text(fd.exRank) },
+    ],
     y,
   );
-  y = lineFill(
-    "6. No. & Rank if Ex-Service man",
-    [text(person?.exServiceNo || fd.exServiceNo), text(fd.exRank)].filter(Boolean).join(" / ") || "NA",
+  y = rowFields(
+    [
+      { label: "7. Date of Discharge", value: dmy(fd.exDischargeDate) },
+      { label: "Discharge Book No.", value: text(fd.exDischargeBook) },
+    ],
     y,
   );
-  y = lineFill("7. Date of Discharge / Discharge Book No.", [dmy(fd.exDischargeDate), text(fd.exDischargeBook)].filter(Boolean).join(" / "), y);
   y = lineFill("8. Gun Licence No.", text(person?.armsLicenseNo || fd.gunLicence) || "NA", y);
   y = lineFill("9. Gun No. (SSSL / DBBL)", text(fd.gunNo) || "NA", y);
   y = lineFill("10. Qualification", text(fd.qualification), y);
   y = lineFill("11. Other qualification", text(fd.otherQualification || fd.characterCertificate), y);
   y = lineFill("12. Experience, if any", experienceShown(fd), y);
-  write("13. Religion", left, y);
-  const relX = left + 28;
+  write("13. Religion :", left, y);
+  const relX = left + 32;
   const mark = (label: string, on: boolean, x: number) => {
     pdf.rect(x, y - 3.2, 3.2, 3.2);
     if (on) {
@@ -372,12 +427,21 @@ export async function buildPaperFormPdf(
   mark("Christian", rel.includes("christian"), relX + 58);
   y += 7;
   y = lineFill("14. Identification Mark", text(fd.identificationMark), y);
-  y = lineFill(
-    "15. Nationality / Height / Weight",
-    [text(fd.nationality) || "Indian", heightShown(fd), text(fd.weight) ? `${text(fd.weight)} Kgs` : ""].filter(Boolean).join("   /   "),
+  y = rowFields(
+    [
+      { label: "15. Nationality", value: text(fd.nationality) || "Indian" },
+      { label: "Height", value: heightShown(fd) },
+      { label: "Weight", value: text(fd.weight) ? `${text(fd.weight)} Kgs` : "" },
+    ],
     y,
   );
-  y = lineFill("16. Name of nominee / Relation", [text(fd.nominee), text(fd.nomineeRelation)].filter(Boolean).join(" / "), y);
+  y = rowFields(
+    [
+      { label: "16. Nominee", value: text(fd.nominee) },
+      { label: "Relation", value: text(fd.nomineeRelation) },
+    ],
+    y,
+  );
   y = wrap(
     `17. Reference : ${text(fd.reference) || "________________"}  - certificate that the above named individual is known to me since last ${text(fd.referenceYears) || "____"} yrs. He bears a good moral character and I stand guarantor for him/her.`,
     left,
@@ -385,133 +449,163 @@ export async function buildPaperFormPdf(
     width,
     10,
   );
-  footer("Full Signature of the Applicant");
-
-  // Page 2
-  pdf.addPage();
-  y = 18;
-  pdf.setFont("times", "bold");
-  pdf.setFontSize(16);
-  pdf.setTextColor(0, 0, 0);
-  pdf.text(companyName, pageW / 2, y, { align: "center" });
-  y += 5;
-  pdf.setFont("times", "normal");
-  pdf.setFontSize(9);
-  for (const line of address) {
-    pdf.text(line, pageW / 2, y, { align: "center" });
-    y += 4;
-  }
-  if (nk) {
-    pdf.text(`Website : ${NK.website}, Email : ${NK.email} Mobile : ${NK.mobile}`, pageW / 2, y, { align: "center" });
-  }
-  y = banner("EMPLOYEE'S DECLARATION", y + 8);
-  y += 4;
-  y = lineFill("1. Name (Capital letter as per Aadhaar) :", name.toUpperCase(), y);
-  y = lineFill("2. Father's Name (as per Aadhaar) :", father, y);
-  y = lineFill("3. Date of Birth (as per Aadhaar) :", dob, y);
-  y = lineFill("4. Present Address : Vill. / Locality", text(fd.presentAddress) || present, y);
-  y = lineFill("     P.O. / P.S.", [text(fd.presentPO), text(fd.presentPS)].filter(Boolean).join(" / "), y);
-  y = lineFill(
-    "     Dist. / State / PIN",
-    [text(fd.presentDistrict), text(fd.presentState), text(fd.presentPin)].filter(Boolean).join(" / "),
-    y,
-  );
-  y = lineFill("     Country", text(fd.presentCountry), y);
-  y = lineFill("5. Permanent Address : Vill. / Locality", text(fd.permanentAddress) || permanent, y);
-  y = lineFill("     P.O. / P.S.", [text(fd.permanentPO), text(fd.permanentPS)].filter(Boolean).join(" / "), y);
-  y = lineFill(
-    "     Dist. / State / PIN",
-    [text(fd.permanentDistrict), text(fd.permanentState), text(fd.permanentPin)].filter(Boolean).join(" / "),
-    y,
-  );
-  y = lineFill("     Country", text(fd.permanentCountry), y);
-  y = lineFill("6. Contact Mobile No. :", text(person?.mobile || fd.mobile), y);
-  y = lineFill("7. Educational Qualification :", text(fd.qualification), y);
-  y = lineFill("8. Aadhaar No. & PAN No. (own) :", [text(person?.aadhaarDisplay || fd.aadhaar), text(person?.pan || fd.pan)].filter(Boolean).join(" / "), y);
-  y = lineFill("9. a) Name of Previous Employer :", text(fd.previousEmployer), y);
-  y = lineFill("     b) UAN No. (if allotted) :", text(person?.uan || fd.uan), y);
-  y = lineFill("     c) ESI IP No. :", text(person?.esicNo || fd.esiIp), y);
-  write("10. Family Details :", left, y, 10.5);
   y += 3;
-  const cols = [left, left + 12, left + 72, left + 108, left + 148, right];
-  const headers = ["Sl.", "Name of Family Members", "Relation", "Date of Birth", "Aadhaar No."];
-  pdf.setFont("times", "bold");
-  pdf.setFontSize(8.5);
-  pdf.rect(left, y, width, 7);
-  for (let i = 1; i < cols.length - 1; i += 1) pdf.line(cols[i], y, cols[i], y + 7);
-  headers.forEach((h, i) => pdf.text(h, cols[i] + 1.2, y + 4.6));
+  pdf.setFont("times", "normal");
+  pdf.setFontSize(10.5);
+  pdf.text("18. Family Member Details :", left, y);
+  const familyMark = (label: string, on: boolean, x: number) => {
+    pdf.rect(x, y - 3.2, 3.2, 3.2);
+    if (on) {
+      pdf.setFont("times", "bold");
+      pdf.setFontSize(9);
+      pdf.text("X", x + 0.6, y - 0.4);
+    }
+    pdf.setFont("times", "normal");
+    pdf.setFontSize(10.5);
+    pdf.text(label, x + 5, y);
+  };
+  familyMark("Yes", familyYes(fd), left + 58);
+  familyMark("No", !familyYes(fd), left + 82);
+  if (familyYes(fd) || bankYes(fd)) {
+    pdf.setFont("times", "italic");
+    pdf.setFontSize(8);
+    pdf.text("Details on next page", left + 108, y);
+  }
   y += 7;
   pdf.setFont("times", "normal");
-  familyRows(fd.family).forEach((member: any, idx: number) => {
-    pdf.rect(left, y, width, 7);
-    for (let i = 1; i < cols.length - 1; i += 1) pdf.line(cols[i], y, cols[i], y + 7);
-    const cells = [String(idx + 1), text(member.name), text(member.relation), dmy(member.dateOfBirth), text(member.aadhaar)];
-    cells.forEach((c, i) => {
-      const maxW = cols[i + 1] - cols[i] - 2.2;
-      pdf.text(pdf.splitTextToSize(c, maxW)[0] || "", cols[i] + 1.2, y + 4.6);
+  pdf.setFontSize(10.5);
+  pdf.text("19. Bank Details :", left, y);
+  familyMark("Yes", bankYes(fd), left + 42);
+  familyMark("No", !bankYes(fd), left + 66);
+  if (familyYes(fd) || bankYes(fd)) {
+    pdf.setFont("times", "italic");
+    pdf.setFontSize(8);
+    pdf.text("Details on next page", left + 92, y);
+  }
+  footer("Full Signature of the Applicant");
+
+  if (familyYes(fd) || bankYes(fd)) {
+    pdf.addPage();
+    y = banner("APPLICATION FOR EMPLOYMENT (Contd.)", 16);
+    y = letterhead(y + 4, false);
+    if (familyYes(fd)) {
+      write("18. Family Member Details :", left, y, 10.5);
+      y += 6;
+      const cols = [left, left + 12, left + 72, left + 108, left + 148, right];
+      const headers = ["Sl.", "Name of Family Members", "Relation", "Date of Birth", "Aadhaar No."];
+      pdf.setFont("times", "bold");
+      pdf.setFontSize(8);
+      pdf.rect(left, y, width, 6);
+      for (let i = 1; i < cols.length - 1; i += 1) pdf.line(cols[i], y, cols[i], y + 6);
+      headers.forEach((h, i) => pdf.text(h, cols[i] + 1.2, y + 4.1));
+      y += 6;
+      pdf.setFont("times", "normal");
+      familyRows(fd).forEach((member: any, idx: number) => {
+        pdf.rect(left, y, width, 6);
+        for (let i = 1; i < cols.length - 1; i += 1) pdf.line(cols[i], y, cols[i], y + 6);
+        const cells = [
+          String(idx + 1),
+          text(member.name),
+          text(member.relation),
+          dmy(member.dateOfBirth),
+          text(member.aadhaar),
+        ];
+        cells.forEach((c, i) => {
+          const maxW = cols[i + 1] - cols[i] - 2.2;
+          pdf.text(pdf.splitTextToSize(c, maxW)[0] || "", cols[i] + 1.2, y + 4.1);
+        });
+        y += 6;
+      });
+      y += 6;
+    }
+    if (bankYes(fd)) {
+      write("19. Bank Details :", left, y, 10.5);
+      y += 6;
+      y = rowFields(
+        [
+          { label: "SB A/C No.", value: text(person?.bankAccountNo || fd.accountNo) },
+          { label: "IFSC", value: text(person?.bankIfsc || fd.ifsc) },
+        ],
+        y,
+      );
+      y = lineFill("Bank Name", text(fd.bankName), y);
+      y = lineFill("Branch name & address", text(person?.bankBranch || fd.branchName), y);
+    }
+    footer("Full Signature of the Applicant");
+  }
+
+  const writeFullPageList = (
+    heading: string,
+    intro: string,
+    points: string[],
+    extraHeader?: () => number,
+  ) => {
+    pdf.addPage();
+    let top = 16;
+    if (extraHeader) top = extraHeader();
+    pdf.setFont("times", "bold");
+    pdf.setFontSize(16);
+    pdf.text(heading, pageW / 2, top, { align: "center" });
+    top += 8;
+    const footerY = 268;
+    const startY = top;
+    const available = footerY - startY - 2;
+
+    const blocksAt = (size: number) => {
+      pdf.setFont("times", "normal");
+      pdf.setFontSize(size);
+      const out: string[][] = [];
+      if (intro) out.push(pdf.splitTextToSize(intro, width));
+      points.forEach((point, idx) => out.push(pdf.splitTextToSize(`${idx + 1}.  ${point}`, width)));
+      return out;
+    };
+
+    let size = 10.5;
+    let blocks = blocksAt(size);
+    let lineCount = blocks.reduce((sum, block) => sum + block.length, 0);
+    let gap = 1.1;
+    let lh = size * 0.42;
+    while (size > 7.4) {
+      const used = lineCount * lh + Math.max(0, blocks.length - 1) * gap;
+      if (used <= available) break;
+      size -= 0.3;
+      blocks = blocksAt(size);
+      lineCount = blocks.reduce((sum, block) => sum + block.length, 0);
+      lh = size * 0.4;
+    }
+    const used = lineCount * lh + Math.max(0, blocks.length - 1) * gap;
+    if (used < available) gap += (available - used) / Math.max(blocks.length, 1);
+
+    let cy = startY;
+    pdf.setFont("times", "normal");
+    pdf.setFontSize(size);
+    blocks.forEach((block) => {
+      pdf.text(block, left, cy);
+      cy += block.length * lh + gap;
     });
-    y += 7;
-  });
-  y += 5;
-  write("Xerox copy of Aadhaar must be attached with form.", left, y, 8.5);
-  y += 6;
-  y = lineFill("11. Bank Details : SB A/C No.", text(person?.bankAccountNo || fd.accountNo), y);
-  y = lineFill("      IFSC Code :", text(person?.bankIfsc || fd.ifsc), y);
-  y = lineFill("      Bank Name & Branch", [text(fd.bankName), text(person?.bankBranch || fd.branchName)].filter(Boolean).join(", "), y);
-  y = lineFill("12. Nominee Name / Relation", [text(fd.nominee), text(fd.nomineeRelation)].filter(Boolean).join(" / "), y);
-  y = lineFill("13. Dispensary or Dr. Name where IP preferred", text(fd.preferredDispensary), y);
-  write(
-    "**Note : Xerox copy of Aadhaar, PAN and Bank Pass Book / Cancelled Cheque attached with self-attested.",
-    left,
-    268,
-    8,
-  );
-  footer("Signature of Employee");
+    footer("Full Signature of the Applicant");
+  };
 
-  // Page 3
-  pdf.addPage();
-  pdf.setFont("times", "bold");
-  pdf.setFontSize(16);
-  pdf.text("18. DECLARATION", pageW / 2, 18, { align: "center" });
-  y = 26;
-  y = wrap(DECLARATION.intro, left, y, width, 10.5);
-  y += 2;
-  DECLARATION.points.forEach((point: string, idx: number) => {
-    const block = pdf.splitTextToSize(`${idx + 1}.  ${point}`, width);
-    if (y + block.length * 4.1 > 268) {
-      footer("Full Signature of the Applicant");
-      pdf.addPage();
-      y = 18;
-    }
-    pdf.setFont("times", "normal");
-    pdf.setFontSize(9.5);
-    pdf.text(block, left, y);
-    y += block.length * 4.1 + 0.8;
-  });
-  footer("Full Signature of the Applicant");
+  writeFullPageList("DECLARATION", DECLARATION.intro, DECLARATION.points);
 
-  // Page 4
-  pdf.addPage();
-  pdf.setFont("times", "bold");
-  pdf.setFontSize(16);
-  pdf.text("TERMS & CONDITIONS", pageW / 2, 16, { align: "center" });
-  pdf.setFont("times", "normal");
-  pdf.setFontSize(9);
-  pdf.text(`(${TERMS.note})`, pageW / 2, 22, { align: "center" });
-  y = 28;
-  TERMS.points.forEach((point: string, idx: number) => {
-    const block = pdf.splitTextToSize(`${idx + 1}.  ${point}`, width);
-    if (y + block.length * 3.8 > 268) {
-      footer("Full Signature of the Applicant");
-      pdf.addPage();
-      y = 16;
-    }
+  writeFullPageList("TERMS & CONDITIONS", `(${TERMS.note})`, TERMS.points, () => {
+    let hy = 16;
+    pdf.setFont("times", "bold");
+    pdf.setFontSize(16);
+    pdf.text(companyName, pageW / 2, hy, { align: "center" });
+    hy += 6;
     pdf.setFont("times", "normal");
-    pdf.setFontSize(8.8);
-    pdf.text(block, left, y);
-    y += block.length * 3.8 + 0.6;
+    pdf.setFontSize(9);
+    for (const line of address) {
+      pdf.text(line, pageW / 2, hy, { align: "center" });
+      hy += 4;
+    }
+    if (nk) {
+      pdf.text(`Website : ${NK.website}, Email : ${NK.email}  Mobile : ${NK.mobile}`, pageW / 2, hy, { align: "center" });
+      hy += 5;
+    }
+    return hy + 2;
   });
-  footer("Full Signature of the Applicant");
 
   return pdf;
 }

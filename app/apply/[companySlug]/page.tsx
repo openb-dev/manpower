@@ -103,25 +103,6 @@ function initialForm() {
     dateOfBirth: "",
     age: "",
     gender: "MALE",
-    localAddress: "",
-    localCareOf: "",
-    localHouseNo: "",
-    localPO: "",
-    localPS: "",
-    localPin: "",
-    localDistrict: "",
-    localState: DEFAULT_STATE,
-    localCountry: DEFAULT_COUNTRY,
-    villageAddress: "",
-    villageHouseOwner: "",
-    villageCareOf: "",
-    villageViaPO: "",
-    villagePO: "",
-    villagePS: "",
-    villagePin: "",
-    villageDistrict: "",
-    villageState: DEFAULT_STATE,
-    villageCountry: DEFAULT_COUNTRY,
     qualification: "",
     qualificationOther: "",
     experienceType: "",
@@ -179,6 +160,7 @@ function initialForm() {
     uan: "",
     esiIp: "",
     preferredDispensary: "",
+    includeFamily: "",
     family: blankFamily(),
     bankName: "",
     accountNo: "",
@@ -247,11 +229,10 @@ function attachedNote(name: string, dataUrl: string) {
   return size ? `✓ ${name} (${size})` : `✓ ${name}`;
 }
 
-function missingPlace(label: string, pin: string, district: string, state: string, country: string) {
+function missingPlace(label: string, pin: string, district: string, state: string) {
   if (!pin.trim() || pin.replace(/\D/g, "").length !== 6) return `Please enter a 6-digit PIN for ${label}.`;
   if (!district.trim()) return `Please enter district for ${label}.`;
   if (!state.trim()) return `Please select state for ${label}.`;
-  if (!country.trim()) return `Please enter country for ${label}.`;
   return "";
 }
 
@@ -262,90 +243,106 @@ function PlaceFields({
   pin,
   district,
   state,
-  country,
   disabled = false,
   required = true,
   onPin,
   onDistrict,
   onState,
-  onCountry,
 }: {
   pin: string;
   district: string;
   state: string;
-  country: string;
   disabled?: boolean;
   required?: boolean;
   onPin: (value: string) => void;
   onDistrict: (value: string) => void;
   onState: (value: string) => void;
-  onCountry: (value: string) => void;
 }) {
   return (
-    <div className="space-y-3 mt-3">
-      <div className="grid grid-cols-3 gap-3">
-        <div>
-          <label className="block text-xs font-bold text-slate-700 mb-1">
-            Dist. {required ? <span className="text-red-500">*</span> : null}
-          </label>
-          <input
-            required={required}
-            disabled={disabled}
-            type="text"
-            value={district}
-            onChange={(e) => onDistrict(e.target.value)}
-            className={fieldCls}
-            placeholder="District"
-          />
-        </div>
-        <div>
-          <label className="block text-xs font-bold text-slate-700 mb-1">
-            State {required ? <span className="text-red-500">*</span> : null}
-          </label>
-          <select
-            required={required}
-            disabled={disabled}
-            value={state}
-            onChange={(e) => onState(e.target.value)}
-            className={fieldCls}
-          >
-            <option value="">Select state</option>
-            {INDIAN_STATES.map((name) => (
-              <option key={name} value={name}>
-                {name}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="block text-xs font-bold text-slate-700 mb-1">
-            PIN {required ? <span className="text-red-500">*</span> : null}
-          </label>
-          <input
-            required={required}
-            disabled={disabled}
-            type="text"
-            maxLength={6}
-            value={pin}
-            onChange={(e) => onPin(e.target.value.replace(/\D/g, ""))}
-            className={`${fieldCls} font-mono`}
-            placeholder="6-digit PIN"
-          />
-        </div>
-      </div>
+    <div className="grid grid-cols-3 gap-3">
       <div>
         <label className="block text-xs font-bold text-slate-700 mb-1">
-          Country {required ? <span className="text-red-500">*</span> : null}
+          Dist. {required ? <span className="text-red-500">*</span> : null}
         </label>
         <input
           required={required}
           disabled={disabled}
           type="text"
-          value={country}
-          onChange={(e) => onCountry(e.target.value)}
+          value={district}
+          onChange={(e) => onDistrict(e.target.value)}
           className={fieldCls}
-          placeholder="Country"
+          placeholder="District"
         />
+      </div>
+      <div>
+        <label className="block text-xs font-bold text-slate-700 mb-1">
+          State {required ? <span className="text-red-500">*</span> : null}
+        </label>
+        <select
+          required={required}
+          disabled={disabled}
+          value={state}
+          onChange={(e) => onState(e.target.value)}
+          className={fieldCls}
+        >
+          <option value="">Select state</option>
+          {INDIAN_STATES.map((name) => (
+            <option key={name} value={name}>
+              {name}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div>
+        <label className="block text-xs font-bold text-slate-700 mb-1">
+          PIN {required ? <span className="text-red-500">*</span> : null}
+        </label>
+        <input
+          required={required}
+          disabled={disabled}
+          type="text"
+          maxLength={6}
+          value={pin}
+          onChange={(e) => onPin(e.target.value.replace(/\D/g, ""))}
+          className={`${fieldCls} font-mono`}
+          placeholder="6-digit PIN"
+        />
+      </div>
+    </div>
+  );
+}
+
+function YesNoRadios({
+  name,
+  label,
+  value,
+  onChange,
+}: {
+  name: string;
+  label: string;
+  value: string;
+  onChange: (value: "YES" | "NO") => void;
+}) {
+  return (
+    <div>
+      <p className="block text-xs font-bold text-slate-700 mb-2">
+        {label} <span className="text-red-500">*</span>
+      </p>
+      <div className="flex gap-8">
+        {(["YES", "NO"] as const).map((opt) => (
+          <label key={opt} className="flex items-center gap-2 text-sm font-medium text-slate-800 cursor-pointer">
+            <input
+              type="radio"
+              name={name}
+              value={opt}
+              checked={value === opt}
+              onChange={() => onChange(opt)}
+              className="w-4 h-4 border-slate-400 text-blue-600"
+              required
+            />
+            {opt === "YES" ? "Yes" : "No"}
+          </label>
+        ))}
       </div>
     </div>
   );
@@ -855,27 +852,6 @@ function ApplyPageInner() {
     if (!form.dateOfBirth) return setError("Please enter your date of birth.");
     if (!form.age) return setError("Please enter your age.");
     if (!form.gender) return setError("Please select gender.");
-    if (!form.localAddress.trim()) return setError("Please enter Vill. / Locality for local address.");
-    if (!form.localCareOf.trim()) return setError("Please enter C/o. for local address.");
-    if (!form.localHouseNo.trim()) return setError("Please enter house / holding No. for local address.");
-    if (!form.localPO.trim()) return setError("Please enter local P.O.");
-    if (!form.localPS.trim()) return setError("Please enter local P.S.");
-    const localPlaceErr = missingPlace("local address", form.localPin, form.localDistrict, form.localState, form.localCountry);
-    if (localPlaceErr) return setError(localPlaceErr);
-    if (!form.villageAddress.trim()) return setError("Please enter Vill. / Locality for village address.");
-    if (!form.villageHouseOwner.trim()) return setError("Please enter H/W (Bariwala) for village address.");
-    if (!form.villageCareOf.trim()) return setError("Please enter C/o. D/o. W/o. for village address.");
-    if (!form.villagePO.trim()) return setError("Please enter village P.O.");
-    if (!form.villageViaPO.trim()) return setError("Please enter Big P.O. / Via for village address.");
-    if (!form.villagePS.trim()) return setError("Please enter village P.S.");
-    const villagePlaceErr = missingPlace(
-      "village address",
-      form.villagePin,
-      form.villageDistrict,
-      form.villageState,
-      form.villageCountry,
-    );
-    if (villagePlaceErr) return setError(villagePlaceErr);
     if (!qualificationShown(form)) return setError("Please select your educational qualification.");
     if (form.qualification === "Other" && !form.qualificationOther.trim()) {
       return setError("Please enter your educational qualification.");
@@ -921,7 +897,6 @@ function ApplyPageInner() {
       form.presentPin,
       form.presentDistrict,
       form.presentState,
-      form.presentCountry,
     );
     if (presentPlaceErr) return setError(presentPlaceErr);
     const permanent = form.sameAsPresent
@@ -951,7 +926,6 @@ function ApplyPageInner() {
       permanent.pin,
       permanent.district,
       permanent.state,
-      permanent.country,
     );
     if (permanentPlaceErr) return setError(permanentPlaceErr);
 
@@ -995,13 +969,20 @@ function ApplyPageInner() {
       return setError("Please upload the police verification document.");
     }
 
-    const filledFamily = (form.family || []).filter((member) =>
-      [member.name, member.relation, member.dateOfBirth, member.aadhaar].some((part) => String(part || "").trim())
-    );
-    const incompleteFamily = filledFamily.find(
-      (member) => !member.name.trim() || !member.relation.trim() || !member.dateOfBirth || !member.aadhaar.trim()
-    );
-    if (incompleteFamily) return setError("Please complete the family row you started, or remove it.");
+    if (!form.includeFamily) return setError("Please select Yes or No for family member details.");
+    const filledFamily =
+      form.includeFamily === "YES"
+        ? (form.family || []).filter((member) =>
+            [member.name, member.relation, member.dateOfBirth, member.aadhaar].some((part) => String(part || "").trim()),
+          )
+        : [];
+    if (form.includeFamily === "YES") {
+      if (filledFamily.length === 0) return setError("Please add at least one family member, or select No.");
+      const incompleteFamily = filledFamily.find(
+        (member) => !member.name.trim() || !member.relation.trim() || !member.dateOfBirth || !member.aadhaar.trim(),
+      );
+      if (incompleteFamily) return setError("Please complete the family row you started, or remove it.");
+    }
 
     if (!form.uploadBankDetails) return setError("Please select Yes or No for bank details.");
     const wantsBank = form.uploadBankDetails === "YES";
@@ -1009,7 +990,7 @@ function ApplyPageInner() {
       if (!form.bankName.trim()) return setError("Please enter bank name.");
       if (!form.accountNo.trim()) return setError("Please enter bank account number.");
       if (!form.ifsc.trim()) return setError("Please enter IFSC code.");
-      if (!form.branchName.trim()) return setError("Please enter bank branch name.");
+      if (!form.branchName.trim()) return setError("Please enter bank branch name and address.");
       if (!form.passbookFileName && !form.passbookFile) {
         return setError("Please upload the bank passbook or cancelled cheque.");
       }
@@ -1104,6 +1085,7 @@ function ApplyPageInner() {
           nomineeRelation: form.nomineeRelation.trim(),
           otherQualification: form.otherQualification.trim(),
           characterCertificate: form.otherQualification.trim(),
+          includeFamily: form.includeFamily,
           family: filledFamily,
           uploadBankDetails: form.uploadBankDetails,
           referenceYears: String(form.referenceYears || "").trim(),
@@ -1118,6 +1100,7 @@ function ApplyPageInner() {
           passbookFileName: wantsBank ? form.passbookFileName : "",
           joiningTerms: Boolean(form.declarationAccepted && form.termsAccepted),
           termsVersion: JOINING_VERSION,
+          submittedAt: new Date().toISOString(),
         },
         documents: documentsPayload.map(({ docType, fileName }) => ({ docType, fileName })),
       };
@@ -1147,6 +1130,8 @@ function ApplyPageInner() {
       const data = await readApiJson(res);
       if (!res.ok) throw new Error(data.error || "The application could not be submitted. Please check the form and try again.");
       setSubmittedRef(data.id);
+      setSuccessMsg("");
+      setError("");
       setStep("SUCCESS");
     } catch (err: any) {
       setError(err.message || "The application could not be submitted. Please check the form and try again.");
@@ -1255,7 +1240,7 @@ function ApplyPageInner() {
             <button onClick={() => setError("")} className="text-red-500 hover:text-red-800 font-bold ml-2">✕</button>
           </div>
         )}
-        {successMsg && (
+        {successMsg && step !== "SUCCESS" && (
           <div className="mb-6 p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center justify-between">
             <span>✓ {successMsg}</span>
             <button onClick={() => setSuccessMsg("")} className="text-emerald-500 hover:text-emerald-800 font-bold ml-2">✕</button>
@@ -2037,105 +2022,92 @@ function ApplyPageInner() {
 
                     <div className="sm:col-span-2 rounded-xl border border-slate-200 bg-slate-50/60 p-4 space-y-3">
                       <div className="text-xs font-bold uppercase tracking-wide text-slate-800">
-                        Local Address <span className="text-red-500">*</span>
+                        Present Residential Address <span className="text-red-500">*</span>
                       </div>
                       <AddressInput
                         label="Vill. / Locality"
-                        value={form.localAddress}
-                        onChange={(value) => setForm({ ...form, localAddress: value })}
+                        value={form.presentAddress}
+                        onChange={(value) => updatePresent("presentAddress", value)}
                         placeholder="House / street / locality"
                       />
-                      <AddressInput
-                        label="C/o."
-                        value={form.localCareOf}
-                        onChange={(value) => setForm({ ...form, localCareOf: value })}
-                        placeholder="Care of"
-                      />
-                      <div className="grid grid-cols-3 gap-3">
-                        <AddressInput
-                          label="No."
-                          value={form.localHouseNo}
-                          onChange={(value) => setForm({ ...form, localHouseNo: value })}
-                          placeholder="House / holding no."
-                        />
+                      <div className="grid grid-cols-2 gap-3">
                         <AddressInput
                           label="P.O."
-                          value={form.localPO}
-                          onChange={(value) => setForm({ ...form, localPO: value })}
+                          value={form.presentPO}
+                          onChange={(value) => updatePresent("presentPO", value)}
                           placeholder="Post office"
                         />
                         <AddressInput
                           label="P.S."
-                          value={form.localPS}
-                          onChange={(value) => setForm({ ...form, localPS: value })}
+                          value={form.presentPS}
+                          onChange={(value) => updatePresent("presentPS", value)}
                           placeholder="Police station"
                         />
                       </div>
                       <PlaceFields
-                        pin={form.localPin}
-                        district={form.localDistrict}
-                        state={form.localState}
-                        country={form.localCountry}
-                        onPin={(value) => setForm({ ...form, localPin: value })}
-                        onDistrict={(value) => setForm({ ...form, localDistrict: value })}
-                        onState={(value) => setForm({ ...form, localState: value })}
-                        onCountry={(value) => setForm({ ...form, localCountry: value })}
+                        pin={form.presentPin}
+                        district={form.presentDistrict}
+                        state={form.presentState}
+                        onPin={(value) => updatePresent("presentPin", value)}
+                        onDistrict={(value) => updatePresent("presentDistrict", value)}
+                        onState={(value) => updatePresent("presentState", value)}
                       />
+                      <label className="flex items-center gap-2 pt-1 text-sm text-slate-700 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(form.sameAsPresent)}
+                          onChange={(e) => {
+                            const sameAsPresent = e.target.checked;
+                            setForm((prev) => {
+                              const next = { ...prev, sameAsPresent };
+                              return sameAsPresent ? copyPresentToPermanent(next) : next;
+                            });
+                          }}
+                          className="w-4 h-4 rounded border-slate-300 text-blue-600"
+                        />
+                        Permanent address same as present
+                      </label>
                     </div>
 
                     <div className="sm:col-span-2 rounded-xl border border-slate-200 bg-slate-50/60 p-4 space-y-3">
                       <div className="text-xs font-bold uppercase tracking-wide text-slate-800">
-                        Village Address <span className="text-red-500">*</span>
+                        Permanent Residential Address <span className="text-red-500">*</span>
                       </div>
                       <AddressInput
                         label="Vill. / Locality"
-                        value={form.villageAddress}
-                        onChange={(value) => setForm({ ...form, villageAddress: value })}
-                        placeholder="Village / home locality"
+                        value={form.permanentAddress}
+                        onChange={(value) => setForm({ ...form, permanentAddress: value, sameAsPresent: false })}
+                        placeholder="Village / town / locality"
+                        required={!form.sameAsPresent}
+                        disabled={form.sameAsPresent}
                       />
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <AddressInput
-                          label="H/W (Bariwala)"
-                          value={form.villageHouseOwner}
-                          onChange={(value) => setForm({ ...form, villageHouseOwner: value })}
-                          placeholder="House owner"
-                        />
-                        <AddressInput
-                          label="C/o. D/o. W/o."
-                          value={form.villageCareOf}
-                          onChange={(value) => setForm({ ...form, villageCareOf: value })}
-                          placeholder="C/o / D/o / W/o"
-                        />
-                      </div>
-                      <div className="grid grid-cols-3 gap-3">
+                      <div className="grid grid-cols-2 gap-3">
                         <AddressInput
                           label="P.O."
-                          value={form.villagePO}
-                          onChange={(value) => setForm({ ...form, villagePO: value })}
+                          value={form.permanentPO}
+                          onChange={(value) => setForm({ ...form, permanentPO: value, sameAsPresent: false })}
                           placeholder="Post office"
-                        />
-                        <AddressInput
-                          label="Big P.O. / Via"
-                          value={form.villageViaPO}
-                          onChange={(value) => setForm({ ...form, villageViaPO: value })}
-                          placeholder="Via / big post office"
+                          required={!form.sameAsPresent}
+                          disabled={form.sameAsPresent}
                         />
                         <AddressInput
                           label="P.S."
-                          value={form.villagePS}
-                          onChange={(value) => setForm({ ...form, villagePS: value })}
+                          value={form.permanentPS}
+                          onChange={(value) => setForm({ ...form, permanentPS: value, sameAsPresent: false })}
                           placeholder="Police station"
+                          required={!form.sameAsPresent}
+                          disabled={form.sameAsPresent}
                         />
                       </div>
                       <PlaceFields
-                        pin={form.villagePin}
-                        district={form.villageDistrict}
-                        state={form.villageState}
-                        country={form.villageCountry}
-                        onPin={(value) => setForm({ ...form, villagePin: value })}
-                        onDistrict={(value) => setForm({ ...form, villageDistrict: value })}
-                        onState={(value) => setForm({ ...form, villageState: value })}
-                        onCountry={(value) => setForm({ ...form, villageCountry: value })}
+                        pin={form.permanentPin}
+                        district={form.permanentDistrict}
+                        state={form.permanentState}
+                        required={!form.sameAsPresent}
+                        disabled={form.sameAsPresent}
+                        onPin={(value) => setForm({ ...form, permanentPin: value, sameAsPresent: false })}
+                        onDistrict={(value) => setForm({ ...form, permanentDistrict: value, sameAsPresent: false })}
+                        onState={(value) => setForm({ ...form, permanentState: value, sameAsPresent: false })}
                       />
                     </div>
 
@@ -2644,7 +2616,7 @@ function ApplyPageInner() {
                       4
                     </span>
                     <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
-                      Statutory Identification & Address Details
+                      Statutory Identification
                     </h3>
                   </div>
 
@@ -2690,101 +2662,6 @@ function ApplyPageInner() {
                         onChange={(e) => setForm({ ...form, aadhaar: e.target.value.replace(/\D/g, "") })}
                         className="w-full px-3.5 py-2 border border-slate-300 rounded-lg text-sm font-mono bg-white"
                         placeholder="12 digit Aadhaar"
-                      />
-                    </div>
-
-                    <div className="sm:col-span-2 space-y-3 rounded-xl border border-slate-200 bg-slate-50/60 p-4">
-                      <div className="text-xs font-bold uppercase tracking-wide text-slate-800">
-                        Present Residential Address <span className="text-red-500">*</span>
-                      </div>
-                      <AddressInput
-                        label="Vill. / Locality"
-                        value={form.presentAddress}
-                        onChange={(value) => updatePresent("presentAddress", value)}
-                        placeholder="House / street / locality"
-                      />
-                      <div className="grid grid-cols-2 gap-3">
-                        <AddressInput
-                          label="P.O."
-                          value={form.presentPO}
-                          onChange={(value) => updatePresent("presentPO", value)}
-                          placeholder="Post office"
-                        />
-                        <AddressInput
-                          label="P.S."
-                          value={form.presentPS}
-                          onChange={(value) => updatePresent("presentPS", value)}
-                          placeholder="Police station"
-                        />
-                      </div>
-                      <PlaceFields
-                        pin={form.presentPin}
-                        district={form.presentDistrict}
-                        state={form.presentState}
-                        country={form.presentCountry}
-                        onPin={(value) => updatePresent("presentPin", value)}
-                        onDistrict={(value) => updatePresent("presentDistrict", value)}
-                        onState={(value) => updatePresent("presentState", value)}
-                        onCountry={(value) => updatePresent("presentCountry", value)}
-                      />
-                      <label className="flex items-center gap-2 pt-1 text-sm text-slate-700 cursor-pointer select-none">
-                        <input
-                          type="checkbox"
-                          checked={Boolean(form.sameAsPresent)}
-                          onChange={(e) => {
-                            const sameAsPresent = e.target.checked;
-                            setForm((prev) => {
-                              const next = { ...prev, sameAsPresent };
-                              return sameAsPresent ? copyPresentToPermanent(next) : next;
-                            });
-                          }}
-                          className="w-4 h-4 rounded border-slate-300 text-blue-600"
-                        />
-                        Same as present address
-                      </label>
-                    </div>
-
-                    <div className="sm:col-span-2 space-y-3 rounded-xl border border-slate-200 bg-slate-50/60 p-4">
-                      <div className="text-xs font-bold uppercase tracking-wide text-slate-800">
-                        Permanent Residential Address <span className="text-red-500">*</span>
-                      </div>
-                      <AddressInput
-                        label="Vill. / Locality"
-                        value={form.permanentAddress}
-                        onChange={(value) => setForm({ ...form, permanentAddress: value, sameAsPresent: false })}
-                        placeholder="Village / town / locality"
-                        required={!form.sameAsPresent}
-                        disabled={form.sameAsPresent}
-                      />
-                      <div className="grid grid-cols-2 gap-3">
-                        <AddressInput
-                          label="P.O."
-                          value={form.permanentPO}
-                          onChange={(value) => setForm({ ...form, permanentPO: value, sameAsPresent: false })}
-                          placeholder="Post office"
-                          required={!form.sameAsPresent}
-                          disabled={form.sameAsPresent}
-                        />
-                        <AddressInput
-                          label="P.S."
-                          value={form.permanentPS}
-                          onChange={(value) => setForm({ ...form, permanentPS: value, sameAsPresent: false })}
-                          placeholder="Police station"
-                          required={!form.sameAsPresent}
-                          disabled={form.sameAsPresent}
-                        />
-                      </div>
-                      <PlaceFields
-                        pin={form.permanentPin}
-                        district={form.permanentDistrict}
-                        state={form.permanentState}
-                        country={form.permanentCountry}
-                        required={!form.sameAsPresent}
-                        disabled={form.sameAsPresent}
-                        onPin={(value) => setForm({ ...form, permanentPin: value, sameAsPresent: false })}
-                        onDistrict={(value) => setForm({ ...form, permanentDistrict: value, sameAsPresent: false })}
-                        onState={(value) => setForm({ ...form, permanentState: value, sameAsPresent: false })}
-                        onCountry={(value) => setForm({ ...form, permanentCountry: value, sameAsPresent: false })}
                       />
                     </div>
 
@@ -2851,7 +2728,7 @@ function ApplyPageInner() {
                   </div>
                 </div>
 
-                {/* SECTION 5: FAMILY MEMBERS TABLE (5 MEMBERS) */}
+                {/* SECTION 5: FAMILY MEMBERS */}
                 <div className="space-y-4 pt-2">
                   <div className="flex items-center justify-between border-b border-slate-200 pb-2">
                     <div className="flex items-center gap-2">
@@ -2862,86 +2739,103 @@ function ApplyPageInner() {
                         Family Member Details
                       </h3>
                     </div>
-                    <button
-                      type="button"
-                      onClick={addFamilyMember}
-                      disabled={form.family.length >= 5}
-                      className="text-xs font-bold text-blue-600 hover:text-blue-800 disabled:opacity-40"
-                    >
-                      + Add Member
-                    </button>
-                  </div>
-
-                  <p className="text-xs text-slate-500 -mt-2">
-                    Optional. Add family members only if you want to give their details.
-                  </p>
-
-                  <div className="space-y-3">
-                    {form.family.map((member, idx) => (
-                      <div
-                        key={idx}
-                        className="p-3.5 bg-slate-50/70 border border-slate-200 rounded-xl grid grid-cols-1 sm:grid-cols-4 gap-3 text-xs relative"
+                    {form.includeFamily === "YES" ? (
+                      <button
+                        type="button"
+                        onClick={addFamilyMember}
+                        disabled={form.family.length >= 5}
+                        className="text-xs font-bold text-blue-600 hover:text-blue-800 disabled:opacity-40"
                       >
-                        {form.family.length > 1 ? (
-                          <button
-                            type="button"
-                            onClick={() => removeFamilyMember(idx)}
-                            className="absolute top-2 right-2 text-[11px] font-bold text-rose-600"
-                          >
-                            Remove
-                          </button>
-                        ) : null}
-                        <div>
-                          <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                            {idx + 1}. Member Name
-                          </label>
-                          <input
-                            type="text"
-                            placeholder="Full Name"
-                            value={member.name}
-                            onChange={(e) => updateFamilyMember(idx, "name", e.target.value)}
-                            className="w-full px-3 py-1.5 border border-slate-300 rounded-md bg-white text-xs"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                            Relation
-                          </label>
-                          <input
-                            type="text"
-                            placeholder="e.g. Father, Mother, Spouse, Son"
-                            value={member.relation}
-                            onChange={(e) => updateFamilyMember(idx, "relation", e.target.value)}
-                            className="w-full px-3 py-1.5 border border-slate-300 rounded-md bg-white text-xs"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                            Date of Birth
-                          </label>
-                          <input
-                            type="date"
-                            value={member.dateOfBirth}
-                            onChange={(e) => updateFamilyMember(idx, "dateOfBirth", e.target.value)}
-                            className="w-full px-3 py-1.5 border border-slate-300 rounded-md bg-white text-xs"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                            Aadhaar No.
-                          </label>
-                          <input
-                            type="text"
-                            maxLength={12}
-                            placeholder="12 digits"
-                            value={member.aadhaar}
-                            onChange={(e) => updateFamilyMember(idx, "aadhaar", e.target.value.replace(/\D/g, ""))}
-                            className="w-full px-3 py-1.5 border border-slate-300 rounded-md bg-white text-xs font-mono"
-                          />
-                        </div>
-                      </div>
-                    ))}
+                        + Add Member
+                      </button>
+                    ) : null}
                   </div>
+
+                  <YesNoRadios
+                    name="includeFamily"
+                    label="Do you want to add family member details?"
+                    value={form.includeFamily}
+                    onChange={(includeFamily) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        includeFamily,
+                        family: includeFamily === "YES" ? prev.family : blankFamily(),
+                      }))
+                    }
+                  />
+
+                  {form.includeFamily === "YES" ? (
+                    <div className="space-y-3">
+                      {form.family.map((member, idx) => (
+                        <div
+                          key={idx}
+                          className="p-3.5 bg-slate-50/70 border border-slate-200 rounded-xl grid grid-cols-1 sm:grid-cols-4 gap-3 text-xs relative"
+                        >
+                          {form.family.length > 1 ? (
+                            <button
+                              type="button"
+                              onClick={() => removeFamilyMember(idx)}
+                              className="absolute top-2 right-2 text-[11px] font-bold text-rose-600"
+                            >
+                              Remove
+                            </button>
+                          ) : null}
+                          <div>
+                            <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                              {idx + 1}. Member Name <span className="text-red-500">*</span>
+                            </label>
+                            <input
+                              required
+                              type="text"
+                              placeholder="Full Name"
+                              value={member.name}
+                              onChange={(e) => updateFamilyMember(idx, "name", e.target.value)}
+                              className="w-full px-3 py-1.5 border border-slate-300 rounded-md bg-white text-xs"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                              Relation <span className="text-red-500">*</span>
+                            </label>
+                            <input
+                              required
+                              type="text"
+                              placeholder="e.g. Father, Mother, Spouse, Son"
+                              value={member.relation}
+                              onChange={(e) => updateFamilyMember(idx, "relation", e.target.value)}
+                              className="w-full px-3 py-1.5 border border-slate-300 rounded-md bg-white text-xs"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                              Date of Birth <span className="text-red-500">*</span>
+                            </label>
+                            <input
+                              required
+                              type="date"
+                              value={member.dateOfBirth}
+                              onChange={(e) => updateFamilyMember(idx, "dateOfBirth", e.target.value)}
+                              className="w-full px-3 py-1.5 border border-slate-300 rounded-md bg-white text-xs"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                              Aadhaar No. <span className="text-red-500">*</span>
+                            </label>
+                            <input
+                              required
+                              type="text"
+                              maxLength={12}
+                              placeholder="12 digits"
+                              value={member.aadhaar}
+                              onChange={(e) => updateFamilyMember(idx, "aadhaar", e.target.value.replace(/\D/g, ""))}
+                              className="w-full px-3 py-1.5 border border-slate-300 rounded-md bg-white text-xs font-mono"
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
 
                 {/* SECTION 6: BANK DETAILS — optional now, required after selection */}
@@ -2954,40 +2848,30 @@ function ApplyPageInner() {
                       Bank Account Details (For Wage Credit)
                     </h3>
                   </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">
-                      Willing to upload bank details now? <span className="text-red-500">*</span>
-                    </label>
-                    <select
-                      required
-                      value={form.uploadBankDetails}
-                      onChange={(e) => {
-                        const uploadBankDetails = e.target.value;
-                        setForm((prev) => ({
-                          ...prev,
-                          uploadBankDetails,
-                          ...(uploadBankDetails === "NO"
-                            ? {
-                                bankName: "",
-                                accountNo: "",
-                                ifsc: "",
-                                branchName: "",
-                                passbookFile: "",
-                                passbookFileName: "",
-                              }
-                            : {}),
-                        }));
-                      }}
-                      className="w-full sm:w-64 px-3.5 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="">Select</option>
-                      <option value="YES">Yes</option>
-                      <option value="NO">No</option>
-                    </select>
-                    <p className="text-[11px] text-slate-500 mt-1">
-                      You may upload now, or wait until you are selected. Bank details are required only after approval.
-                    </p>
-                  </div>
+                  <YesNoRadios
+                    name="uploadBankDetails"
+                    label="Willing to upload bank details now?"
+                    value={form.uploadBankDetails}
+                    onChange={(uploadBankDetails) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        uploadBankDetails,
+                        ...(uploadBankDetails === "NO"
+                          ? {
+                              bankName: "",
+                              accountNo: "",
+                              ifsc: "",
+                              branchName: "",
+                              passbookFile: "",
+                              passbookFileName: "",
+                            }
+                          : {}),
+                      }))
+                    }
+                  />
+                  <p className="text-[11px] text-slate-500 -mt-2">
+                    You may upload now, or wait until you are selected. Bank details are required only after approval.
+                  </p>
                   {form.uploadBankDetails === "YES" ? (
                     <div className="grid gap-4 sm:grid-cols-2 p-4 bg-slate-50 border border-slate-200 rounded-xl">
                       <div>
@@ -3031,7 +2915,7 @@ function ApplyPageInner() {
                       </div>
                       <div>
                         <label className="block text-xs font-bold text-slate-700 mb-1">
-                          Branch name <span className="text-red-500">*</span>
+                          Branch name &amp; address <span className="text-red-500">*</span>
                         </label>
                         <input
                           required
@@ -3039,7 +2923,7 @@ function ApplyPageInner() {
                           value={form.branchName}
                           onChange={(e) => setForm({ ...form, branchName: e.target.value })}
                           className="w-full px-3.5 py-2 border border-slate-300 rounded-lg text-sm bg-white"
-                          placeholder="Branch"
+                          placeholder="e.g. Bowbazar Branch, 12 B.B. Ganguly Street, Kolkata"
                         />
                       </div>
                       <div className="sm:col-span-2">

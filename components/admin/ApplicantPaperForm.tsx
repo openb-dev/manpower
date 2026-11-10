@@ -328,7 +328,6 @@ export function ApplicantPaperForm({
   const signedTime = hm(fd.submittedAt || person?.createdAt);
   const account = text(person?.bankAccountNo || fd.accountNo);
   const ifsc = text(person?.bankIfsc || fd.ifsc);
-  const extraDetails = familyYes(fd) || bankYes(fd);
   return (
     <ScaledPaper>
     <div className="text-black">
@@ -471,6 +470,21 @@ export function ApplicantPaperForm({
                 <LineField label="c) ESI IP No." value={text(person?.esicNo || fd.esiIp) || "NA"} />
               </div>
             </li>
+          </ol>
+
+          <Footer date={signedOn} time={signedTime} name={name} label="Full Signature of the Applicant" />
+        </div>
+      </section>
+
+      <section className="paper-form-page">
+        <div className="paper-form-sheet flex flex-col">
+          <div className="flex justify-center mb-2">
+            <div className="bg-black text-white text-center text-[12px] font-bold px-6 py-1 rounded-sm">
+              APPLICATION FOR EMPLOYMENT (Contd.)
+            </div>
+          </div>
+          <div className="text-[16px] font-bold leading-tight mb-2">{head.name}</div>
+          <ol className="space-y-2 text-[11.5px] leading-snug list-none flex-1">
             <li className="flex gap-2 items-center">
               <span className="w-5 shrink-0">13.</span>
               <span className="flex flex-wrap items-center gap-x-4">
@@ -526,9 +540,7 @@ export function ApplicantPaperForm({
                     <Tick on={!familyYes(fd)} /> No
                   </span>
                 </span>
-                {extraDetails ? (
-                  <div className="text-[10px] italic mt-0.5">Details on next page</div>
-                ) : null}
+                {familyYes(fd) ? <FamilyTable fd={fd} /> : null}
               </span>
             </li>
             <li className="flex gap-2">
@@ -543,55 +555,20 @@ export function ApplicantPaperForm({
                     <Tick on={!bankYes(fd)} /> No
                   </span>
                 </span>
-                {extraDetails ? (
-                  <div className="text-[10px] italic mt-0.5">Details on next page</div>
-                ) : null}
-              </span>
-            </li>
-          </ol>
-
-          <Footer date={signedOn} time={signedTime} name={name} label="Full Signature of the Applicant" />
-        </div>
-      </section>
-
-      {extraDetails ? (
-      <section className="paper-form-page">
-        <div className="paper-form-sheet flex flex-col">
-          <div className="flex justify-center mb-2">
-            <div className="bg-black text-white text-center text-[12px] font-bold px-6 py-1 rounded-sm">
-              APPLICATION FOR EMPLOYMENT (Contd.)
-            </div>
-          </div>
-          <div className="text-[16px] font-bold leading-tight mb-2">{head.name}</div>
-          <ol className="space-y-3 text-[11.5px] leading-snug list-none flex-1">
-            {familyYes(fd) ? (
-              <li className="flex gap-2">
-                <span className="w-5 shrink-0">18.</span>
-                <div className="flex-1 min-w-0">
-                  <div>Family Member Details :</div>
-                  <FamilyTable fd={fd} />
-                </div>
-              </li>
-            ) : null}
-            {bankYes(fd) ? (
-              <li className="flex gap-2">
-                <span className="w-5 shrink-0">19.</span>
-                <div className="flex-1 min-w-0">
-                  <div>Bank Details :</div>
+                {bankYes(fd) ? (
                   <BankFields
                     account={account}
                     ifsc={ifsc}
                     bankName={fd.bankName}
                     branch={person?.bankBranch || fd.branchName}
                   />
-                </div>
-              </li>
-            ) : null}
+                ) : null}
+              </span>
+            </li>
           </ol>
           <Footer date={signedOn} time={signedTime} name={name} label="Full Signature of the Applicant" />
         </div>
       </section>
-      ) : null}
 
       <section className="paper-form-page">
         <div className="paper-form-sheet flex flex-col min-h-[297mm]">

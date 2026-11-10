@@ -424,6 +424,11 @@ export async function buildPaperFormPdf(
   y = lineFill("a) Name of Previous Employer", text(fd.previousEmployer) || (String(fd.experienceType || "").toUpperCase() === "FRESHER" ? "None" : ""), y);
   y = lineFill("b) UAN No. (if allotted)", text(person?.uan || fd.uan) || "NA", y);
   y = lineFill("c) ESI IP No.", text(person?.esicNo || fd.esiIp) || "NA", y);
+  footer("Full Signature of the Applicant");
+
+  pdf.addPage();
+  y = banner("APPLICATION FOR EMPLOYMENT (Contd.)", 16);
+  y = letterhead(y + 4, false);
   write("13. Religion :", left, y);
   const relX = left + 32;
   const mark = (label: string, on: boolean, x: number) => {
@@ -436,7 +441,7 @@ export async function buildPaperFormPdf(
   mark("Hindu", rel.includes("hindu"), relX);
   mark("Muslim", rel.includes("muslim") || rel.includes("islam"), relX + 28);
   mark("Christian", rel.includes("christian"), relX + 58);
-  y += 7;
+  y += 8;
   y = lineFill("14. Identification Mark", text(fd.identificationMark), y);
   y = rowFields(
     [
@@ -460,7 +465,7 @@ export async function buildPaperFormPdf(
     width,
     10,
   );
-  y += 3;
+  y += 4;
   pdf.setFont("times", "normal");
   pdf.setFontSize(10.5);
   pdf.text("18. Family Member Details :", left, y);
@@ -472,73 +477,53 @@ export async function buildPaperFormPdf(
   };
   familyMark("Yes", familyYes(fd), left + 58);
   familyMark("No", !familyYes(fd), left + 82);
-  if (familyYes(fd) || bankYes(fd)) {
-    pdf.setFont("times", "italic");
-    pdf.setFontSize(8);
-    pdf.text("Details on next page", left + 108, y);
-  }
   y += 7;
+  if (familyYes(fd)) {
+    const cols = [left, left + 12, left + 72, left + 108, left + 148, right];
+    const headers = ["Sl.", "Name of Family Members", "Relation", "Date of Birth", "Aadhaar No."];
+    pdf.setFont("times", "bold");
+    pdf.setFontSize(8);
+    pdf.rect(left, y, width, 6);
+    for (let i = 1; i < cols.length - 1; i += 1) pdf.line(cols[i], y, cols[i], y + 6);
+    headers.forEach((h, i) => pdf.text(h, cols[i] + 1.2, y + 4.1));
+    y += 6;
+    pdf.setFont("times", "normal");
+    familyRows(fd).forEach((member: any, idx: number) => {
+      pdf.rect(left, y, width, 6);
+      for (let i = 1; i < cols.length - 1; i += 1) pdf.line(cols[i], y, cols[i], y + 6);
+      const cells = [
+        String(idx + 1),
+        text(member.name),
+        text(member.relation),
+        dmy(member.dateOfBirth),
+        text(member.aadhaar),
+      ];
+      cells.forEach((c, i) => {
+        const maxW = cols[i + 1] - cols[i] - 2.2;
+        pdf.text(pdf.splitTextToSize(c, maxW)[0] || "", cols[i] + 1.2, y + 4.1);
+      });
+      y += 6;
+    });
+    y += 5;
+  }
   pdf.setFont("times", "normal");
   pdf.setFontSize(10.5);
   pdf.text("19. Bank Details :", left, y);
   familyMark("Yes", bankYes(fd), left + 42);
   familyMark("No", !bankYes(fd), left + 66);
-  if (familyYes(fd) || bankYes(fd)) {
-    pdf.setFont("times", "italic");
-    pdf.setFontSize(8);
-    pdf.text("Details on next page", left + 92, y);
+  y += 7;
+  if (bankYes(fd)) {
+    y = rowFields(
+      [
+        { label: "SB A/C No.", value: text(person?.bankAccountNo || fd.accountNo) },
+        { label: "IFSC", value: text(person?.bankIfsc || fd.ifsc) },
+      ],
+      y,
+    );
+    y = lineFill("Bank Name", text(fd.bankName), y);
+    y = lineFill("Branch name & address", text(person?.bankBranch || fd.branchName), y);
   }
   footer("Full Signature of the Applicant");
-
-  if (familyYes(fd) || bankYes(fd)) {
-    pdf.addPage();
-    y = banner("APPLICATION FOR EMPLOYMENT (Contd.)", 16);
-    y = letterhead(y + 4, false);
-    if (familyYes(fd)) {
-      write("18. Family Member Details :", left, y, 10.5);
-      y += 6;
-      const cols = [left, left + 12, left + 72, left + 108, left + 148, right];
-      const headers = ["Sl.", "Name of Family Members", "Relation", "Date of Birth", "Aadhaar No."];
-      pdf.setFont("times", "bold");
-      pdf.setFontSize(8);
-      pdf.rect(left, y, width, 6);
-      for (let i = 1; i < cols.length - 1; i += 1) pdf.line(cols[i], y, cols[i], y + 6);
-      headers.forEach((h, i) => pdf.text(h, cols[i] + 1.2, y + 4.1));
-      y += 6;
-      pdf.setFont("times", "normal");
-      familyRows(fd).forEach((member: any, idx: number) => {
-        pdf.rect(left, y, width, 6);
-        for (let i = 1; i < cols.length - 1; i += 1) pdf.line(cols[i], y, cols[i], y + 6);
-        const cells = [
-          String(idx + 1),
-          text(member.name),
-          text(member.relation),
-          dmy(member.dateOfBirth),
-          text(member.aadhaar),
-        ];
-        cells.forEach((c, i) => {
-          const maxW = cols[i + 1] - cols[i] - 2.2;
-          pdf.text(pdf.splitTextToSize(c, maxW)[0] || "", cols[i] + 1.2, y + 4.1);
-        });
-        y += 6;
-      });
-      y += 6;
-    }
-    if (bankYes(fd)) {
-      write("19. Bank Details :", left, y, 10.5);
-      y += 6;
-      y = rowFields(
-        [
-          { label: "SB A/C No.", value: text(person?.bankAccountNo || fd.accountNo) },
-          { label: "IFSC", value: text(person?.bankIfsc || fd.ifsc) },
-        ],
-        y,
-      );
-      y = lineFill("Bank Name", text(fd.bankName), y);
-      y = lineFill("Branch name & address", text(person?.bankBranch || fd.branchName), y);
-    }
-    footer("Full Signature of the Applicant");
-  }
 
   const writeFullPageList = (
     heading: string,

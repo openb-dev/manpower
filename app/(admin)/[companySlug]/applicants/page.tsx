@@ -8,7 +8,7 @@ import { statusLabel } from "@/components/admin/SimpleGuide";
 import { loadApplicantBook, loadApplicantDetail } from "../actions";
 import { downloadPaperFormPdf, paperFormFileName, printPaperFormPdf } from "@/lib/downloadPaperFormPdf";
 import { friendlyPublicError, readApiJson } from "@/lib/publicErrors";
-import { filledByAdminInfo } from "@/lib/applicantFormFields";
+import { filledByAdminInfo, indianAddressLine } from "@/lib/applicantFormFields";
 import FilledByAdminNote from "@/components/admin/FilledByAdminNote";
 import AttachedDocuments from "@/components/admin/AttachedDocuments";
 
@@ -329,7 +329,7 @@ export default function ApplicantBookPage() {
             Search
           </button>
           <a
-            href={`/apply/${companySlug}`}
+            href={`/apply/${companySlug}?fill=admin`}
             className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg shadow-xs transition"
           >
             Fill form for a person
@@ -656,33 +656,34 @@ export default function ApplicantBookPage() {
                   <div className="col-span-2">
                     <span className="text-slate-400 block font-semibold text-[10px] uppercase">Local Address</span>
                     <span className="text-slate-700">
-                      {[
-                        selectedApplicant.formData?.localAddress || selectedApplicant.presentAddress,
-                        selectedApplicant.formData?.localPO ? `P.O. ${selectedApplicant.formData.localPO}` : "",
-                        selectedApplicant.formData?.localPS ? `P.S. ${selectedApplicant.formData.localPS}` : "",
-                        selectedApplicant.formData?.localPin ? `PIN ${selectedApplicant.formData.localPin}` : "",
-                        selectedApplicant.formData?.localDistrict ? `Dist. ${selectedApplicant.formData.localDistrict}` : "",
-                        selectedApplicant.formData?.localState,
-                        selectedApplicant.formData?.localCountry,
-                      ]
-                        .filter(Boolean)
-                        .join(", ") || "—"}
+                      {indianAddressLine({
+                        locality: selectedApplicant.formData?.localAddress || selectedApplicant.presentAddress,
+                        careOf: selectedApplicant.formData?.localCareOf,
+                        houseNo: selectedApplicant.formData?.localHouseNo,
+                        po: selectedApplicant.formData?.localPO,
+                        ps: selectedApplicant.formData?.localPS,
+                        district: selectedApplicant.formData?.localDistrict,
+                        state: selectedApplicant.formData?.localState,
+                        pin: selectedApplicant.formData?.localPin,
+                        country: selectedApplicant.formData?.localCountry,
+                      }) || "—"}
                     </span>
                   </div>
                   <div className="col-span-2">
                     <span className="text-slate-400 block font-semibold text-[10px] uppercase">Village Address</span>
                     <span className="text-slate-700">
-                      {[
-                        selectedApplicant.formData?.villageAddress || selectedApplicant.permanentAddress,
-                        selectedApplicant.formData?.villagePO ? `P.O. ${selectedApplicant.formData.villagePO}` : "",
-                        selectedApplicant.formData?.villagePS ? `P.S. ${selectedApplicant.formData.villagePS}` : "",
-                        selectedApplicant.formData?.villagePin ? `PIN ${selectedApplicant.formData.villagePin}` : "",
-                        selectedApplicant.formData?.villageDistrict ? `Dist. ${selectedApplicant.formData.villageDistrict}` : "",
-                        selectedApplicant.formData?.villageState,
-                        selectedApplicant.formData?.villageCountry,
-                      ]
-                        .filter(Boolean)
-                        .join(", ") || "—"}
+                      {indianAddressLine({
+                        locality: selectedApplicant.formData?.villageAddress || selectedApplicant.permanentAddress,
+                        careOf: selectedApplicant.formData?.villageCareOf,
+                        houseOwner: selectedApplicant.formData?.villageHouseOwner,
+                        po: selectedApplicant.formData?.villagePO,
+                        viaPO: selectedApplicant.formData?.villageViaPO,
+                        ps: selectedApplicant.formData?.villagePS,
+                        district: selectedApplicant.formData?.villageDistrict,
+                        state: selectedApplicant.formData?.villageState,
+                        pin: selectedApplicant.formData?.villagePin,
+                        country: selectedApplicant.formData?.villageCountry,
+                      }) || "—"}
                     </span>
                   </div>
                   <div>

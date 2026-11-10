@@ -62,10 +62,38 @@ export function joinAddressParts(parts: unknown[]) {
 export function placeLine(fd: Record<string, any> | null | undefined, prefix: string) {
   const get = (key: string) => String(fd?.[`${prefix}${key}`] || "").trim();
   return joinAddressParts([
-    get("Pin") ? `PIN ${get("Pin")}` : "",
     get("District") ? `Dist. ${get("District")}` : "",
     get("State"),
+    get("Pin") ? `PIN ${get("Pin")}` : "",
     get("Country"),
+  ]);
+}
+
+export function indianAddressLine(parts: {
+  locality?: string;
+  careOf?: string;
+  houseNo?: string;
+  houseOwner?: string;
+  po?: string;
+  viaPO?: string;
+  ps?: string;
+  district?: string;
+  state?: string;
+  pin?: string;
+  country?: string;
+}) {
+  return joinAddressParts([
+    parts.locality,
+    parts.careOf ? `C/o ${parts.careOf}` : "",
+    parts.houseNo ? `No. ${parts.houseNo}` : "",
+    parts.houseOwner ? `H/W ${parts.houseOwner}` : "",
+    parts.po ? `P.O. ${parts.po}` : "",
+    parts.viaPO ? `Via ${parts.viaPO}` : "",
+    parts.ps ? `P.S. ${parts.ps}` : "",
+    parts.district ? `Dist. ${parts.district}` : "",
+    parts.state,
+    parts.pin ? `PIN ${parts.pin}` : "",
+    parts.country,
   ]);
 }
 
@@ -80,6 +108,7 @@ export type FilledByAdmin = {
   userId: string;
   name: string;
   email: string;
+  phone: string;
   filledAt: string;
 };
 
@@ -89,11 +118,13 @@ export function filledByAdminInfo(person: any): FilledByAdmin | null {
   const userId = String(raw.userId || raw.id || "").trim();
   const email = String(raw.email || "").trim();
   const name = String(raw.name || "").trim();
+  const phone = String(raw.phone || "").replace(/\D/g, "").slice(-10);
   if (!userId && !email) return null;
   return {
     userId,
     name: name || "Admin",
     email,
+    phone,
     filledAt: String(raw.filledAt || ""),
   };
 }

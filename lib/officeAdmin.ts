@@ -6,6 +6,7 @@ export type OfficeAdmin = {
   id: string;
   name: string;
   email: string;
+  phone?: string;
 };
 
 export async function currentOfficeAdmin(companySlug: string): Promise<OfficeAdmin | null> {

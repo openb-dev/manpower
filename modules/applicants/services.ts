@@ -20,10 +20,18 @@ export async function submitApplicant(
   });
   if (!company) throw new Error("Company not found.");
 
+  const fillerName = String(officeAdmin?.name || "").trim();
+  const fillerPhone = String(officeAdmin?.phone || "").replace(/\D/g, "").slice(-10);
+  if (officeAdmin) {
+    if (fillerName.length < 2) throw new Error("Please enter the filling admin name.");
+    if (fillerPhone.length !== 10) throw new Error("Please enter the filling admin 10-digit phone number.");
+  }
+
   const filledByAdmin = officeAdmin
     ? {
         userId: officeAdmin.id,
-        name: officeAdmin.name,
+        name: fillerName,
+        phone: fillerPhone,
         email: officeAdmin.email,
         filledAt: new Date().toISOString(),
       }

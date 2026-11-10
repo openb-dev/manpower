@@ -197,8 +197,9 @@ export function ApplicantPaperForm({
           </p>
           {filledBy ? (
             <p className="mt-1 text-[11px] leading-snug">
-              Form filled up by admin : <Blank value={filledBy.name} min="6rem" /> Email{" "}
-              <Blank value={filledBy.email} min="8rem" /> Admin ID <Blank value={filledBy.userId || filledBy.id} min="8rem" />
+              Form filled up by admin : <Blank value={filledBy.name} min="6rem" /> Phone{" "}
+              <Blank value={filledBy.phone} min="6rem" /> Email <Blank value={filledBy.email} min="8rem" /> Admin ID{" "}
+              <Blank value={filledBy.userId || filledBy.id} min="8rem" />
             </p>
           ) : null}
           {(person?.jobRole?.name || person?.roleCategory?.name || fd.skillCategory || fd.gemExperience) && (
@@ -240,15 +241,16 @@ export function ApplicantPaperForm({
               <span className="w-5 shrink-0">4.</span>
               <span className="flex-1 min-w-0 space-y-1">
                 <span className="block min-w-0">
-                  Local Address : Name <Blank value={local} className="w-full" min="0" />
+                  Local Address : Vill. / Locality <Blank value={local} className="w-full" min="0" />
                 </span>
-                <span className="block">C/o. <Blank className="w-[85%]" /></span>
+                <span className="block">C/o. <Blank value={fd.localCareOf} className="w-[85%]" /></span>
                 <span className="flex flex-wrap items-end gap-x-2">
-                  No. <Blank min="4rem" /> P.O. <Blank value={fd.localPO} min="6rem" /> P.S. <Blank value={fd.localPS} min="6rem" />
+                  No. <Blank value={fd.localHouseNo} min="4rem" /> P.O. <Blank value={fd.localPO} min="6rem" /> P.S.{" "}
+                  <Blank value={fd.localPS} min="6rem" />
                 </span>
                 <span className="flex flex-wrap items-end gap-x-2">
-                  PIN <Blank value={fd.localPin} min="4rem" /> Dist. <Blank value={fd.localDistrict} min="6rem" /> State{" "}
-                  <Blank value={fd.localState} min="6rem" />
+                  Dist. <Blank value={fd.localDistrict} min="6rem" /> State <Blank value={fd.localState} min="6rem" /> PIN{" "}
+                  <Blank value={fd.localPin} min="4rem" />
                 </span>
                 <span className="flex flex-wrap items-end gap-x-2">
                   Country <Blank value={fd.localCountry} min="6rem" />
@@ -259,21 +261,22 @@ export function ApplicantPaperForm({
               <span className="w-5 shrink-0">5.</span>
               <span className="flex-1 min-w-0 space-y-1">
                 <span className="block min-w-0">
-                  Village Address : Name <Blank value={village} className="w-full" min="0" />
+                  Village Address : Vill. / Locality <Blank value={village} className="w-full" min="0" />
                 </span>
                 <span className="flex flex-wrap items-end gap-x-2">
-                  Father&apos;s Name <Blank value={father} min="8rem" /> H/W (Bariwala) <Blank min="5rem" />
+                  Father&apos;s Name <Blank value={father} min="8rem" /> H/W (Bariwala){" "}
+                  <Blank value={fd.villageHouseOwner} min="5rem" />
                 </span>
-                <span className="block">C/o. D/o. W/o. <Blank className="w-[70%]" /></span>
+                <span className="block">C/o. D/o. W/o. <Blank value={fd.villageCareOf} className="w-[70%]" /></span>
                 <span className="flex flex-wrap items-end gap-x-2">
                   Vill. <Blank value={village} min="7rem" /> P.O. <Blank value={fd.villagePO} min="7rem" />
                 </span>
                 <span className="flex flex-wrap items-end gap-x-2">
-                  Big P.O. - or Via <Blank min="6rem" /> P.S. <Blank value={fd.villagePS} min="6rem" />
+                  Big P.O. - or Via <Blank value={fd.villageViaPO} min="6rem" /> P.S. <Blank value={fd.villagePS} min="6rem" />
                 </span>
                 <span className="flex flex-wrap items-end gap-x-2">
-                  PIN <Blank value={fd.villagePin} min="4rem" /> Dist. <Blank value={fd.villageDistrict} min="6rem" /> State{" "}
-                  <Blank value={fd.villageState} min="6rem" />
+                  Dist. <Blank value={fd.villageDistrict} min="6rem" /> State <Blank value={fd.villageState} min="6rem" /> PIN{" "}
+                  <Blank value={fd.villagePin} min="4rem" />
                 </span>
                 <span className="flex flex-wrap items-end gap-x-2">
                   Country <Blank value={fd.villageCountry} min="6rem" />
@@ -417,14 +420,17 @@ export function ApplicantPaperForm({
               <span className="w-5 shrink-0">4.</span>
               <span className="flex-1 space-y-1">
                 <span className="block min-w-0">
-                  Present Address : <Blank value={text(fd.presentAddress) || present} className="w-full" min="0" />
+                  Present Address : Vill. / Locality{" "}
+                  <Blank value={text(fd.presentAddress) || present} className="w-full" min="0" />
                 </span>
                 <span className="flex flex-wrap items-end gap-x-2">
-                  P.O. <Blank value={fd.presentPO} min="6rem" /> P.S. <Blank value={fd.presentPS} min="6rem" /> PIN{" "}
+                  P.O. <Blank value={fd.presentPO} min="6rem" /> P.S. <Blank value={fd.presentPS} min="6rem" />
+                </span>
+                <span className="flex flex-wrap items-end gap-x-2">
+                  Dist. <Blank value={fd.presentDistrict} min="6rem" /> State <Blank value={fd.presentState} min="6rem" /> PIN{" "}
                   <Blank value={presentPin} min="4rem" />
                 </span>
                 <span className="flex flex-wrap items-end gap-x-2">
-                  Dist. <Blank value={fd.presentDistrict} min="6rem" /> State <Blank value={fd.presentState} min="6rem" />{" "}
                   Country <Blank value={fd.presentCountry} min="5rem" />
                 </span>
               </span>
@@ -433,14 +439,17 @@ export function ApplicantPaperForm({
               <span className="w-5 shrink-0">5.</span>
               <span className="flex-1 space-y-1">
                 <span className="block min-w-0">
-                  Permanent Address : <Blank value={text(fd.permanentAddress) || permanent} className="w-full" min="0" />
+                  Permanent Address : Vill. / Locality{" "}
+                  <Blank value={text(fd.permanentAddress) || permanent} className="w-full" min="0" />
                 </span>
                 <span className="flex flex-wrap items-end gap-x-2">
-                  P.O. <Blank value={fd.permanentPO} min="6rem" /> P.S. <Blank value={fd.permanentPS} min="6rem" /> PIN{" "}
+                  P.O. <Blank value={fd.permanentPO} min="6rem" /> P.S. <Blank value={fd.permanentPS} min="6rem" />
+                </span>
+                <span className="flex flex-wrap items-end gap-x-2">
+                  Dist. <Blank value={fd.permanentDistrict} min="6rem" /> State <Blank value={fd.permanentState} min="6rem" /> PIN{" "}
                   <Blank value={permanentPin} min="4rem" />
                 </span>
                 <span className="flex flex-wrap items-end gap-x-2">
-                  Dist. <Blank value={fd.permanentDistrict} min="6rem" /> State <Blank value={fd.permanentState} min="6rem" />{" "}
                   Country <Blank value={fd.permanentCountry} min="5rem" />
                 </span>
               </span>

@@ -282,7 +282,12 @@ export async function buildPaperFormPdf(
   if (filledBy) {
     y = lineFill(
       "Form filled up by admin :",
-      [text(filledBy.name), text(filledBy.email) && `Email ${text(filledBy.email)}`, (text(filledBy.userId) || text(filledBy.id)) && `ID ${text(filledBy.userId || filledBy.id)}`]
+      [
+        text(filledBy.name),
+        text(filledBy.phone) && `Phone ${text(filledBy.phone)}`,
+        text(filledBy.email) && `Email ${text(filledBy.email)}`,
+        (text(filledBy.userId) || text(filledBy.id)) && `ID ${text(filledBy.userId || filledBy.id)}`,
+      ]
         .filter(Boolean)
         .join("  ·  "),
       y,
@@ -307,18 +312,34 @@ export async function buildPaperFormPdf(
   pdf.text(age || "", left + 96 + ageLabelW, y);
   pdf.line(left + 96 + ageLabelW, y + 1.1, right, y + 1.1);
   y += 8.5;
-  y = lineFill("4. Local Address", local, y);
-  y = lineFill("     P.O. / P.S.", [text(fd.localPO), text(fd.localPS)].filter(Boolean).join(" / "), y);
+  y = lineFill("4. Local Address : Vill. / Locality", local, y);
+  y = lineFill("     C/o.", text(fd.localCareOf), y);
   y = lineFill(
-    "     PIN / Dist. / State / Country",
-    [text(fd.localPin), text(fd.localDistrict), text(fd.localState), text(fd.localCountry)].filter(Boolean).join(" / "),
+    "     No. / P.O. / P.S.",
+    [text(fd.localHouseNo), text(fd.localPO), text(fd.localPS)].filter(Boolean).join(" / "),
     y,
   );
-  y = lineFill("5. Village Address", village, y);
-  y = lineFill("     Vill. / P.O. / P.S.", [village, text(fd.villagePO), text(fd.villagePS)].filter(Boolean).join(" / "), y);
   y = lineFill(
-    "     PIN / Dist. / State / Country",
-    [text(fd.villagePin), text(fd.villageDistrict), text(fd.villageState), text(fd.villageCountry)].filter(Boolean).join(" / "),
+    "     Dist. / State / PIN / Country",
+    [text(fd.localDistrict), text(fd.localState), text(fd.localPin), text(fd.localCountry)].filter(Boolean).join(" / "),
+    y,
+  );
+  y = lineFill("5. Village Address : Vill. / Locality", village, y);
+  y = lineFill(
+    "     Father's Name / H/W (Bariwala)",
+    [father, text(fd.villageHouseOwner)].filter(Boolean).join(" / "),
+    y,
+  );
+  y = lineFill("     C/o. D/o. W/o.", text(fd.villageCareOf), y);
+  y = lineFill("     Vill. / P.O.", [village, text(fd.villagePO)].filter(Boolean).join(" / "), y);
+  y = lineFill(
+    "     Big P.O. / Via / P.S.",
+    [text(fd.villageViaPO), text(fd.villagePS)].filter(Boolean).join(" / "),
+    y,
+  );
+  y = lineFill(
+    "     Dist. / State / PIN / Country",
+    [text(fd.villageDistrict), text(fd.villageState), text(fd.villagePin), text(fd.villageCountry)].filter(Boolean).join(" / "),
     y,
   );
   y = lineFill(
@@ -388,20 +409,22 @@ export async function buildPaperFormPdf(
   y = lineFill("1. Name (Capital letter as per Aadhaar) :", name.toUpperCase(), y);
   y = lineFill("2. Father's Name (as per Aadhaar) :", father, y);
   y = lineFill("3. Date of Birth (as per Aadhaar) :", dob, y);
-  y = lineFill("4. Present Address :", present, y);
-  y = lineFill("     P.O. / P.S. / PIN", [text(fd.presentPO), text(fd.presentPS), text(fd.presentPin)].filter(Boolean).join(" / "), y);
+  y = lineFill("4. Present Address : Vill. / Locality", text(fd.presentAddress) || present, y);
+  y = lineFill("     P.O. / P.S.", [text(fd.presentPO), text(fd.presentPS)].filter(Boolean).join(" / "), y);
   y = lineFill(
-    "     Dist. / State / Country",
-    [text(fd.presentDistrict), text(fd.presentState), text(fd.presentCountry)].filter(Boolean).join(" / "),
+    "     Dist. / State / PIN",
+    [text(fd.presentDistrict), text(fd.presentState), text(fd.presentPin)].filter(Boolean).join(" / "),
     y,
   );
-  y = lineFill("5. Permanent Address :", permanent, y);
-  y = lineFill("     P.O. / P.S. / PIN", [text(fd.permanentPO), text(fd.permanentPS), text(fd.permanentPin)].filter(Boolean).join(" / "), y);
+  y = lineFill("     Country", text(fd.presentCountry), y);
+  y = lineFill("5. Permanent Address : Vill. / Locality", text(fd.permanentAddress) || permanent, y);
+  y = lineFill("     P.O. / P.S.", [text(fd.permanentPO), text(fd.permanentPS)].filter(Boolean).join(" / "), y);
   y = lineFill(
-    "     Dist. / State / Country",
-    [text(fd.permanentDistrict), text(fd.permanentState), text(fd.permanentCountry)].filter(Boolean).join(" / "),
+    "     Dist. / State / PIN",
+    [text(fd.permanentDistrict), text(fd.permanentState), text(fd.permanentPin)].filter(Boolean).join(" / "),
     y,
   );
+  y = lineFill("     Country", text(fd.permanentCountry), y);
   y = lineFill("6. Contact Mobile No. :", text(person?.mobile || fd.mobile), y);
   y = lineFill("7. Educational Qualification :", text(fd.qualification), y);
   y = lineFill("8. Aadhaar No. & PAN No. (own) :", [text(person?.aadhaarDisplay || fd.aadhaar), text(person?.pan || fd.pan)].filter(Boolean).join(" / "), y);

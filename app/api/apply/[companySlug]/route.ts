@@ -145,14 +145,18 @@ export async function POST(
     }
 
     if (body.action === "SUBMIT_APPLICATION") {
-      const officeAdmin = await currentOfficeAdmin(companySlug);
+      const officeAdmin = body.fillByAdmin ? await currentOfficeAdmin(companySlug) : null;
+      const fillerName = String(body.adminFillerName || officeAdmin?.name || "").trim();
+      const fillerPhone = String(body.adminFillerPhone || "").replace(/\D/g, "").slice(-10);
       const res = await submitApplicant(
         {
           ...body.data,
           companySlug,
           ...(officeAdmin ? { candidateAccountId: undefined } : {}),
         },
-        officeAdmin,
+        officeAdmin
+          ? { ...officeAdmin, name: fillerName || officeAdmin.name, phone: fillerPhone }
+          : null,
       );
       return NextResponse.json(res);
     }

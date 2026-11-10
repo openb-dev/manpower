@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import React, { Suspense, useEffect, useState } from "react";
+import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { DECLARATION, TERMS, JOINING_VERSION } from "@/server/data/joiningText.js";
 import {
@@ -10,7 +10,7 @@ import {
   INDIAN_STATES,
   QUALIFICATION_OPTIONS,
   formDataWithoutFiles,
-  joinAddressParts,
+  indianAddressLine,
 } from "@/lib/applicantFormFields";
 import { friendlyPublicError, readApiJson } from "@/lib/publicErrors";
 import { fileToCompressedUpload } from "@/lib/compressUpload";
@@ -104,6 +104,8 @@ function initialForm() {
     age: "",
     gender: "MALE",
     localAddress: "",
+    localCareOf: "",
+    localHouseNo: "",
     localPO: "",
     localPS: "",
     localPin: "",
@@ -111,6 +113,9 @@ function initialForm() {
     localState: DEFAULT_STATE,
     localCountry: DEFAULT_COUNTRY,
     villageAddress: "",
+    villageHouseOwner: "",
+    villageCareOf: "",
+    villageViaPO: "",
     villagePO: "",
     villagePS: "",
     villagePin: "",
@@ -272,54 +277,56 @@ function PlaceFields({
   onCountry: (value: string) => void;
 }) {
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3">
-      <div>
-        <label className="block text-xs font-bold text-slate-700 mb-1">
-          PIN {required ? <span className="text-red-500">*</span> : null}
-        </label>
-        <input
-          required={required}
-          disabled={disabled}
-          type="text"
-          maxLength={6}
-          value={pin}
-          onChange={(e) => onPin(e.target.value.replace(/\D/g, ""))}
-          className={`${fieldCls} font-mono`}
-          placeholder="6-digit PIN"
-        />
-      </div>
-      <div>
-        <label className="block text-xs font-bold text-slate-700 mb-1">
-          District {required ? <span className="text-red-500">*</span> : null}
-        </label>
-        <input
-          required={required}
-          disabled={disabled}
-          type="text"
-          value={district}
-          onChange={(e) => onDistrict(e.target.value)}
-          className={fieldCls}
-          placeholder="District"
-        />
-      </div>
-      <div>
-        <label className="block text-xs font-bold text-slate-700 mb-1">
-          State {required ? <span className="text-red-500">*</span> : null}
-        </label>
-        <select
-          required={required}
-          disabled={disabled}
-          value={state}
-          onChange={(e) => onState(e.target.value)}
-          className={fieldCls}
-        >
-          <option value="">Select state</option>
-          {INDIAN_STATES.map((name) => (
-            <option key={name} value={name}>
-              {name}
-            </option>
-          ))}
-        </select>
+    <div className="space-y-3 mt-3">
+      <div className="grid grid-cols-3 gap-3">
+        <div>
+          <label className="block text-xs font-bold text-slate-700 mb-1">
+            Dist. {required ? <span className="text-red-500">*</span> : null}
+          </label>
+          <input
+            required={required}
+            disabled={disabled}
+            type="text"
+            value={district}
+            onChange={(e) => onDistrict(e.target.value)}
+            className={fieldCls}
+            placeholder="District"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-bold text-slate-700 mb-1">
+            State {required ? <span className="text-red-500">*</span> : null}
+          </label>
+          <select
+            required={required}
+            disabled={disabled}
+            value={state}
+            onChange={(e) => onState(e.target.value)}
+            className={fieldCls}
+          >
+            <option value="">Select state</option>
+            {INDIAN_STATES.map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="block text-xs font-bold text-slate-700 mb-1">
+            PIN {required ? <span className="text-red-500">*</span> : null}
+          </label>
+          <input
+            required={required}
+            disabled={disabled}
+            type="text"
+            maxLength={6}
+            value={pin}
+            onChange={(e) => onPin(e.target.value.replace(/\D/g, ""))}
+            className={`${fieldCls} font-mono`}
+            placeholder="6-digit PIN"
+          />
+        </div>
       </div>
       <div>
         <label className="block text-xs font-bold text-slate-700 mb-1">
@@ -339,9 +346,54 @@ function PlaceFields({
   );
 }
 
-export default function ApplyPage() {
+function AddressInput({
+  label,
+  value,
+  onChange,
+  placeholder,
+  required = true,
+  disabled = false,
+  className = "",
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  required?: boolean;
+  disabled?: boolean;
+  className?: string;
+}) {
+  return (
+    <div className={className}>
+      <label className="block text-xs font-bold text-slate-700 mb-1">
+        {label} {required ? <span className="text-red-500">*</span> : null}
+      </label>
+      <input
+        required={required}
+        disabled={disabled}
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className={fieldCls}
+        placeholder={placeholder}
+      />
+    </div>
+  );
+}
+
+function ApplyLoading() {
+  return (
+    <div className="flex items-center justify-center min-h-screen bg-slate-50">
+      <p className="text-slate-600 font-medium animate-pulse">Loading recruitment portal...</p>
+    </div>
+  );
+}
+
+function ApplyPageInner() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const companySlug = params?.companySlug as string;
+  const fillAsAdmin = searchParams.get("fill") === "admin";
 
   const [company, setCompany] = useState<CompanyData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -355,6 +407,7 @@ export default function ApplyPage() {
   const [candidate, setCandidate] = useState<CandidateSession | null>(null);
   const [officeAdmin, setOfficeAdmin] = useState<{ id: string; name: string; email: string } | null>(null);
   const [officeAdminChecked, setOfficeAdminChecked] = useState(false);
+  const [adminFiller, setAdminFiller] = useState({ name: "", phone: "", confirmed: false });
   const [authTab, setAuthTab] = useState<"REGISTER" | "LOGIN">("REGISTER");
 
   // Registration Form State
@@ -403,6 +456,12 @@ export default function ApplyPage() {
   }, [companySlug]);
 
   useEffect(() => {
+    if (!fillAsAdmin) {
+      setOfficeAdmin(null);
+      setOfficeAdminChecked(true);
+      return;
+    }
+
     fetch("/api/auth/session", { credentials: "include" })
       .then(async (res) => {
         if (!res.ok) return;
@@ -414,16 +473,28 @@ export default function ApplyPage() {
         if (role !== "SUPER_ADMIN" && role !== "COMPANY_ADMIN") return;
         if (role === "COMPANY_ADMIN" && user.companySlug && user.companySlug !== companySlug) return;
         if (!sameCompany && role !== "SUPER_ADMIN") return;
+        const adminName = String(user.name || "Admin");
         setOfficeAdmin({
           id: String(user.id),
-          name: String(user.name || "Admin"),
+          name: adminName,
           email: String(user.email || ""),
         });
         setCandidate(null);
+        localStorage.removeItem(`candidate_${companySlug}`);
+        setForm((prev) => ({
+          ...prev,
+          name: "",
+          mobile: "",
+          email: "",
+        }));
+        setAdminFiller((prev) => ({
+          ...prev,
+          name: prev.name || adminName,
+        }));
       })
       .catch(() => {})
       .finally(() => setOfficeAdminChecked(true));
-  }, [companySlug]);
+  }, [companySlug, fillAsAdmin]);
 
   // Fetch Company Data
   useEffect(() => {
@@ -756,9 +827,15 @@ export default function ApplyPage() {
     e.preventDefault();
     setError("");
 
-    if (!candidate) {
+    if (!officeAdmin && !candidate) {
       setError("Please sign in or register before submitting your application.");
       return;
+    }
+    if (officeAdmin) {
+      const fillerName = adminFiller.name.trim();
+      const fillerPhone = adminFiller.phone.replace(/\D/g, "").slice(-10);
+      if (!fillerName) return setError("Please enter the filling admin name first.");
+      if (fillerPhone.length !== 10) return setError("Please enter the filling admin 10-digit phone number first.");
     }
     if (!selectedRole?.id) return setError("Please select a trade.");
     if (!selectedCategory?.id) return setError("Please select a job category.");
@@ -769,13 +846,18 @@ export default function ApplyPage() {
     if (!form.dateOfBirth) return setError("Please enter your date of birth.");
     if (!form.age) return setError("Please enter your age.");
     if (!form.gender) return setError("Please select gender.");
-    if (!form.localAddress.trim()) return setError("Please enter your local address.");
+    if (!form.localAddress.trim()) return setError("Please enter Vill. / Locality for local address.");
+    if (!form.localCareOf.trim()) return setError("Please enter C/o. for local address.");
+    if (!form.localHouseNo.trim()) return setError("Please enter house / holding No. for local address.");
     if (!form.localPO.trim()) return setError("Please enter local P.O.");
     if (!form.localPS.trim()) return setError("Please enter local P.S.");
     const localPlaceErr = missingPlace("local address", form.localPin, form.localDistrict, form.localState, form.localCountry);
     if (localPlaceErr) return setError(localPlaceErr);
-    if (!form.villageAddress.trim()) return setError("Please enter your village address.");
+    if (!form.villageAddress.trim()) return setError("Please enter Vill. / Locality for village address.");
+    if (!form.villageHouseOwner.trim()) return setError("Please enter H/W (Bariwala) for village address.");
+    if (!form.villageCareOf.trim()) return setError("Please enter C/o. D/o. W/o. for village address.");
     if (!form.villagePO.trim()) return setError("Please enter village P.O.");
+    if (!form.villageViaPO.trim()) return setError("Please enter Big P.O. / Via for village address.");
     if (!form.villagePS.trim()) return setError("Please enter village P.S.");
     const villagePlaceErr = missingPlace(
       "village address",
@@ -822,7 +904,7 @@ export default function ApplyPage() {
     const applicantEmail = String(form.email || candidate?.email || "").trim().toLowerCase();
     if (!applicantEmail.includes("@")) return setError("Please enter the applicant email address.");
 
-    if (!form.presentAddress.trim()) return setError("Please enter present address.");
+    if (!form.presentAddress.trim()) return setError("Please enter Vill. / Locality for present address.");
     if (!form.presentPO.trim()) return setError("Please enter present P.O.");
     if (!form.presentPS.trim()) return setError("Please enter present P.S.");
     const presentPlaceErr = missingPlace(
@@ -852,7 +934,7 @@ export default function ApplyPage() {
           state: form.permanentState,
           country: form.permanentCountry,
         };
-    if (!permanent.address.trim()) return setError("Please enter permanent address.");
+    if (!permanent.address.trim()) return setError("Please enter Vill. / Locality for permanent address.");
     if (!permanent.po.trim()) return setError("Please enter permanent P.O.");
     if (!permanent.ps.trim()) return setError("Please enter permanent P.S.");
     const permanentPlaceErr = missingPlace(
@@ -966,24 +1048,24 @@ export default function ApplyPage() {
         fatherOrHusband: form.fatherOrHusband.trim(),
         dateOfBirth: form.dateOfBirth,
         gender: form.gender || "MALE",
-        presentAddress: joinAddressParts([
-          form.presentAddress,
-          form.presentPO ? `P.O. ${form.presentPO}` : "",
-          form.presentPS ? `P.S. ${form.presentPS}` : "",
-          form.presentPin ? `PIN ${form.presentPin}` : "",
-          form.presentDistrict ? `Dist. ${form.presentDistrict}` : "",
-          form.presentState,
-          form.presentCountry,
-        ]),
-        permanentAddress: joinAddressParts([
-          permanent.address,
-          permanent.po ? `P.O. ${permanent.po}` : "",
-          permanent.ps ? `P.S. ${permanent.ps}` : "",
-          permanent.pin ? `PIN ${permanent.pin}` : "",
-          permanent.district ? `Dist. ${permanent.district}` : "",
-          permanent.state,
-          permanent.country,
-        ]),
+        presentAddress: indianAddressLine({
+          locality: form.presentAddress,
+          po: form.presentPO,
+          ps: form.presentPS,
+          district: form.presentDistrict,
+          state: form.presentState,
+          pin: form.presentPin,
+          country: form.presentCountry,
+        }),
+        permanentAddress: indianAddressLine({
+          locality: permanent.address,
+          po: permanent.po,
+          ps: permanent.ps,
+          district: permanent.district,
+          state: permanent.state,
+          pin: permanent.pin,
+          country: permanent.country,
+        }),
         aadhaarNumber: cleanAadhaar,
         panNumber: cleanPan,
         exServiceNo: isExServiceman ? form.exServiceNo.trim() : "NA",
@@ -1035,7 +1117,13 @@ export default function ApplyPage() {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "SUBMIT_APPLICATION", data: payload }),
+        body: JSON.stringify({
+          action: "SUBMIT_APPLICATION",
+          data: payload,
+          fillByAdmin: Boolean(officeAdmin),
+          adminFillerName: officeAdmin ? adminFiller.name.trim() : undefined,
+          adminFillerPhone: officeAdmin ? adminFiller.phone.replace(/\D/g, "").slice(-10) : undefined,
+        }),
       });
 
       const data = await readApiJson(res);
@@ -1050,11 +1138,7 @@ export default function ApplyPage() {
   }
 
   if (loading || !officeAdminChecked) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-slate-50">
-        <p className="text-slate-600 font-medium animate-pulse">Loading recruitment portal...</p>
-      </div>
-    );
+    return <ApplyLoading />;
   }
 
   if (error && !company) {
@@ -1101,8 +1185,14 @@ export default function ApplyPage() {
             <div className="flex items-center gap-3 text-xs">
               <div className="hidden sm:block text-right">
                 <div className="font-bold text-indigo-900">Form fill up by admin</div>
-                <div className="text-[11px] text-indigo-700 font-semibold">{officeAdmin.name}</div>
-                <div className="text-[11px] text-slate-500 font-mono">{officeAdmin.email}</div>
+                <div className="text-[11px] text-indigo-700 font-semibold">
+                  {adminFiller.confirmed ? adminFiller.name : officeAdmin.name}
+                </div>
+                <div className="text-[11px] text-slate-500 font-mono">
+                  {adminFiller.confirmed && adminFiller.phone
+                    ? `+91 ${adminFiller.phone.replace(/\D/g, "").slice(-10)}`
+                    : officeAdmin.email}
+                </div>
               </div>
               <Link
                 href={`/${companySlug}/applicants`}
@@ -1467,7 +1557,79 @@ export default function ApplyPage() {
         {/* =========================================================================
             STATE 2: AUTHENTICATED CANDIDATE -> ROLE SELECTION & FULL APPLICATION FORM
             ========================================================================= */}
-        {canFillForm && (
+        {canFillForm && officeAdmin && !adminFiller.confirmed && (
+          <div className="max-w-xl mx-auto bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const name = adminFiller.name.trim();
+                const phone = adminFiller.phone.replace(/\D/g, "").slice(-10);
+                if (!name) return setError("Please enter the filling admin name.");
+                if (phone.length !== 10) return setError("Please enter a valid 10-digit phone number.");
+                setAdminFiller({ name, phone, confirmed: true });
+                setError("");
+                setStep("ROLE");
+              }}
+              className="p-6 sm:p-8 space-y-5"
+            >
+              <div className="rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-indigo-950">
+                <div className="text-[10px] font-bold uppercase tracking-wide">Form fill up by admin</div>
+                <div className="text-xs mt-1">Logged in as {officeAdmin.email || officeAdmin.name}</div>
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-slate-900">Filling admin details</h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  First enter the name and phone number of the office person filling this form. These details will be
+                  stamped on the application.
+                </p>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  Admin name <span className="text-red-500">*</span>
+                </label>
+                <input
+                  required
+                  type="text"
+                  value={adminFiller.name}
+                  onChange={(e) => setAdminFiller({ ...adminFiller, name: e.target.value })}
+                  className="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Name of the person filling this form"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  Admin phone no. <span className="text-red-500">*</span>
+                </label>
+                <div className="flex">
+                  <span className="inline-flex items-center px-3 rounded-l-lg border border-r-0 border-slate-300 bg-slate-50 text-slate-500 text-xs font-mono font-bold">
+                    +91
+                  </span>
+                  <input
+                    required
+                    type="tel"
+                    inputMode="numeric"
+                    maxLength={10}
+                    value={adminFiller.phone}
+                    onChange={(e) =>
+                      setAdminFiller({ ...adminFiller, phone: e.target.value.replace(/\D/g, "").slice(0, 10) })
+                    }
+                    className="w-full px-3.5 py-2.5 border border-slate-300 rounded-r-lg text-sm bg-white font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="10-digit mobile number"
+                  />
+                </div>
+              </div>
+              <button
+                type="submit"
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl shadow-md transition text-sm flex items-center justify-center gap-2"
+              >
+                <span>Continue to application</span>
+                <span>→</span>
+              </button>
+            </form>
+          </div>
+        )}
+
+        {canFillForm && (!officeAdmin || adminFiller.confirmed) && (
           <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
             {/* Step 1: Role Selection */}
             {step === "ROLE" && (
@@ -1476,9 +1638,17 @@ export default function ApplyPage() {
                   {officeAdmin ? (
                     <div className="rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 mb-3 text-indigo-950">
                       <div className="text-[10px] font-bold uppercase tracking-wide">Form fill up by admin</div>
-                      <div className="text-sm font-semibold mt-0.5">{officeAdmin.name}</div>
-                      <div className="text-xs font-mono mt-1">Email: {officeAdmin.email || "—"}</div>
+                      <div className="text-sm font-semibold mt-0.5">{adminFiller.name || officeAdmin.name}</div>
+                      <div className="text-xs font-mono mt-1">Phone: {adminFiller.phone || "—"}</div>
+                      <div className="text-xs font-mono">Email: {officeAdmin.email || "—"}</div>
                       <div className="text-xs font-mono">Admin ID: {officeAdmin.id}</div>
+                      <button
+                        type="button"
+                        onClick={() => setAdminFiller((prev) => ({ ...prev, confirmed: false }))}
+                        className="mt-2 text-[11px] font-semibold text-indigo-700 hover:underline"
+                      >
+                        Change name / phone
+                      </button>
                     </div>
                   ) : (
                     <span className="text-xs font-bold uppercase tracking-wider text-blue-700 bg-blue-50 px-2.5 py-1 rounded-md">
@@ -1723,10 +1893,14 @@ export default function ApplyPage() {
                 {officeAdmin ? (
                   <div className="rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-indigo-950">
                     <div className="text-[10px] font-bold uppercase tracking-wide">Form fill up by admin</div>
-                    <div className="grid gap-2 sm:grid-cols-3 text-xs mt-2">
+                    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4 text-xs mt-2">
                       <div>
                         <span className="block uppercase font-bold text-[10px] text-indigo-700">Admin name</span>
-                        <span className="font-bold">{officeAdmin.name}</span>
+                        <span className="font-bold">{adminFiller.name || officeAdmin.name}</span>
+                      </div>
+                      <div>
+                        <span className="block uppercase font-bold text-[10px] text-indigo-700">Admin phone</span>
+                        <span className="font-mono">{adminFiller.phone || "—"}</span>
                       </div>
                       <div>
                         <span className="block uppercase font-bold text-[10px] text-indigo-700">Admin email</span>
@@ -1838,45 +2012,41 @@ export default function ApplyPage() {
                       </div>
                     </div>
 
-                    <div className="sm:col-span-2">
-                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                    <div className="sm:col-span-2 rounded-xl border border-slate-200 bg-slate-50/60 p-4 space-y-3">
+                      <div className="text-xs font-bold uppercase tracking-wide text-slate-800">
                         Local Address <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        required
-                        type="text"
+                      </div>
+                      <AddressInput
+                        label="Vill. / Locality"
                         value={form.localAddress}
-                        onChange={(e) => setForm({ ...form, localAddress: e.target.value })}
-                        className="w-full px-3.5 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500"
-                        placeholder="House / street / area"
+                        onChange={(value) => setForm({ ...form, localAddress: value })}
+                        placeholder="House / street / locality"
                       />
-                      <div className="grid grid-cols-2 gap-3 mt-3">
-                        <div>
-                          <label className="block text-xs font-bold text-slate-700 mb-1">
-                            P.O. <span className="text-red-500">*</span>
-                          </label>
-                          <input
-                            required
-                            type="text"
-                            value={form.localPO}
-                            onChange={(e) => setForm({ ...form, localPO: e.target.value })}
-                            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white"
-                            placeholder="Post office"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-bold text-slate-700 mb-1">
-                            P.S. <span className="text-red-500">*</span>
-                          </label>
-                          <input
-                            required
-                            type="text"
-                            value={form.localPS}
-                            onChange={(e) => setForm({ ...form, localPS: e.target.value })}
-                            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white"
-                            placeholder="Police station"
-                          />
-                        </div>
+                      <AddressInput
+                        label="C/o."
+                        value={form.localCareOf}
+                        onChange={(value) => setForm({ ...form, localCareOf: value })}
+                        placeholder="Care of"
+                      />
+                      <div className="grid grid-cols-3 gap-3">
+                        <AddressInput
+                          label="No."
+                          value={form.localHouseNo}
+                          onChange={(value) => setForm({ ...form, localHouseNo: value })}
+                          placeholder="House / holding no."
+                        />
+                        <AddressInput
+                          label="P.O."
+                          value={form.localPO}
+                          onChange={(value) => setForm({ ...form, localPO: value })}
+                          placeholder="Post office"
+                        />
+                        <AddressInput
+                          label="P.S."
+                          value={form.localPS}
+                          onChange={(value) => setForm({ ...form, localPS: value })}
+                          placeholder="Police station"
+                        />
                       </div>
                       <PlaceFields
                         pin={form.localPin}
@@ -1890,45 +2060,49 @@ export default function ApplyPage() {
                       />
                     </div>
 
-                    <div className="sm:col-span-2">
-                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                    <div className="sm:col-span-2 rounded-xl border border-slate-200 bg-slate-50/60 p-4 space-y-3">
+                      <div className="text-xs font-bold uppercase tracking-wide text-slate-800">
                         Village Address <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        required
-                        type="text"
+                      </div>
+                      <AddressInput
+                        label="Vill. / Locality"
                         value={form.villageAddress}
-                        onChange={(e) => setForm({ ...form, villageAddress: e.target.value })}
-                        className="w-full px-3.5 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500"
-                        placeholder="Village / home address"
+                        onChange={(value) => setForm({ ...form, villageAddress: value })}
+                        placeholder="Village / home locality"
                       />
-                      <div className="grid grid-cols-2 gap-3 mt-3">
-                        <div>
-                          <label className="block text-xs font-bold text-slate-700 mb-1">
-                            P.O. <span className="text-red-500">*</span>
-                          </label>
-                          <input
-                            required
-                            type="text"
-                            value={form.villagePO}
-                            onChange={(e) => setForm({ ...form, villagePO: e.target.value })}
-                            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white"
-                            placeholder="Post office"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-bold text-slate-700 mb-1">
-                            P.S. <span className="text-red-500">*</span>
-                          </label>
-                          <input
-                            required
-                            type="text"
-                            value={form.villagePS}
-                            onChange={(e) => setForm({ ...form, villagePS: e.target.value })}
-                            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white"
-                            placeholder="Police station"
-                          />
-                        </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <AddressInput
+                          label="H/W (Bariwala)"
+                          value={form.villageHouseOwner}
+                          onChange={(value) => setForm({ ...form, villageHouseOwner: value })}
+                          placeholder="House owner"
+                        />
+                        <AddressInput
+                          label="C/o. D/o. W/o."
+                          value={form.villageCareOf}
+                          onChange={(value) => setForm({ ...form, villageCareOf: value })}
+                          placeholder="C/o / D/o / W/o"
+                        />
+                      </div>
+                      <div className="grid grid-cols-3 gap-3">
+                        <AddressInput
+                          label="P.O."
+                          value={form.villagePO}
+                          onChange={(value) => setForm({ ...form, villagePO: value })}
+                          placeholder="Post office"
+                        />
+                        <AddressInput
+                          label="Big P.O. / Via"
+                          value={form.villageViaPO}
+                          onChange={(value) => setForm({ ...form, villageViaPO: value })}
+                          placeholder="Via / big post office"
+                        />
+                        <AddressInput
+                          label="P.S."
+                          value={form.villagePS}
+                          onChange={(value) => setForm({ ...form, villagePS: value })}
+                          placeholder="Police station"
+                        />
                       </div>
                       <PlaceFields
                         pin={form.villagePin}
@@ -2496,45 +2670,29 @@ export default function ApplyPage() {
                       />
                     </div>
 
-                    <div className="sm:col-span-2 space-y-3">
-                      <label className="block text-xs font-bold text-slate-700">
+                    <div className="sm:col-span-2 space-y-3 rounded-xl border border-slate-200 bg-slate-50/60 p-4">
+                      <div className="text-xs font-bold uppercase tracking-wide text-slate-800">
                         Present Residential Address <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        required
-                        type="text"
+                      </div>
+                      <AddressInput
+                        label="Vill. / Locality"
                         value={form.presentAddress}
-                        onChange={(e) => updatePresent("presentAddress", e.target.value)}
-                        className="w-full px-3.5 py-2 border border-slate-300 rounded-lg text-sm bg-white"
-                        placeholder="House/Flat No, Street"
+                        onChange={(value) => updatePresent("presentAddress", value)}
+                        placeholder="House / street / locality"
                       />
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div>
-                          <label className="block text-xs font-bold text-slate-700 mb-1">
-                            P.O. <span className="text-red-500">*</span>
-                          </label>
-                          <input
-                            required
-                            type="text"
-                            value={form.presentPO}
-                            onChange={(e) => updatePresent("presentPO", e.target.value)}
-                            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white"
-                            placeholder="Post office"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-bold text-slate-700 mb-1">
-                            P.S. <span className="text-red-500">*</span>
-                          </label>
-                          <input
-                            required
-                            type="text"
-                            value={form.presentPS}
-                            onChange={(e) => updatePresent("presentPS", e.target.value)}
-                            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white"
-                            placeholder="Police station"
-                          />
-                        </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <AddressInput
+                          label="P.O."
+                          value={form.presentPO}
+                          onChange={(value) => updatePresent("presentPO", value)}
+                          placeholder="Post office"
+                        />
+                        <AddressInput
+                          label="P.S."
+                          value={form.presentPS}
+                          onChange={(value) => updatePresent("presentPS", value)}
+                          placeholder="Police station"
+                        />
                       </div>
                       <PlaceFields
                         pin={form.presentPin}
@@ -2563,48 +2721,35 @@ export default function ApplyPage() {
                       </label>
                     </div>
 
-                    <div className="sm:col-span-2 space-y-3">
-                      <label className="block text-xs font-bold text-slate-700">
+                    <div className="sm:col-span-2 space-y-3 rounded-xl border border-slate-200 bg-slate-50/60 p-4">
+                      <div className="text-xs font-bold uppercase tracking-wide text-slate-800">
                         Permanent Residential Address <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        required={!form.sameAsPresent}
-                        type="text"
+                      </div>
+                      <AddressInput
+                        label="Vill. / Locality"
                         value={form.permanentAddress}
-                        onChange={(e) => setForm({ ...form, permanentAddress: e.target.value, sameAsPresent: false })}
+                        onChange={(value) => setForm({ ...form, permanentAddress: value, sameAsPresent: false })}
+                        placeholder="Village / town / locality"
+                        required={!form.sameAsPresent}
                         disabled={form.sameAsPresent}
-                        className="w-full px-3.5 py-2 border border-slate-300 rounded-lg text-sm bg-white disabled:bg-slate-100 disabled:text-slate-600"
-                        placeholder="Village/Town"
                       />
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div>
-                          <label className="block text-xs font-bold text-slate-700 mb-1">
-                            P.O. <span className="text-red-500">*</span>
-                          </label>
-                          <input
-                            required={!form.sameAsPresent}
-                            type="text"
-                            value={form.permanentPO}
-                            onChange={(e) => setForm({ ...form, permanentPO: e.target.value, sameAsPresent: false })}
-                            disabled={form.sameAsPresent}
-                            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white disabled:bg-slate-100 disabled:text-slate-600"
-                            placeholder="Post office"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-bold text-slate-700 mb-1">
-                            P.S. <span className="text-red-500">*</span>
-                          </label>
-                          <input
-                            required={!form.sameAsPresent}
-                            type="text"
-                            value={form.permanentPS}
-                            onChange={(e) => setForm({ ...form, permanentPS: e.target.value, sameAsPresent: false })}
-                            disabled={form.sameAsPresent}
-                            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white disabled:bg-slate-100 disabled:text-slate-600"
-                            placeholder="Police station"
-                          />
-                        </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <AddressInput
+                          label="P.O."
+                          value={form.permanentPO}
+                          onChange={(value) => setForm({ ...form, permanentPO: value, sameAsPresent: false })}
+                          placeholder="Post office"
+                          required={!form.sameAsPresent}
+                          disabled={form.sameAsPresent}
+                        />
+                        <AddressInput
+                          label="P.S."
+                          value={form.permanentPS}
+                          onChange={(value) => setForm({ ...form, permanentPS: value, sameAsPresent: false })}
+                          placeholder="Police station"
+                          required={!form.sameAsPresent}
+                          disabled={form.sameAsPresent}
+                        />
                       </div>
                       <PlaceFields
                         pin={form.permanentPin}
@@ -3122,7 +3267,8 @@ export default function ApplyPage() {
                 {officeAdmin ? (
                   <div className="p-4 bg-indigo-50 border border-indigo-200 rounded-xl text-left text-xs space-y-1 max-w-sm w-full mx-auto">
                     <div className="text-[10px] font-bold uppercase tracking-wide text-indigo-800">Form filled up by admin</div>
-                    <div className="font-semibold text-slate-900">{officeAdmin.name}</div>
+                    <div className="font-semibold text-slate-900">{adminFiller.name || officeAdmin.name}</div>
+                    <div className="font-mono text-slate-700">Phone: {adminFiller.phone || "—"}</div>
                     <div className="font-mono text-slate-700">Email: {officeAdmin.email || "—"}</div>
                     <div className="font-mono text-slate-700">Admin ID: {officeAdmin.id}</div>
                   </div>
@@ -3150,6 +3296,7 @@ export default function ApplyPage() {
                 <div className="pt-2 flex justify-center gap-3">
                   <button
                     onClick={() => {
+                      setAdminFiller((prev) => ({ ...prev, confirmed: false }));
                       setStep("ROLE");
                       setSubmittedRef("");
                       setForm(initialForm());
@@ -3180,5 +3327,13 @@ export default function ApplyPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function ApplyPage() {
+  return (
+    <Suspense fallback={<ApplyLoading />}>
+      <ApplyPageInner />
+    </Suspense>
   );
 }

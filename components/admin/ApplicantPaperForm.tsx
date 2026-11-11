@@ -387,9 +387,14 @@ export function ApplicantPaperForm({
     <div className="text-black">
       <section className="paper-form-page">
         <div className="paper-form-sheet flex flex-col">
-          <div className="flex justify-center mb-1">
-            <div className="bg-black text-white text-center text-[11px] font-bold px-6 py-0.5 rounded-sm">
-              APPLICATION FOR EMPLOYMENT
+          <div className="flex items-center justify-between gap-3 mb-1">
+            <div className="flex-1 flex justify-center">
+              <div className="bg-black text-white text-center text-[11px] font-bold px-6 py-0.5 rounded-sm">
+                APPLICATION FOR EMPLOYMENT
+              </div>
+            </div>
+            <div className="text-right text-[11px] font-bold whitespace-nowrap">
+              Application ID : {applicationDisplayId(person) || "—"}
             </div>
           </div>
           <div className="relative min-h-[78px] mb-1 pr-[78px]">

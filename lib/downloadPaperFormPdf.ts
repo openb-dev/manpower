@@ -371,9 +371,16 @@ export async function buildPaperFormPdf(
   };
 
   // Page 1 — full application on one A4 sheet
+  const appNo = applicationDisplayId(person);
   let y = banner("APPLICATION FOR EMPLOYMENT", 14);
+  if (appNo) {
+    pdf.setFont("times", "bold");
+    pdf.setFontSize(10);
+    pdf.text(`Application ID : ${appNo}`, right, y, { align: "right" });
+    y += 5;
+  }
   y = letterhead(y + 2, true);
-  y = lineFill("Application ID", applicationDisplayId(person), y, 9.5);
+  y = lineFill("Application ID", appNo, y, 9.5);
   if (postApplied) y = lineFill("Post applied :", postApplied, y, 9.5);
   y = rowFields(
     [

@@ -250,6 +250,8 @@ export function attachmentBlobUrl(src: string) {
 
 export function applicationDisplayId(person: any) {
   const code = String(person?.applicationNo || person?.formData?.applicationNo || "").trim();
+  if (!code) return "";
+  if (/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(code) || /^[0-9a-f]{20,}$/i.test(code)) return "";
   return code;
 }
 

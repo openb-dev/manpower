@@ -83,12 +83,17 @@ export default function ApplicantBookPage() {
         setSites(data.sites || []);
         setSelectedIds((prev) => prev.filter((id) => items.some((row: any) => row.id === id)));
         if (!siteId && data.sites?.[0]?.id) setSiteId(data.sites[0].id);
-        setListError("");
+        setListError(data.error || "");
       })
       .catch((e: any) => {
         setApplicants([]);
         setTotal(0);
-        setListError(e.message || "The applicant book could not be loaded.");
+        const raw = String(e?.message || "");
+        setListError(
+          /minified react error #441/i.test(raw)
+            ? "The applicant book could not be loaded."
+            : friendlyPublicError(raw || "The applicant book could not be loaded."),
+        );
       })
       .finally(() => setLoading(false));
   }

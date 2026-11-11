@@ -7,6 +7,9 @@ import { formDataWithoutFiles } from "../../lib/applicantFormFields.ts";
 import { firstZodMessage } from "../../lib/publicErrors.ts";
 import type { OfficeAdmin } from "../../lib/officeAdmin.ts";
 import { formPrefillFromApplicant } from "../candidates/services.ts";
+import { allocateApplicationNo, ensureApplicantNumbers } from "../../lib/applicationNumbers.ts";
+
+export { ensureApplicantNumbers };
 
 function scrubFormDataPii(form: Record<string, any>) {
   const next = { ...form };
@@ -153,21 +156,8 @@ export async function submitApplicant(
     pvcStatus = VerificationStatus.REJECTED;
   }
 
-  const seq = await prisma.companySequence.upsert({
-    where: { companyId: company.id },
-    update: { nextApplicantNumber: { increment: 1 } },
-    create: {
-      companyId: company.id,
-      prefix: "NK",
-      nextNumber: 1,
-      nextApplicantNumber: 2,
-    },
-  });
-  const prefix =
-    company.slug === "nk"
-      ? "NK"
-      : String(seq.prefix || "NK").replace(/[^A-Za-z0-9]/g, "").toUpperCase() || "NK";
-  const applicationNo = `${prefix}-${String(seq.nextApplicantNumber - 1).padStart(4, "0")}`;
+  await ensureApplicantNumbers(company.id);
+  const applicationNo = await allocateApplicationNo(company);
 
   const applicant = await prisma.applicant.create({
     data: {
@@ -237,6 +227,7 @@ export async function listApplicants({
   limit?: number;
 }) {
   const tenantDb = getTenantPrisma(companyId);
+  await ensureApplicantNumbers(companyId);
 
   const where: any = {
     deletedAt: null,
@@ -281,6 +272,7 @@ export async function listApplicants({
 
   const safeItems = items.map(({ aadhaarEncrypted, aadhaarLast4, formData, ...app }) => ({
     ...app,
+    applicationNo: app.applicationNo || String((formData as any)?.applicationNo || "") || null,
     officeApplicantId: String((formData as any)?.officeApplicantId || ""),
     filledByAdmin: (formData as any)?.filledByAdmin || null,
     aadhaarDisplay: formatAadhaar(decryptText(aadhaarEncrypted) || aadhaarLast4),
@@ -447,6 +439,7 @@ export async function getApplicantForAdminEdit({
   if (!applicantId || !/^[0-9a-f-]{36}$/i.test(applicantId)) {
     throw new Error("Applicant not found in this company.");
   }
+  await ensureApplicantNumbers(companyId);
   const row = await prisma.applicant.findFirst({
     where: { id: applicantId, companyId, deletedAt: null },
     select: {

@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { decryptText, formatAadhaar } from "@/lib/crypto";
 import { ApplicantStatus, AttendanceStatus, Role } from "@prisma/client";
 import { listApplicants } from "@/modules/applicants/services";
+import { ensureApplicantNumbers } from "@/lib/applicationNumbers";
 import { assignEmployeeSite, listEmployees } from "@/modules/employees/services";
 import {
   fillWorkingDays,
@@ -54,25 +55,36 @@ export async function loadApplicantBook(
   companySlug: string,
   opts: { search?: string; status?: string } = {},
 ) {
-  const { company } = await requireCompany(companySlug);
-  const status =
-    opts.status && opts.status !== "ALL" ? (opts.status as ApplicantStatus) : undefined;
-  const data = await listApplicants({
-    companyId: company.id,
-    search: opts.search?.trim() || undefined,
-    status,
-    limit: 50,
-  });
-  const sites = await prisma.site.findMany({
-    where: { companyId: company.id, active: true },
-    select: { id: true, name: true, code: true },
-    orderBy: { name: "asc" },
-  });
-  return toClientJson({ ...data, sites });
+  try {
+    const { company } = await requireCompany(companySlug);
+    const status =
+      opts.status && opts.status !== "ALL" ? (opts.status as ApplicantStatus) : undefined;
+    const data = await listApplicants({
+      companyId: company.id,
+      search: opts.search?.trim() || undefined,
+      status,
+      limit: 50,
+    });
+    const sites = await prisma.site.findMany({
+      where: { companyId: company.id, active: true },
+      select: { id: true, name: true, code: true },
+      orderBy: { name: "asc" },
+    });
+    return toClientJson({ ...data, sites, error: "" });
+  } catch (error) {
+    console.error("[loadApplicantBook]", error);
+    return {
+      items: [],
+      total: 0,
+      sites: [],
+      error: "The applicant book could not be loaded.",
+    };
+  }
 }
 
 export async function loadApplicantDetail(companySlug: string, applicantId: string) {
   const { company } = await requireCompany(companySlug);
+  await ensureApplicantNumbers(company.id);
   const applicant = await prisma.applicant.findFirst({
     where: { id: applicantId, companyId: company.id, deletedAt: null },
     include: {
@@ -88,9 +100,14 @@ export async function loadApplicantDetail(companySlug: string, applicantId: stri
   if (!applicant) throw new Error("Applicant not found in this company.");
   const { aadhaarEncrypted, aadhaarHash: _aadhaarHash, ...safe } = applicant;
   const aadhaarDisplay = formatAadhaar(decryptText(aadhaarEncrypted) || applicant.aadhaarLast4);
+  const formData = {
+    ...((revealFormAadhaar(applicant.formData, aadhaarDisplay) as Record<string, unknown>) || {}),
+    applicationNo: applicant.applicationNo || (applicant.formData as any)?.applicationNo || "",
+  };
   return toClientJson({
     ...safe,
-    formData: revealFormAadhaar(applicant.formData, aadhaarDisplay),
+    applicationNo: applicant.applicationNo || formData.applicationNo || null,
+    formData,
     aadhaarDisplay,
   });
 }

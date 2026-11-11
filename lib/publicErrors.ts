@@ -16,8 +16,8 @@ export function friendlyPublicError(raw: unknown) {
   if (/failed to fetch|networkerror|load failed|network request failed/i.test(text)) {
     return "Could not connect. Please check your internet and try again.";
   }
-  if (/prisma|econnrefused|etimedout|internal server|\b500\b/i.test(text)) {
-    return "The server could not save the form right now. Please try again in a minute.";
+  if (/prisma|econnrefused|etimedout|internal server|\b500\b|p2022|does not exist|unknown field|minified react error/i.test(text)) {
+    return "The server could not load this page right now. Please try again in a minute.";
   }
   if (/smtp|nodemailer|eauth|resend_api|sendgrid|fast2sms|msg91|twilio/i.test(text)) {
     return "The verification code could not be sent. Please try again.";

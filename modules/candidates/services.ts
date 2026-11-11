@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { normalizeOtpIdentifier } from "../../lib/otp/index.ts";
 import { verifyApplicantOtp } from "../otp/services.ts";
 import { decryptText } from "../../lib/crypto/index.ts";
+import { ensureApplicantNumbers } from "../../lib/applicationNumbers.ts";
 
 export interface RegisterCandidateParams {
   companySlug: string;
@@ -153,6 +154,7 @@ export async function getCandidateApplications({
     where: { slug: companySlug },
   });
   if (!company) throw new Error("Company not found.");
+  await ensureApplicantNumbers(company.id);
 
   const applications = await prisma.applicant.findMany({
     where: {

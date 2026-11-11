@@ -45,13 +45,17 @@ export function encryptText(plainText: string): string {
 
 export function decryptText(cipherText?: string | null): string {
   if (!cipherText) return "";
-  const parts = cipherText.split(":");
-  if (parts.length !== 3) return "";
-  const [ivHex, tagHex, dataHex] = parts;
-  const iv = Buffer.from(ivHex, "hex");
-  const tag = Buffer.from(tagHex, "hex");
-  const data = Buffer.from(dataHex, "hex");
-  const decipher = createDecipheriv(ALGORITHM, getBufferKey(), iv);
-  decipher.setAuthTag(tag);
-  return Buffer.concat([decipher.update(data), decipher.final()]).toString("utf8");
+  try {
+    const parts = cipherText.split(":");
+    if (parts.length !== 3) return "";
+    const [ivHex, tagHex, dataHex] = parts;
+    const iv = Buffer.from(ivHex, "hex");
+    const tag = Buffer.from(tagHex, "hex");
+    const data = Buffer.from(dataHex, "hex");
+    const decipher = createDecipheriv(ALGORITHM, getBufferKey(), iv);
+    decipher.setAuthTag(tag);
+    return Buffer.concat([decipher.update(data), decipher.final()]).toString("utf8");
+  } catch {
+    return "";
+  }
 }

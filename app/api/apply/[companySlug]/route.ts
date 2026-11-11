@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requestApplicantOtp, verifyApplicantOtp } from "@/modules/otp/services";
 import { submitApplicant } from "@/modules/applicants/services";
@@ -6,6 +6,11 @@ import { registerCandidate, loginCandidate, getCandidateApplications } from "@/m
 import { publicCatchMessage } from "@/lib/publicErrors";
 import { currentOfficeAdmin } from "@/lib/officeAdmin";
 import { applyRolesForForm, ensureApplyRoles } from "@/lib/applyRoles";
+import {
+  clearCandidateCookie,
+  currentCandidate,
+  setCandidateCookie,
+} from "@/lib/candidateSession";
 
 async function fileToDataUrl(file: File) {
   const buf = Buffer.from(await file.arrayBuffer());
@@ -95,8 +100,17 @@ export async function GET(
   }
 }
 
+function withCandidateCookie(
+  response: NextResponse,
+  candidate: { id: string } | null,
+  companySlug: string,
+) {
+  if (candidate?.id) setCandidateCookie(response, { id: candidate.id, companySlug });
+  return response;
+}
+
 export async function POST(
-  request: Request,
+  request: NextRequest,
   { params }: { params: Promise<{ companySlug: string }> }
 ) {
   try {
@@ -153,7 +167,11 @@ export async function POST(
         otpChannel: body.otpChannel || "WHATSAPP",
         otpCode: body.otpCode,
       });
-      return NextResponse.json({ success: true, candidate });
+      return withCandidateCookie(
+        NextResponse.json({ success: true, candidate }),
+        candidate,
+        companySlug,
+      );
     }
 
     if (body.action === "LOGIN_CANDIDATE") {
@@ -162,26 +180,51 @@ export async function POST(
         email: body.email,
         password: body.password,
       });
-      return NextResponse.json({ success: true, candidate });
+      return withCandidateCookie(
+        NextResponse.json({ success: true, candidate }),
+        candidate,
+        companySlug,
+      );
+    }
+
+    if (body.action === "GET_CANDIDATE_ME") {
+      const candidate = await currentCandidate(request, companySlug);
+      const res = NextResponse.json({ candidate: candidate || null });
+      if (!candidate) clearCandidateCookie(res);
+      return res;
+    }
+
+    if (body.action === "LOGOUT_CANDIDATE") {
+      const res = NextResponse.json({ success: true });
+      clearCandidateCookie(res);
+      return res;
     }
 
     if (body.action === "GET_CANDIDATE_APPLICATIONS") {
+      const candidate = await currentCandidate(request, companySlug);
+      if (!candidate) {
+        return NextResponse.json({ error: "Please sign in to view your applications." }, { status: 401 });
+      }
       const applications = await getCandidateApplications({
         companySlug,
-        candidateId: body.candidateId,
+        candidateId: candidate.id,
       });
       return NextResponse.json({ applications });
     }
 
     if (body.action === "SUBMIT_APPLICATION") {
       const officeAdmin = body.fillByAdmin ? await currentOfficeAdmin(companySlug) : null;
+      const candidate = officeAdmin ? null : await currentCandidate(request, companySlug);
+      if (!officeAdmin && !candidate) {
+        return NextResponse.json({ error: "Please sign in before submitting the application." }, { status: 401 });
+      }
       const fillerName = String(body.adminFillerName || officeAdmin?.name || "").trim();
       const fillerPhone = String(body.adminFillerPhone || "").replace(/\D/g, "").slice(-10);
       const res = await submitApplicant(
         {
           ...body.data,
           companySlug,
-          ...(officeAdmin ? { candidateAccountId: undefined } : {}),
+          candidateAccountId: officeAdmin ? undefined : candidate?.id,
         },
         officeAdmin
           ? { ...officeAdmin, name: fillerName || officeAdmin.name, phone: fillerPhone }

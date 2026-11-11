@@ -144,13 +144,30 @@ function Tick({ on }: { on: boolean }) {
   );
 }
 
-function Footer({ date, time, name, label }: { date: string; time?: string; name: string; label: string }) {
+function Footer({
+  date,
+  time,
+  name,
+  label,
+  page,
+  total = 4,
+}: {
+  date: string;
+  time?: string;
+  name: string;
+  label: string;
+  page: number;
+  total?: number;
+}) {
   return (
-    <div className="mt-auto shrink-0 pt-6 flex justify-between items-end gap-6 text-[12px]">
+    <div className="mt-auto shrink-0 pt-4 grid grid-cols-3 items-end gap-3 text-[12px]">
       <div>
         Date : <Blank value={date} min="8rem" /> Time : <Blank value={time} min="6rem" />
       </div>
-      <div className="text-right min-w-[14rem]">
+      <div className="text-center text-[11px] pb-1">
+        Page {page} of {total}
+      </div>
+      <div className="text-right min-w-0">
         <div className="border-b border-black min-h-[1.4em] font-semibold">{name || "\u00a0"}</div>
         <div className="text-[11px] mt-1">({label})</div>
       </div>
@@ -498,7 +515,7 @@ export function ApplicantPaperForm({
             </li>
           </ol>
 
-          <Footer date={signedOn} time={signedTime} name={name} label="Full Signature of the Applicant" />
+          <Footer date={signedOn} time={signedTime} name={name} label="Full Signature of the Applicant" page={1} />
         </div>
       </section>
 
@@ -592,46 +609,50 @@ export function ApplicantPaperForm({
               </span>
             </li>
           </ol>
-          <Footer date={signedOn} time={signedTime} name={name} label="Full Signature of the Applicant" />
+          <Footer date={signedOn} time={signedTime} name={name} label="Full Signature of the Applicant" page={2} />
         </div>
       </section>
 
       <section className="paper-form-page">
         <div className="paper-form-sheet flex flex-col min-h-[297mm]">
-          <h2 className="text-center text-[22px] font-bold mb-3">DECLARATION</h2>
-          <p className="text-[13px] mb-3">{DECLARATION.intro}</p>
-          <ol className="flex-1 space-y-1.5 text-[11.5px] leading-snug list-decimal pl-5">
-            {DECLARATION.points.map((point: string) => (
-              <li key={point}>{point}</li>
-            ))}
-          </ol>
-          <Footer date={signedOn} time={signedTime} name={name} label="Full Signature of the Applicant" />
-        </div>
-      </section>
-
-      <section className="paper-form-page">
-        <div className="paper-form-sheet flex flex-col min-h-[297mm]">
-          <div className="text-center mb-3">
-            <div className="text-[22px] font-bold leading-none">{head.name}</div>
-            {head.address.map((line) => (
-              <div key={line} className="text-[11px] leading-snug">
-                {line}
-              </div>
-            ))}
-            <div className="text-[11px] leading-snug">
-              {head.website ? <>Website : {head.website}, </> : null}
-              {head.email ? <>Email : {head.email} </> : null}
-              {head.mobile ? <>Mobile : {head.mobile}</> : null}
-            </div>
+          <div className="flex-1 min-h-0 border-2 border-black px-3 py-3 flex flex-col">
+            <h2 className="text-center text-[22px] font-bold mb-3">DECLARATION</h2>
+            <p className="text-[13px] mb-3">{DECLARATION.intro}</p>
+            <ol className="flex-1 space-y-1.5 text-[11.5px] leading-snug list-decimal pl-5">
+              {DECLARATION.points.map((point: string) => (
+                <li key={point}>{point}</li>
+              ))}
+            </ol>
           </div>
-          <h2 className="text-center text-[18px] font-bold">TERMS &amp; CONDITIONS</h2>
-          <p className="text-center text-[12px] mb-3">({TERMS.note})</p>
-          <ol className="flex-1 space-y-1 text-[10.5px] leading-snug list-decimal pl-5">
-            {TERMS.points.map((point: string) => (
-              <li key={point}>{point}</li>
-            ))}
-          </ol>
-          <Footer date={signedOn} time={signedTime} name={name} label="Full Signature of the Applicant" />
+          <Footer date={signedOn} time={signedTime} name={name} label="Full Signature of the Applicant" page={3} />
+        </div>
+      </section>
+
+      <section className="paper-form-page">
+        <div className="paper-form-sheet flex flex-col min-h-[297mm]">
+          <div className="flex-1 min-h-0 border-2 border-black px-3 py-3 flex flex-col">
+            <div className="text-center mb-3">
+              <div className="text-[22px] font-bold leading-none">{head.name}</div>
+              {head.address.map((line) => (
+                <div key={line} className="text-[11px] leading-snug">
+                  {line}
+                </div>
+              ))}
+              <div className="text-[11px] leading-snug">
+                {head.website ? <>Website : {head.website}, </> : null}
+                {head.email ? <>Email : {head.email} </> : null}
+                {head.mobile ? <>Mobile : {head.mobile}</> : null}
+              </div>
+            </div>
+            <h2 className="text-center text-[18px] font-bold">TERMS &amp; CONDITIONS</h2>
+            <p className="text-center text-[12px] mb-3">({TERMS.note})</p>
+            <ol className="flex-1 space-y-1 text-[10.5px] leading-snug list-decimal pl-5">
+              {TERMS.points.map((point: string) => (
+                <li key={point}>{point}</li>
+              ))}
+            </ol>
+          </div>
+          <Footer date={signedOn} time={signedTime} name={name} label="Full Signature of the Applicant" page={4} />
         </div>
       </section>
     </div>

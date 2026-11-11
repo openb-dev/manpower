@@ -101,21 +101,6 @@ function closeSource(img: ImageSource) {
   if ("close" in img && typeof img.close === "function") img.close();
 }
 
-function extractLargestJpeg(bytes: Uint8Array) {
-  let best: Uint8Array | null = null;
-  for (let i = 0; i < bytes.length - 1; i += 1) {
-    if (bytes[i] !== 0xff || bytes[i + 1] !== 0xd8) continue;
-    for (let j = i + 2; j < bytes.length - 1; j += 1) {
-      if (bytes[j] !== 0xff || bytes[j + 1] !== 0xd9) continue;
-      const slice = bytes.subarray(i, j + 2);
-      if (!best || slice.length > best.length) best = slice;
-      i = j + 1;
-      break;
-    }
-  }
-  return best && best.length > 20_000 ? best : null;
-}
-
 function jpegFileName(name: string) {
   return name.replace(/\.[a-z0-9]+$/i, "") + ".jpg";
 }
@@ -136,8 +121,17 @@ export async function fileToCompressedUpload(file: File) {
     throw new Error("That file is too large to compress. Please choose a file under 40 MB.");
   }
 
-  const isPdf = file.type === "application/pdf" || /\.pdf$/i.test(file.name);
-  const isImage = file.type.startsWith("image/") || /\.(jpe?g|png|webp|gif|heic|heif|bmp)$/i.test(file.name);
+  const isPdf = /\.pdf$/i.test(file.name) || /pdf/i.test(file.type);
+  const isImage =
+    !isPdf &&
+    (file.type.startsWith("image/") || /\.(jpe?g|png|webp|gif|heic|heif|bmp)$/i.test(file.name));
+
+  if (isPdf) {
+    if (file.size > 5 * 1024 * 1024) {
+      throw new Error("That PDF is larger than 5 MB. Please upload a smaller PDF or a photo of the document.");
+    }
+    return { dataUrl: await readAsDataUrl(file), fileName: file.name };
+  }
 
   if (isImage) {
     try {
@@ -149,27 +143,6 @@ export async function fileToCompressedUpload(file: File) {
       }
       throw new Error("Could not read that picture. Please upload a JPG or PNG photo.");
     }
-  }
-
-  if (isPdf) {
-    if (file.size <= TARGET_BYTES) {
-      return { dataUrl: await readAsDataUrl(file), fileName: file.name };
-    }
-    const bytes = new Uint8Array(await file.arrayBuffer());
-    const jpeg = extractLargestJpeg(bytes);
-    if (jpeg) {
-      const blob = new Blob([new Uint8Array(jpeg)], { type: "image/jpeg" });
-      try {
-        const dataUrl = await compressImageBlob(blob);
-        return { dataUrl, fileName: jpegFileName(file.name) };
-      } catch {
-        return { dataUrl: await readAsDataUrl(blob), fileName: jpegFileName(file.name) };
-      }
-    }
-    if (file.size <= 2.5 * 1024 * 1024) {
-      return { dataUrl: await readAsDataUrl(file), fileName: file.name };
-    }
-    throw new Error("That PDF is too heavy to compress. Please upload a photo of the document instead.");
   }
 
   if (file.size <= TARGET_BYTES) {

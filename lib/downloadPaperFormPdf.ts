@@ -285,6 +285,17 @@ export async function buildPaperFormPdf(
     pdf.text(`(${label})`, right, 279, { align: "right" });
   };
 
+  const stampPageNumbers = () => {
+    const total = pdf.getNumberOfPages();
+    for (let i = 1; i <= total; i += 1) {
+      pdf.setPage(i);
+      pdf.setFont("times", "normal");
+      pdf.setFontSize(9);
+      pdf.setTextColor(0, 0, 0);
+      pdf.text(`Page ${i} of ${total}`, pageW / 2, 287, { align: "center" });
+    }
+  };
+
   const letterhead = (startY: number, withPhoto = false) => {
     const photoW = 25;
     const photoH = 32;
@@ -559,13 +570,20 @@ export async function buildPaperFormPdf(
     extraHeader?: () => number,
   ) => {
     pdf.addPage();
-    let top = 16;
+    const boxLeft = 10;
+    const boxTop = 10;
+    const boxW = 190;
+    const boxH = 258;
+    pdf.setDrawColor(0);
+    pdf.setLineWidth(0.7);
+    pdf.rect(boxLeft, boxTop, boxW, boxH);
+    let top = 18;
     if (extraHeader) top = extraHeader();
     pdf.setFont("times", "bold");
     pdf.setFontSize(16);
     pdf.text(heading, pageW / 2, top, { align: "center" });
     top += 8;
-    const footerY = 268;
+    const footerY = 262;
     const startY = top;
     const available = footerY - startY - 2;
 
@@ -625,6 +643,7 @@ export async function buildPaperFormPdf(
     return hy + 2;
   });
 
+  stampPageNumbers();
   return pdf;
 }
 

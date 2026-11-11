@@ -51,6 +51,78 @@ interface CandidateSession {
   applicants?: any[];
 }
 
+type CandidateApplication = {
+  id: string;
+  status: string;
+  createdAt: string;
+  jobRoleId: string;
+  roleCategoryId: string;
+  role: string;
+  category: string;
+  extra?: string;
+};
+
+function candidateStatusLabel(status?: string) {
+  const map: Record<string, string> = {
+    NEW: "Under review",
+    SHORTLISTED: "Shortlisted",
+    APPROVED: "Selected",
+    REJECTED: "Not selected",
+  };
+  return status ? map[status] || status : "—";
+}
+
+function candidateStatusClass(status?: string) {
+  if (status === "APPROVED") return "bg-emerald-100 text-emerald-800";
+  if (status === "SHORTLISTED") return "bg-blue-100 text-blue-800";
+  if (status === "REJECTED") return "bg-red-100 text-red-800";
+  return "bg-amber-100 text-amber-800";
+}
+
+function formatApplyDate(value?: string) {
+  if (!value) return "—";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+function CandidateApplicationsPanel({ items }: { items: CandidateApplication[] }) {
+  if (!items.length) return null;
+  return (
+    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-left">
+      <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800 mb-3">Your applications</h3>
+      <div className="overflow-x-auto">
+        <table className="min-w-full text-xs">
+          <thead>
+            <tr className="text-slate-500 text-left">
+              <th className="pb-2 pr-3 font-semibold">Application ID</th>
+              <th className="pb-2 pr-3 font-semibold">Role</th>
+              <th className="pb-2 pr-3 font-semibold">Category</th>
+              <th className="pb-2 pr-3 font-semibold">Status</th>
+              <th className="pb-2 font-semibold">Date</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((app) => (
+              <tr key={app.id} className="border-t border-slate-200 align-top">
+                <td className="py-2 pr-3 font-mono text-[11px] break-all text-slate-800">{app.id}</td>
+                <td className="py-2 pr-3 font-semibold text-slate-800">{app.role || "—"}</td>
+                <td className="py-2 pr-3 text-slate-700">{app.category || "—"}</td>
+                <td className="py-2 pr-3">
+                  <span className={`inline-block px-2 py-0.5 rounded-full font-bold ${candidateStatusClass(app.status)}`}>
+                    {candidateStatusLabel(app.status)}
+                  </span>
+                </td>
+                <td className="py-2 text-slate-700 whitespace-nowrap">{formatApplyDate(app.createdAt)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 interface FamilyMember {
   name: string;
   relation: string;
@@ -438,25 +510,68 @@ function ApplyPageInner() {
   const [submitting, setSubmitting] = useState(false);
   const [submittedRef, setSubmittedRef] = useState("");
   const [compressingLabel, setCompressingLabel] = useState("");
+  const [myApplications, setMyApplications] = useState<CandidateApplication[]>([]);
 
-  // Check for saved candidate session in localStorage
   useEffect(() => {
-    const saved = localStorage.getItem(`candidate_${companySlug}`);
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        setCandidate(parsed);
+    if (fillAsAdmin) return;
+    let cancelled = false;
+    fetch(`/api/apply/${companySlug}`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "GET_CANDIDATE_ME" }),
+    })
+      .then(async (res) => {
+        const data = await readApiJson(res);
+        if (cancelled) return;
+        if (!res.ok || !data.candidate) {
+          setCandidate(null);
+          return;
+        }
+        setCandidate(data.candidate);
         setForm((prev) => ({
           ...prev,
-          name: prev.name || parsed.fullName || "",
-          mobile: prev.mobile || parsed.whatsappNo || "",
-          email: prev.email || parsed.email || "",
+          name: prev.name || data.candidate.fullName || "",
+          mobile: prev.mobile || data.candidate.whatsappNo || "",
+          email: prev.email || data.candidate.email || "",
         }));
-      } catch (e) {
-        localStorage.removeItem(`candidate_${companySlug}`);
+      })
+      .catch(() => {
+        if (!cancelled) setCandidate(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [companySlug, fillAsAdmin]);
+
+  async function loadMyApplications() {
+    try {
+      const res = await fetch(`/api/apply/${companySlug}`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "GET_CANDIDATE_APPLICATIONS",
+        }),
+      });
+      const data = await readApiJson(res);
+      if (!res.ok) {
+        setMyApplications([]);
+        return;
       }
+      setMyApplications(Array.isArray(data.applications) ? data.applications : []);
+    } catch {
+      /* keep last list */
     }
-  }, [companySlug]);
+  }
+
+  useEffect(() => {
+    if (!candidate?.id || officeAdmin) {
+      setMyApplications([]);
+      return;
+    }
+    loadMyApplications();
+  }, [candidate?.id, officeAdmin, companySlug, step]);
 
   useEffect(() => {
     if (!fillAsAdmin) {
@@ -483,7 +598,6 @@ function ApplyPageInner() {
           email: String(user.email || ""),
         });
         setCandidate(null);
-        localStorage.removeItem(`candidate_${companySlug}`);
         setForm((prev) => ({
           ...prev,
           name: "",
@@ -560,6 +674,7 @@ function ApplyPageInner() {
     try {
       const res = await fetch("/api/otp/send", {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           companySlug,
@@ -628,6 +743,7 @@ function ApplyPageInner() {
     try {
       const res = await fetch(`/api/apply/${companySlug}`, {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "REGISTER_CANDIDATE",
@@ -645,7 +761,6 @@ function ApplyPageInner() {
 
       const newSession: CandidateSession = data.candidate;
       setCandidate(newSession);
-      localStorage.setItem(`candidate_${companySlug}`, JSON.stringify(newSession));
       setForm((prev) => ({
         ...prev,
         name: newSession.fullName,
@@ -669,6 +784,7 @@ function ApplyPageInner() {
     try {
       const res = await fetch(`/api/apply/${companySlug}`, {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "LOGIN_CANDIDATE",
@@ -682,7 +798,6 @@ function ApplyPageInner() {
 
       const session: CandidateSession = data.candidate;
       setCandidate(session);
-      localStorage.setItem(`candidate_${companySlug}`, JSON.stringify(session));
       setForm((prev) => ({
         ...prev,
         name: session.fullName,
@@ -697,9 +812,19 @@ function ApplyPageInner() {
   }
 
   // Sign out candidate session
-  function handleSignOut() {
+  async function handleSignOut() {
+    try {
+      await fetch(`/api/apply/${companySlug}`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "LOGOUT_CANDIDATE" }),
+      });
+    } catch {
+      /* still clear the screen */
+    }
     setCandidate(null);
-    localStorage.removeItem(`candidate_${companySlug}`);
+    setMyApplications([]);
     setStep("ROLE");
     setSubmittedRef("");
     setSuccessMsg("Signed out of candidate portal.");
@@ -744,6 +869,12 @@ function ApplyPageInner() {
     const input = e.target;
     const file = input.files?.[0];
     if (!file) return;
+    const isPdf = /\.pdf$/i.test(file.name) || /pdf/i.test(file.type);
+    if (dataKey === "photo" && isPdf) {
+      setError("Passport photo must be a JPG or PNG picture, not a PDF.");
+      input.value = "";
+      return;
+    }
     setError("");
     setCompressingLabel(file.name);
     fileToCompressedUpload(file)
@@ -1031,7 +1162,6 @@ function ApplyPageInner() {
 
       const payload = {
         companySlug,
-        ...(officeAdmin ? {} : { candidateAccountId: candidate?.id }),
         jobRoleId: selectedRole?.id,
         roleCategoryId: selectedCategory?.id,
         fullName: form.name.trim(),
@@ -1665,6 +1795,7 @@ function ApplyPageInner() {
                       Candidate: {candidate?.fullName}
                     </span>
                   )}
+                  {!officeAdmin ? <div className="mt-3"><CandidateApplicationsPanel items={myApplications} /></div> : null}
                   <div className="mt-2">
                     <h2 className="text-lg font-bold text-slate-900">Step 1: Select trade / category</h2>
                     <p className="text-xs text-slate-500">
@@ -1847,6 +1978,7 @@ function ApplyPageInner() {
                     if (isSecurityGuardRole(selectedRole) && isOthersChoice(selectedCategory) && !form.otherCategory.trim()) {
                       return setError("Please type the category for Others.");
                     }
+                    let nextCategory = selectedCategory;
                     if (isManpowerRole(selectedRole)) {
                       if (!form.skillCategory) return setError("Please select skill category.");
                       if (!form.gemProfile) return setError("Please select a manpower profile.");
@@ -1859,7 +1991,26 @@ function ApplyPageInner() {
                         manpowerCategories.find((cat) => cat.name === form.gemProfile) ||
                         manpowerOthers;
                       if (!category) return setError("Please select a manpower profile.");
+                      nextCategory = category;
                       setSelectedCategory(category);
+                    }
+                    const extra = (
+                      isManpowerRole(selectedRole)
+                        ? form.gemProfile === "Others"
+                          ? form.otherCategory
+                          : form.gemProfile
+                        : form.otherCategory
+                    )
+                      .trim()
+                      .toLowerCase();
+                    const already = myApplications.some(
+                      (app) =>
+                        app.jobRoleId === selectedRole.id &&
+                        (!nextCategory?.id || app.roleCategoryId === nextCategory.id) &&
+                        String(app.extra || "").toLowerCase() === extra,
+                    );
+                    if (already) {
+                      return setError("You already applied for this same trade and category. Please choose a different one.");
                     }
                     setError("");
                     setStep("FORM");
@@ -3240,9 +3391,15 @@ function ApplyPageInner() {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-slate-500">Status:</span>
-                    <span className="font-bold text-amber-600">NEW (Under Review)</span>
+                    <span className="font-bold text-amber-600">Under review</span>
                   </div>
                 </div>
+
+                {!officeAdmin ? (
+                  <div className="max-w-2xl w-full mx-auto text-left">
+                    <CandidateApplicationsPanel items={myApplications} />
+                  </div>
+                ) : null}
 
                 <div className="pt-2 flex justify-center gap-3">
                   <button

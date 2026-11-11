@@ -111,18 +111,14 @@ export async function loginCandidate({
         email: cleanEmail,
       },
     },
-    include: {
-      applicants: {
-        where: { deletedAt: null },
-        orderBy: { createdAt: "desc" },
-        select: {
-          id: true,
-          status: true,
-          createdAt: true,
-          jobRole: { select: { name: true } },
-          roleCategory: { select: { name: true } },
-        },
-      },
+    select: {
+      id: true,
+      companyId: true,
+      fullName: true,
+      email: true,
+      whatsappNo: true,
+      otpVerifiedVia: true,
+      passwordHash: true,
     },
   });
 
@@ -142,7 +138,6 @@ export async function loginCandidate({
     email: candidate.email,
     whatsappNo: candidate.whatsappNo,
     otpVerifiedVia: candidate.otpVerifiedVia,
-    applicants: candidate.applicants,
   };
 }
 
@@ -168,13 +163,27 @@ export async function getCandidateApplications({
     select: {
       id: true,
       status: true,
-      fullName: true,
-      mobile: true,
       createdAt: true,
-      jobRole: { select: { name: true, code: true } },
-      roleCategory: { select: { name: true, code: true } },
+      jobRoleId: true,
+      roleCategoryId: true,
+      formData: true,
+      jobRole: { select: { name: true } },
+      roleCategory: { select: { name: true } },
     },
   });
 
-  return applications;
+  return applications.map((row) => {
+    const fd = (row.formData || {}) as Record<string, any>;
+    const extra = String(fd.otherCategory || fd.gemProfile || "").trim();
+    return {
+      id: row.id,
+      status: row.status,
+      createdAt: row.createdAt,
+      jobRoleId: row.jobRoleId,
+      roleCategoryId: row.roleCategoryId,
+      role: row.jobRole?.name || "",
+      category: extra || row.roleCategory?.name || "",
+      extra: extra.toLowerCase(),
+    };
+  });
 }

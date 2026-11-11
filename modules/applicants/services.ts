@@ -1,11 +1,17 @@
 import { prisma, getTenantPrisma } from "../../lib/db/index.ts";
-import { decryptText, encryptText, formatAadhaar, getAadhaarLast4, hashAadhaar } from "../../lib/crypto/index.ts";
+import { decryptText, encryptText, formatAadhaar, getAadhaarLast4, hashAadhaar, maskAadhaar } from "../../lib/crypto/index.ts";
 import { ApplicantStatus, Role, VerificationStatus } from "@prisma/client";
 import { z } from "zod";
 import { ApplicantSubmitSchema } from "./schema.ts";
 import { formDataWithoutFiles } from "../../lib/applicantFormFields.ts";
 import { firstZodMessage } from "../../lib/publicErrors.ts";
 import type { OfficeAdmin } from "../../lib/officeAdmin.ts";
+
+function scrubFormDataPii(form: Record<string, any>) {
+  const next = { ...form };
+  if (next.aadhaar) next.aadhaar = maskAadhaar(String(next.aadhaar));
+  return next;
+}
 
 export async function submitApplicant(
   rawInput: z.infer<typeof ApplicantSubmitSchema>,
@@ -65,19 +71,32 @@ export async function submitApplicant(
     }
   }
 
-  // Duplicate applicant prevention within the same company using Aadhaar HMAC
+  // Same person may apply for more than one trade/category, but not the same post twice.
   const aadhaarHmac = hashAadhaar(input.aadhaarNumber);
-  const existingApplicant = await prisma.applicant.findFirst({
+  const incomingExtra = String(
+    input.formData?.otherCategory || input.formData?.gemProfile || "",
+  )
+    .trim()
+    .toLowerCase();
+  const existingSameAadhaar = await prisma.applicant.findMany({
     where: {
       companyId: company.id,
       aadhaarHash: aadhaarHmac,
       deletedAt: null,
       status: { in: [ApplicantStatus.NEW, ApplicantStatus.SHORTLISTED, ApplicantStatus.APPROVED] },
     },
+    select: { jobRoleId: true, roleCategoryId: true, formData: true },
   });
-
-  if (existingApplicant) {
-    throw new Error("An active application with this Aadhaar number already exists for this company.");
+  const sameTradeAndCategory = existingSameAadhaar.some((row) => {
+    if (row.jobRoleId !== input.jobRoleId || row.roleCategoryId !== input.roleCategoryId) return false;
+    const fd = (row.formData || {}) as Record<string, any>;
+    const extra = String(fd.otherCategory || fd.gemProfile || "").trim().toLowerCase();
+    return extra === incomingExtra;
+  });
+  if (sameTradeAndCategory) {
+    throw new Error(
+      "You already have an application for this same trade and category. Please choose a different trade or category.",
+    );
   }
 
   // Determine Police Verification Status
@@ -112,7 +131,7 @@ export async function submitApplicant(
       exServiceNo: input.exServiceNo?.trim() || null,
       pvcStatus,
       formData: {
-        ...formDataWithoutFiles(input.formData || {}),
+        ...scrubFormDataPii(formDataWithoutFiles(input.formData || {})),
         ...(filledByAdmin ? { filledByAdmin } : {}),
       },
       documents: input.documents,

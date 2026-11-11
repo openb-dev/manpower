@@ -150,7 +150,7 @@ function Footer({
   name,
   label,
   page,
-  total = 4,
+  total = 3,
 }: {
   date: string;
   time?: string;
@@ -245,6 +245,28 @@ function BankFields({
   );
 }
 
+function DashBits({
+  items,
+}: {
+  items: { label: string; value?: unknown; min?: string; grow?: boolean }[];
+}) {
+  return (
+    <span className="flex flex-wrap items-end gap-x-2 gap-y-0.5 min-w-0 flex-1">
+      {items.map((item) => (
+        <span key={item.label} className={`inline-flex items-end gap-1 min-w-0 ${item.grow ? "flex-1" : ""}`}>
+          <span className="shrink-0 whitespace-nowrap">{item.label} :</span>
+          <span
+            className={`${item.grow ? "flex-1 min-w-[2.8rem]" : "inline-block"} border-b border-dotted border-black px-0.5 font-semibold leading-tight break-words`}
+            style={item.grow ? undefined : { minWidth: item.min || "3.2rem" }}
+          >
+            {text(item.value) || "\u00a0"}
+          </span>
+        </span>
+      ))}
+    </span>
+  );
+}
+
 function AddressLines({
   locality,
   po,
@@ -261,17 +283,17 @@ function AddressLines({
   pin?: unknown;
 }) {
   return (
-    <div className="w-full min-w-0 space-y-1">
-      <LineField label="Vill. / Locality" value={locality} />
-      <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-x-4 gap-y-1">
-        <LineField label="P.O." value={po} />
-        <LineField label="P.S." value={ps} />
-      </div>
-      <LineField label="Dist." value={district} />
-      <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-x-4 gap-y-1">
-        <LineField label="State" value={state} />
-        <LineField label="PIN" value={pin} />
-      </div>
+    <div className="w-full min-w-0 space-y-0.5">
+      <DashBits items={[{ label: "Vill. / Locality", value: locality, grow: true }]} />
+      <DashBits
+        items={[
+          { label: "P.O.", value: po, grow: true },
+          { label: "P.S.", value: ps, grow: true },
+          { label: "Dist.", value: district, grow: true },
+          { label: "State", value: state, grow: true },
+          { label: "PIN", value: pin, min: "3.6rem" },
+        ]}
+      />
     </div>
   );
 }
@@ -365,19 +387,19 @@ export function ApplicantPaperForm({
     <div className="text-black">
       <section className="paper-form-page">
         <div className="paper-form-sheet flex flex-col">
-          <div className="flex justify-center mb-2">
-            <div className="bg-black text-white text-center text-[12px] font-bold px-6 py-1 rounded-sm">
+          <div className="flex justify-center mb-1">
+            <div className="bg-black text-white text-center text-[11px] font-bold px-6 py-0.5 rounded-sm">
               APPLICATION FOR EMPLOYMENT
             </div>
           </div>
-          <div className="relative min-h-[90px] mb-2 pr-[84px]">
-            <div className="absolute top-0 right-0 w-[72px] h-[90px] border border-black bg-white overflow-hidden flex items-center justify-center">
+          <div className="relative min-h-[78px] mb-1 pr-[78px]">
+            <div className="absolute top-0 right-0 w-[66px] h-[82px] border border-black bg-white overflow-hidden flex items-center justify-center">
               {photo ? (
                 <img src={photo} alt={name} className="max-w-full max-h-full object-contain" />
               ) : null}
             </div>
             <div className="min-w-0">
-              <div className="text-[20px] font-bold leading-tight">{head.name}</div>
+              <div className="text-[16px] font-bold leading-tight">{head.name}</div>
               {head.address.map((line) => (
                 <div key={line} className="text-[10px] leading-snug">
                   {line}
@@ -407,26 +429,34 @@ export function ApplicantPaperForm({
             </p>
           )}
 
-          <ol className="mt-2 space-y-1.5 text-[11.5px] leading-snug list-none">
+          <ol className="mt-1 space-y-0.5 text-[10.5px] leading-tight list-none flex-1">
             <li className="flex gap-2">
-              <span className="w-5 shrink-0">1.</span>
-              <LineField label="Name in full" value={name} className="flex-1" />
+              <span className="w-4 shrink-0">1.</span>
+              <DashBits
+                items={[
+                  { label: "Name in full", value: name, grow: true },
+                  { label: "D.O.B.", value: dob, min: "4.8rem" },
+                  { label: "Age", value: age, min: "2.2rem" },
+                ]}
+              />
             </li>
             <li className="flex gap-2">
-              <span className="w-5 shrink-0">2.</span>
-              <LineField label="Father's / Husband Name" value={father} className="flex-1" />
+              <span className="w-4 shrink-0">2.</span>
+              <DashBits items={[{ label: "Father's / Husband Name", value: father, grow: true }]} />
             </li>
             <li className="flex gap-2">
-              <span className="w-5 shrink-0">3.</span>
-              <div className="flex-1 min-w-0 grid grid-cols-[minmax(0,1fr)_7rem] gap-x-4">
-                <LineField label="Date of Birth" value={dob} />
-                <LineField label="Age" value={age} />
-              </div>
+              <span className="w-4 shrink-0">3.</span>
+              <DashBits
+                items={[
+                  { label: "Mobile", value: person?.mobile || fd.mobile, min: "5.4rem" },
+                  { label: "Emergency contact", value: fd.emergencyContact, min: "5.4rem" },
+                ]}
+              />
             </li>
             <li className="flex gap-2">
-              <span className="w-5 shrink-0">4.</span>
+              <span className="w-4 shrink-0">4.</span>
               <div className="flex-1 min-w-0">
-                <div className="mb-0.5">Present Address :</div>
+                <div>Present Address :</div>
                 <AddressLines
                   locality={presentLocality}
                   po={presentPO}
@@ -438,9 +468,9 @@ export function ApplicantPaperForm({
               </div>
             </li>
             <li className="flex gap-2">
-              <span className="w-5 shrink-0">5.</span>
+              <span className="w-4 shrink-0">5.</span>
               <div className="flex-1 min-w-0">
-                <div className="mb-0.5">Permanent Address :</div>
+                <div>Permanent Address :</div>
                 <AddressLines
                   locality={permanentLocality}
                   po={permanentPO}
@@ -452,44 +482,43 @@ export function ApplicantPaperForm({
               </div>
             </li>
             <li className="flex gap-2">
-              <span className="w-5 shrink-0">6.</span>
-              <div className="flex-1 min-w-0 grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-x-4">
-                <LineField label="Ex-Service No." value={person?.exServiceNo || fd.exServiceNo} />
-                <LineField label="Rank" value={fd.exRank} />
-              </div>
-            </li>
-            <li className="flex gap-2">
-              <span className="w-5 shrink-0">7.</span>
-              <div className="flex-1 min-w-0 grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-x-4">
-                <LineField label="Date of Discharge" value={dmy(fd.exDischargeDate)} />
-                <LineField label="Discharge Book No." value={fd.exDischargeBook} />
-              </div>
-            </li>
-            <li className="flex gap-2">
-              <span className="w-5 shrink-0">8.</span>
-              <LineField
-                label="Gun Licence No. (with date of validity & Area)"
-                value={person?.armsLicenseNo || fd.gunLicence}
-                className="flex-1"
+              <span className="w-4 shrink-0">6.</span>
+              <DashBits
+                items={[
+                  { label: "Ex-Service No.", value: person?.exServiceNo || fd.exServiceNo, grow: true },
+                  { label: "Rank", value: fd.exRank, grow: true },
+                ]}
               />
             </li>
             <li className="flex gap-2">
-              <span className="w-5 shrink-0">9.</span>
-              <LineField label="Gun No. (SSSL / DBBL)" value={fd.gunNo} className="flex-1" />
+              <span className="w-4 shrink-0">7.</span>
+              <DashBits
+                items={[
+                  { label: "Date of Discharge", value: dmy(fd.exDischargeDate), grow: true },
+                  { label: "Discharge Book No.", value: fd.exDischargeBook, grow: true },
+                ]}
+              />
             </li>
             <li className="flex gap-2">
-              <span className="w-5 shrink-0">10.</span>
-              <LineField label="Qualification" value={fd.qualification} className="flex-1" />
-            </li>
-            <li className="pl-5 text-[10px] italic">Xerox copies of certificate :</li>
-            <li className="flex gap-2">
-              <span className="w-5 shrink-0">11.</span>
-              <LineField label="Other qualification" value={fd.otherQualification || fd.characterCertificate} className="flex-1" />
+              <span className="w-4 shrink-0">8.</span>
+              <DashBits items={[{ label: "Gun Licence No.", value: person?.armsLicenseNo || fd.gunLicence, grow: true }]} />
             </li>
             <li className="flex gap-2">
-              <span className="w-5 shrink-0">12.</span>
-              <div className="flex-1 min-w-0 space-y-1">
-                <span className="flex flex-wrap items-center gap-x-4">
+              <span className="w-4 shrink-0">9.</span>
+              <DashBits items={[{ label: "Gun No. (SSSL / DBBL)", value: fd.gunNo, grow: true }]} />
+            </li>
+            <li className="flex gap-2">
+              <span className="w-4 shrink-0">10.</span>
+              <DashBits items={[{ label: "Qualification", value: fd.qualification, grow: true }]} />
+            </li>
+            <li className="flex gap-2">
+              <span className="w-4 shrink-0">11.</span>
+              <DashBits items={[{ label: "Other qualification", value: fd.otherQualification || fd.characterCertificate, grow: true }]} />
+            </li>
+            <li className="flex gap-2">
+              <span className="w-4 shrink-0">12.</span>
+              <div className="flex-1 min-w-0 space-y-0.5">
+                <span className="flex flex-wrap items-center gap-x-3">
                   Experience, if any :
                   <span>
                     <Tick on={experienceIsFresher(fd)} /> Fresher
@@ -499,38 +528,30 @@ export function ApplicantPaperForm({
                   </span>
                 </span>
                 {experienceIsExperienced(fd) && experienceShown(fd) && experienceShown(fd).toUpperCase() !== "FRESHER" ? (
-                  <LineField label="Details" value={experienceShown(fd)} />
+                  <DashBits items={[{ label: "Details", value: experienceShown(fd), grow: true }]} />
                 ) : null}
-                <div>Previous Employees Details</div>
-                <LineField
-                  label="a) Name of Previous Employer"
-                  value={
-                    text(fd.previousEmployer) ||
-                    (String(fd.experienceType || "").toUpperCase() === "FRESHER" ? "None" : "")
-                  }
+                <DashBits
+                  items={[
+                    {
+                      label: "a) Previous Employer",
+                      value:
+                        text(fd.previousEmployer) ||
+                        (String(fd.experienceType || "").toUpperCase() === "FRESHER" ? "None" : ""),
+                      grow: true,
+                    },
+                  ]}
                 />
-                <LineField label="b) UAN No. (if allotted)" value={text(person?.uan || fd.uan) || "NA"} />
-                <LineField label="c) ESI IP No." value={text(person?.esicNo || fd.esiIp) || "NA"} />
+                <DashBits
+                  items={[
+                    { label: "b) UAN / PF", value: text(person?.uan || fd.uan) || "NA", grow: true },
+                    { label: "c) ESI IP No.", value: text(person?.esicNo || fd.esiIp) || "NA", grow: true },
+                  ]}
+                />
               </div>
             </li>
-          </ol>
-
-          <Footer date={signedOn} time={signedTime} name={name} label="Full Signature of the Applicant" page={1} />
-        </div>
-      </section>
-
-      <section className="paper-form-page">
-        <div className="paper-form-sheet flex flex-col">
-          <div className="flex justify-center mb-2">
-            <div className="bg-black text-white text-center text-[12px] font-bold px-6 py-1 rounded-sm">
-              APPLICATION FOR EMPLOYMENT (Contd.)
-            </div>
-          </div>
-          <div className="text-[16px] font-bold leading-tight mb-2">{head.name}</div>
-          <ol className="space-y-2 text-[11.5px] leading-snug list-none flex-1">
             <li className="flex gap-2 items-center">
-              <span className="w-5 shrink-0">13.</span>
-              <span className="flex flex-wrap items-center gap-x-4">
+              <span className="w-4 shrink-0">13.</span>
+              <span className="flex flex-wrap items-center gap-x-3">
                 <span className="shrink-0">Religion :</span>
                 <span>
                   <Tick on={religion.includes("hindu")} /> Hindu
@@ -544,37 +565,39 @@ export function ApplicantPaperForm({
               </span>
             </li>
             <li className="flex gap-2">
-              <span className="w-5 shrink-0">14.</span>
-              <LineField label="Identification Mark" value={fd.identificationMark} className="flex-1" />
+              <span className="w-4 shrink-0">14.</span>
+              <DashBits items={[{ label: "Identification Mark", value: fd.identificationMark, grow: true }]} />
             </li>
             <li className="flex gap-2">
-              <span className="w-5 shrink-0">15.</span>
-              <div className="flex-1 min-w-0 grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)] gap-x-3">
-                <LineField label="Nationality" value={fd.nationality} />
-                <LineField label="Height" value={heightShown(fd)} />
-                <LineField label="Weight" value={fd.weight ? `${text(fd.weight)} Kgs` : ""} />
-              </div>
+              <span className="w-4 shrink-0">15.</span>
+              <DashBits
+                items={[
+                  { label: "Nationality", value: fd.nationality, grow: true },
+                  { label: "Height", value: heightShown(fd), min: "3.2rem" },
+                  { label: "Weight", value: fd.weight ? `${text(fd.weight)} Kgs` : "", min: "3.2rem" },
+                ]}
+              />
             </li>
             <li className="flex gap-2">
-              <span className="w-5 shrink-0">16.</span>
-              <div className="flex-1 min-w-0 grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-x-4">
-                <LineField label="Name of nominee" value={fd.nominee} />
-                <LineField label="Relation" value={fd.nomineeRelation} />
-              </div>
+              <span className="w-4 shrink-0">16.</span>
+              <DashBits
+                items={[
+                  { label: "Nominee", value: fd.nominee, grow: true },
+                  { label: "Relation", value: fd.nomineeRelation, grow: true },
+                ]}
+              />
             </li>
             <li className="flex gap-2">
-              <span className="w-5 shrink-0">17.</span>
+              <span className="w-4 shrink-0">17.</span>
               <span className="flex-1">
-                Reference : <Blank value={fd.reference} className="min-w-[10rem]" />. Certificate that the above named
-                individual is known to me since last <Blank value={fd.referenceYears} min="3rem" /> yrs. He bears a good
-                moral character and I assure that He will surely discharge a complaint free service, if employed. I stand
-                guarantor for him.
+                Reference : <Blank value={fd.reference} className="min-w-[8rem]" /> known since last{" "}
+                <Blank value={fd.referenceYears} min="2.2rem" /> yrs. I stand guarantor for him/her.
               </span>
             </li>
             <li className="flex gap-2">
-              <span className="w-5 shrink-0">18.</span>
+              <span className="w-4 shrink-0">18.</span>
               <span className="flex-1 min-w-0">
-                <span className="flex flex-wrap items-center gap-x-4">
+                <span className="flex flex-wrap items-center gap-x-3">
                   Family Member Details :
                   <span>
                     <Tick on={familyYes(fd)} /> Yes
@@ -587,9 +610,9 @@ export function ApplicantPaperForm({
               </span>
             </li>
             <li className="flex gap-2">
-              <span className="w-5 shrink-0">19.</span>
+              <span className="w-4 shrink-0">19.</span>
               <span className="flex-1 min-w-0 space-y-0.5">
-                <span className="flex flex-wrap items-center gap-x-4">
+                <span className="flex flex-wrap items-center gap-x-3">
                   Bank Details :
                   <span>
                     <Tick on={bankYes(fd)} /> Yes
@@ -609,7 +632,8 @@ export function ApplicantPaperForm({
               </span>
             </li>
           </ol>
-          <Footer date={signedOn} time={signedTime} name={name} label="Full Signature of the Applicant" page={2} />
+
+          <Footer date={signedOn} time={signedTime} name={name} label="Full Signature of the Applicant" page={1} />
         </div>
       </section>
 
@@ -624,7 +648,7 @@ export function ApplicantPaperForm({
               ))}
             </ol>
           </div>
-          <Footer date={signedOn} time={signedTime} name={name} label="Full Signature of the Applicant" page={3} />
+          <Footer date={signedOn} time={signedTime} name={name} label="Full Signature of the Applicant" page={2} />
         </div>
       </section>
 
@@ -652,7 +676,7 @@ export function ApplicantPaperForm({
               ))}
             </ol>
           </div>
-          <Footer date={signedOn} time={signedTime} name={name} label="Full Signature of the Applicant" page={4} />
+          <Footer date={signedOn} time={signedTime} name={name} label="Full Signature of the Applicant" page={3} />
         </div>
       </section>
     </div>

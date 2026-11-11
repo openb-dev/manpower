@@ -227,20 +227,20 @@ export async function buildPaperFormPdf(
     pdf.setFont("times", "bold");
     const lines = pdf.splitTextToSize(val, width - labelW - 2);
     pdf.text(lines, left + labelW, y);
-    const used = Math.max(1, lines.length) * (size * 0.42);
-    const underlineY = y + 1.1;
+    const used = Math.max(1, lines.length) * (size * 0.38);
+    const underlineY = y + 0.9;
     dashLine(left + labelW, underlineY, right);
     if (lines.length > 1) {
       for (let i = 1; i < lines.length; i += 1) {
-        dashLine(left, y + i * (size * 0.42) + 1.1, right);
+        dashLine(left, y + i * (size * 0.38) + 0.9, right);
       }
     }
-    return y + used + 3.2;
+    return y + used + 2;
   };
 
-  const rowFields = (items: { label: string; value: string }[], y: number, size = 10.5) => {
+  const rowFields = (items: { label: string; value: string }[], y: number, size = 9.5) => {
     const n = Math.max(items.length, 1);
-    const gap = 4;
+    const gap = 3;
     const colW = (width - gap * (n - 1)) / n;
     pdf.setFontSize(size);
     items.forEach((item, i) => {
@@ -253,9 +253,9 @@ export async function buildPaperFormPdf(
       const maxVal = Math.max(8, colW - lw - 1);
       const shown = pdf.splitTextToSize(item.value || "", maxVal)[0] || "";
       pdf.text(shown, x + lw, y);
-      dashLine(x + lw, y + 1.2, x + colW);
+      dashLine(x + lw, y + 1, x + colW);
     });
-    return y + 8;
+    return y + 5.6;
   };
 
   const banner = (title: string, y: number) => {
@@ -297,8 +297,8 @@ export async function buildPaperFormPdf(
   };
 
   const letterhead = (startY: number, withPhoto = false) => {
-    const photoW = 25;
-    const photoH = 32;
+  const photoW = 22;
+  const photoH = 28;
     const gap = 5;
     const photoX = right - photoW;
     const photoY = startY;
@@ -370,61 +370,55 @@ export async function buildPaperFormPdf(
     return bottom + 5;
   };
 
-  // Page 1
-  let y = banner("APPLICATION FOR EMPLOYMENT", 16);
-  y = letterhead(y + 4, true);
-  if (postApplied) y = lineFill("Post applied :", postApplied, y);
-  y = lineFill("1. Name in full", name, y);
-  y = lineFill("2. Father's / Husband Name", father, y);
-  pdf.setFont("times", "normal");
-  pdf.setFontSize(10.5);
-  pdf.text("3. Date of Birth", left, y);
-  const dobLabelW = pdf.getTextWidth("3. Date of Birth ");
-  pdf.setFont("times", "bold");
-  pdf.text(dob || "", left + dobLabelW, y);
-  dashLine(left + dobLabelW, y + 1.1, left + 92);
-  pdf.setFont("times", "normal");
-  pdf.text("Age :", left + 96, y);
-  const ageLabelW = pdf.getTextWidth("Age : ");
-  pdf.setFont("times", "bold");
-  pdf.text(age || "", left + 96 + ageLabelW, y);
-  dashLine(left + 96 + ageLabelW, y + 1.1, right);
-  y += 8.5;
-  write("4. Present Address :", left, y, 10.5);
-  y += 6;
-  y = lineFill("Vill. / Locality", presentLocality, y);
+  // Page 1 — full application on one A4 sheet
+  let y = banner("APPLICATION FOR EMPLOYMENT", 14);
+  y = letterhead(y + 2, true);
+  if (postApplied) y = lineFill("Post applied :", postApplied, y, 9.5);
+  y = rowFields(
+    [
+      { label: "1. Name in full", value: name },
+      { label: "D.O.B.", value: dob },
+      { label: "Age", value: age },
+    ],
+    y,
+    9.5,
+  );
+  y = lineFill("2. Father's / Husband Name", father, y, 9.5);
+  y = rowFields(
+    [
+      { label: "3. Mobile", value: text(person?.mobile || fd.mobile) },
+      { label: "Emergency contact", value: text(fd.emergencyContact) },
+    ],
+    y,
+    9.5,
+  );
+  write("4. Present Address :", left, y, 9.5);
+  y += 4.5;
+  y = lineFill("Vill. / Locality", presentLocality, y, 9.5);
   y = rowFields(
     [
       { label: "P.O.", value: text(fd.presentPO || fd.localPO) },
       { label: "P.S.", value: text(fd.presentPS || fd.localPS) },
-    ],
-    y,
-  );
-  y = lineFill("Dist.", text(fd.presentDistrict || fd.localDistrict), y);
-  y = rowFields(
-    [
+      { label: "Dist.", value: text(fd.presentDistrict || fd.localDistrict) },
       { label: "State", value: text(fd.presentState || fd.localState) },
       { label: "PIN", value: text(fd.presentPin || fd.localPin) },
     ],
     y,
+    8.8,
   );
-  write("5. Permanent Address :", left, y, 10.5);
-  y += 6;
-  y = lineFill("Vill. / Locality", permanentLocality, y);
+  write("5. Permanent Address :", left, y, 9.5);
+  y += 4.5;
+  y = lineFill("Vill. / Locality", permanentLocality, y, 9.5);
   y = rowFields(
     [
       { label: "P.O.", value: text(fd.permanentPO || fd.villagePO) },
       { label: "P.S.", value: text(fd.permanentPS || fd.villagePS) },
-    ],
-    y,
-  );
-  y = lineFill("Dist.", text(fd.permanentDistrict || fd.villageDistrict), y);
-  y = rowFields(
-    [
+      { label: "Dist.", value: text(fd.permanentDistrict || fd.villageDistrict) },
       { label: "State", value: text(fd.permanentState || fd.villageState) },
       { label: "PIN", value: text(fd.permanentPin || fd.villagePin) },
     ],
     y,
+    8.8,
   );
   y = rowFields(
     [
@@ -432,6 +426,7 @@ export async function buildPaperFormPdf(
       { label: "Rank", value: text(fd.exRank) },
     ],
     y,
+    9.5,
   );
   y = rowFields(
     [
@@ -439,35 +434,40 @@ export async function buildPaperFormPdf(
       { label: "Discharge Book No.", value: text(fd.exDischargeBook) },
     ],
     y,
+    9.5,
   );
-  y = lineFill("8. Gun Licence No.", text(person?.armsLicenseNo || fd.gunLicence) || "NA", y);
-  y = lineFill("9. Gun No. (SSSL / DBBL)", text(fd.gunNo) || "NA", y);
-  y = lineFill("10. Qualification", text(fd.qualification), y);
-  y = lineFill("11. Other qualification", text(fd.otherQualification || fd.characterCertificate), y);
-  write("12. Experience, if any :", left, y);
-  const expX = left + 52;
+  y = lineFill("8. Gun Licence No.", text(person?.armsLicenseNo || fd.gunLicence) || "NA", y, 9.5);
+  y = lineFill("9. Gun No. (SSSL / DBBL)", text(fd.gunNo) || "NA", y, 9.5);
+  y = lineFill("10. Qualification", text(fd.qualification), y, 9.5);
+  y = lineFill("11. Other qualification", text(fd.otherQualification || fd.characterCertificate), y, 9.5);
+  write("12. Experience, if any :", left, y, 9.5);
+  const expX = left + 48;
   tickBox(expX, y, experienceIsFresher(fd));
   pdf.setFont("times", "normal");
-  pdf.setFontSize(10.5);
+  pdf.setFontSize(9.5);
   pdf.text("Fresher", expX + 5, y);
-  tickBox(expX + 32, y, experienceIsExperienced(fd));
-  pdf.text("Experienced", expX + 37, y);
-  y += 8;
+  tickBox(expX + 28, y, experienceIsExperienced(fd));
+  pdf.text("Experienced", expX + 33, y);
+  y += 6;
   if (experienceIsExperienced(fd)) {
     const details = experienceShown(fd);
-    if (details && details.toUpperCase() !== "FRESHER") y = lineFill("Details", details, y);
+    if (details && details.toUpperCase() !== "FRESHER") y = lineFill("Details", details, y, 9.5);
   }
-  write("Previous Employees Details", left + 6, y, 10.5);
-  y += 6;
-  y = lineFill("a) Name of Previous Employer", text(fd.previousEmployer) || (String(fd.experienceType || "").toUpperCase() === "FRESHER" ? "None" : ""), y);
-  y = lineFill("b) UAN No. (if allotted)", text(person?.uan || fd.uan) || "NA", y);
-  y = lineFill("c) ESI IP No.", text(person?.esicNo || fd.esiIp) || "NA", y);
-  footer("Full Signature of the Applicant");
-
-  pdf.addPage();
-  y = banner("APPLICATION FOR EMPLOYMENT (Contd.)", 16);
-  y = letterhead(y + 4, false);
-  write("13. Religion :", left, y);
+  y = lineFill(
+    "a) Previous Employer",
+    text(fd.previousEmployer) || (String(fd.experienceType || "").toUpperCase() === "FRESHER" ? "None" : ""),
+    y,
+    9.5,
+  );
+  y = rowFields(
+    [
+      { label: "b) UAN / PF", value: text(person?.uan || fd.uan) || "NA" },
+      { label: "c) ESI IP No.", value: text(person?.esicNo || fd.esiIp) || "NA" },
+    ],
+    y,
+    9.5,
+  );
+  write("13. Religion :", left, y, 9.5);
   const relX = left + 32;
   const mark = (label: string, on: boolean, x: number) => {
     tickBox(x, y, on);
@@ -479,8 +479,8 @@ export async function buildPaperFormPdf(
   mark("Hindu", rel.includes("hindu"), relX);
   mark("Muslim", rel.includes("muslim") || rel.includes("islam"), relX + 28);
   mark("Christian", rel.includes("christian"), relX + 58);
-  y += 8;
-  y = lineFill("14. Identification Mark", text(fd.identificationMark), y);
+  y += 5.5;
+  y = lineFill("14. Identification Mark", text(fd.identificationMark), y, 9.5);
   y = rowFields(
     [
       { label: "15. Nationality", value: text(fd.nationality) || "Indian" },
@@ -488,6 +488,7 @@ export async function buildPaperFormPdf(
       { label: "Weight", value: text(fd.weight) ? `${text(fd.weight)} Kgs` : "" },
     ],
     y,
+    9.5,
   );
   y = rowFields(
     [
@@ -495,15 +496,16 @@ export async function buildPaperFormPdf(
       { label: "Relation", value: text(fd.nomineeRelation) },
     ],
     y,
+    9.5,
   );
   y = wrap(
-    `17. Reference : ${text(fd.reference) || "________________"}  - certificate that the above named individual is known to me since last ${text(fd.referenceYears) || "____"} yrs. He bears a good moral character and I stand guarantor for him/her.`,
+    `17. Reference : ${text(fd.reference) || "________"} known since last ${text(fd.referenceYears) || "__"} yrs. I stand guarantor for him/her.`,
     left,
     y,
     width,
-    10,
+    9,
   );
-  y += 4;
+  y += 2.5;
   pdf.setFont("times", "normal");
   pdf.setFontSize(10.5);
   pdf.text("18. Family Member Details :", left, y);

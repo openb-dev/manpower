@@ -105,6 +105,22 @@ function jpegFileName(name: string) {
   return name.replace(/\.[a-z0-9]+$/i, "") + ".jpg";
 }
 
+function pdfFileName(name: string) {
+  return /\.pdf$/i.test(name) ? name : `${String(name || "document").replace(/\.[a-z0-9]+$/i, "")}.pdf`;
+}
+
+function asPdfDataUrl(dataUrl: string) {
+  const comma = dataUrl.indexOf(",");
+  const b64 = comma >= 0 ? dataUrl.slice(comma + 1) : dataUrl;
+  return `data:application/pdf;base64,${b64}`;
+}
+
+async function isPdfFile(file: File) {
+  if (/\.pdf$/i.test(file.name) || /pdf/i.test(file.type)) return true;
+  const head = new Uint8Array(await file.slice(0, 5).arrayBuffer());
+  return head[0] === 0x25 && head[1] === 0x50 && head[2] === 0x44 && head[3] === 0x46;
+}
+
 export function dataUrlToBlob(dataUrl: string) {
   const comma = dataUrl.indexOf(",");
   const meta = comma >= 0 ? dataUrl.slice(0, comma) : "";
@@ -121,7 +137,7 @@ export async function fileToCompressedUpload(file: File) {
     throw new Error("That file is too large to compress. Please choose a file under 40 MB.");
   }
 
-  const isPdf = /\.pdf$/i.test(file.name) || /pdf/i.test(file.type);
+  const isPdf = await isPdfFile(file);
   const isImage =
     !isPdf &&
     (file.type.startsWith("image/") || /\.(jpe?g|png|webp|gif|heic|heif|bmp)$/i.test(file.name));
@@ -130,7 +146,10 @@ export async function fileToCompressedUpload(file: File) {
     if (file.size > 5 * 1024 * 1024) {
       throw new Error("That PDF is larger than 5 MB. Please upload a smaller PDF or a photo of the document.");
     }
-    return { dataUrl: await readAsDataUrl(file), fileName: file.name };
+    return {
+      dataUrl: asPdfDataUrl(await readAsDataUrl(file)),
+      fileName: pdfFileName(file.name),
+    };
   }
 
   if (isImage) {

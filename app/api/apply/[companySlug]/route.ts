@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requestApplicantOtp, verifyApplicantOtp } from "@/modules/otp/services";
 import { submitApplicant } from "@/modules/applicants/services";
-import { registerCandidate, loginCandidate, getCandidateApplications } from "@/modules/candidates/services";
+import { registerCandidate, loginCandidate, getCandidateApplications, getCandidatePrefill } from "@/modules/candidates/services";
 import { publicCatchMessage } from "@/lib/publicErrors";
 import { currentOfficeAdmin } from "@/lib/officeAdmin";
 import { applyRolesForForm, ensureApplyRoles } from "@/lib/applyRoles";
@@ -14,7 +14,11 @@ import {
 
 async function fileToDataUrl(file: File) {
   const buf = Buffer.from(await file.arrayBuffer());
-  const mime = file.type || "application/octet-stream";
+  const looksPdf =
+    /\.pdf$/i.test(file.name) ||
+    /pdf/i.test(file.type) ||
+    buf.subarray(0, 4).toString("utf8") === "%PDF";
+  const mime = looksPdf ? "application/pdf" : file.type || "application/octet-stream";
   return `data:${mime};base64,${buf.toString("base64")}`;
 }
 
@@ -210,6 +214,18 @@ export async function POST(
         candidateId: candidate.id,
       });
       return NextResponse.json({ applications });
+    }
+
+    if (body.action === "GET_CANDIDATE_PREFILL") {
+      const candidate = await currentCandidate(request, companySlug);
+      if (!candidate) {
+        return NextResponse.json({ error: "Please sign in to continue." }, { status: 401 });
+      }
+      const prefill = await getCandidatePrefill({
+        companySlug,
+        candidateId: candidate.id,
+      });
+      return NextResponse.json({ prefill });
     }
 
     if (body.action === "SUBMIT_APPLICATION") {

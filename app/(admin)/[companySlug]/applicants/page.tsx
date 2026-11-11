@@ -835,6 +835,10 @@ export default function ApplicantBookPage() {
                     <span className="font-semibold font-mono text-emerald-800">{selectedApplicant.mobile}</span>
                   </div>
                   <div>
+                    <span className="text-slate-400 block font-semibold text-[10px] uppercase">Emergency contact</span>
+                    <span className="font-semibold font-mono text-slate-800">{selectedApplicant.formData?.emergencyContact || "—"}</span>
+                  </div>
+                  <div>
                     <span className="text-slate-400 block font-semibold text-[10px] uppercase">Aadhaar Number</span>
                     <span className="font-semibold font-mono text-slate-800">{selectedApplicant.aadhaarDisplay || selectedApplicant.formData?.aadhaar || "—"}</span>
                   </div>

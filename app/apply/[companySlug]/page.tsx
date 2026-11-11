@@ -1,6 +1,6 @@
 "use client";
 
-import React, { Suspense, useEffect, useState } from "react";
+import React, { Suspense, useEffect, useRef, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { DECLARATION, TERMS, JOINING_VERSION } from "@/server/data/joiningText.js";
@@ -218,6 +218,7 @@ function initialForm() {
     presentDistrict: "",
     presentState: DEFAULT_STATE,
     presentCountry: DEFAULT_COUNTRY,
+    emergencyContact: "",
     sameAsPresent: false,
     permanentAddress: "",
     permanentPO: "",
@@ -255,6 +256,22 @@ function initialForm() {
     otherQualFile: "",
     otherQualFileName: "",
   };
+}
+
+function personPrefillFrom(source: Record<string, any>, account?: CandidateSession | null) {
+  const next: any = { ...initialForm(), ...source };
+  next.skillCategory = "";
+  next.gemProfile = "";
+  next.gemExperience = "";
+  next.otherCategory = "";
+  next.declarationAccepted = false;
+  next.termsAccepted = false;
+  next.workHistory = jobList(next.workHistory);
+  next.family = Array.isArray(next.family) && next.family.length ? next.family : blankFamily();
+  next.name = String(next.name || account?.fullName || "");
+  next.mobile = String(next.mobile || account?.whatsappNo || "");
+  next.email = String(next.email || account?.email || "");
+  return next;
 }
 
 function isExServicemanCategory(role?: JobRole | null, category?: { code?: string; name?: string } | null) {
@@ -511,6 +528,7 @@ function ApplyPageInner() {
   const [submittedRef, setSubmittedRef] = useState("");
   const [compressingLabel, setCompressingLabel] = useState("");
   const [myApplications, setMyApplications] = useState<CandidateApplication[]>([]);
+  const prefillRef = useRef<ReturnType<typeof initialForm> | null>(null);
 
   useEffect(() => {
     if (fillAsAdmin) return;
@@ -529,12 +547,7 @@ function ApplyPageInner() {
           return;
         }
         setCandidate(data.candidate);
-        setForm((prev) => ({
-          ...prev,
-          name: prev.name || data.candidate.fullName || "",
-          mobile: prev.mobile || data.candidate.whatsappNo || "",
-          email: prev.email || data.candidate.email || "",
-        }));
+        loadPrefill(data.candidate);
       })
       .catch(() => {
         if (!cancelled) setCandidate(null);
@@ -543,6 +556,24 @@ function ApplyPageInner() {
       cancelled = true;
     };
   }, [companySlug, fillAsAdmin]);
+
+  async function loadPrefill(account?: CandidateSession | null) {
+    try {
+      const res = await fetch(`/api/apply/${companySlug}`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "GET_CANDIDATE_PREFILL" }),
+      });
+      const data = await readApiJson(res);
+      if (!res.ok || !data.prefill) return;
+      const next = personPrefillFrom(data.prefill, account);
+      prefillRef.current = next;
+      setForm((prev) => (prev.aadhaar || prev.fatherOrHusband || prev.presentAddress ? prev : next));
+    } catch {
+      /* first-time candidate has nothing to copy */
+    }
+  }
 
   async function loadMyApplications() {
     try {
@@ -798,11 +829,7 @@ function ApplyPageInner() {
 
       const session: CandidateSession = data.candidate;
       setCandidate(session);
-      setForm((prev) => ({
-        ...prev,
-        name: session.fullName,
-        mobile: session.whatsappNo,
-      }));
+      await loadPrefill(session);
       setSuccessMsg("Signed in successfully!");
     } catch (err: any) {
       setError(err.message);
@@ -1021,6 +1048,8 @@ function ApplyPageInner() {
 
     const cleanMobile = form.mobile.replace(/\D/g, "").slice(-10);
     if (cleanMobile.length !== 10) return setError("Please enter a valid 10-digit mobile number.");
+    const cleanEmergency = form.emergencyContact.replace(/\D/g, "").slice(-10);
+    if (cleanEmergency.length !== 10) return setError("Please enter a valid 10-digit emergency contact number.");
     const applicantEmail = String(form.email || candidate?.email || "").trim().toLowerCase();
     if (!applicantEmail.includes("@")) return setError("Please enter the applicant email address.");
 
@@ -1211,6 +1240,7 @@ function ApplyPageInner() {
           experience: experienceSummary,
           workHistory: form.experienceType === "EXPERIENCED" ? filledJobs : [],
           previousEmployer,
+          emergencyContact: cleanEmergency,
           uan: form.uan.trim(),
           esiIp: form.esiIp.trim(),
           preferredDispensary: form.preferredDispensary.trim(),
@@ -1264,6 +1294,9 @@ function ApplyPageInner() {
       setSubmittedRef(data.id);
       setSuccessMsg("");
       setError("");
+      if (!officeAdmin) {
+        prefillRef.current = personPrefillFrom(form, candidate);
+      }
       setStep("SUCCESS");
     } catch (err: any) {
       setError(err.message || "The application could not be submitted. Please check the form and try again.");
@@ -2102,50 +2135,20 @@ function ApplyPageInner() {
                   </div>
 
                   <div className="grid gap-4 sm:grid-cols-2">
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">
-                        Full Name <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        required
-                        type="text"
-                        value={form.name}
-                        onChange={(e) => setForm({ ...form, name: e.target.value })}
-                        className="w-full px-3.5 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500"
-                        placeholder="Full name"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">
-                        Gender <span className="text-red-500">*</span>
-                      </label>
-                      <select
-                        required
-                        value={form.gender}
-                        onChange={(e) => setForm({ ...form, gender: e.target.value })}
-                        className="w-full px-3.5 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500"
-                      >
-                        <option value="MALE">Male</option>
-                        <option value="FEMALE">Female</option>
-                        <option value="OTHER">Other</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">
-                        Father / Husband Name <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        required
-                        type="text"
-                        value={form.fatherOrHusband}
-                        onChange={(e) => setForm({ ...form, fatherOrHusband: e.target.value })}
-                        className="w-full px-3.5 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500"
-                        placeholder="Father's or Husband's Full Name"
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="sm:col-span-2 grid gap-3 sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_5.5rem_7rem]">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">
+                          Full Name <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          required
+                          type="text"
+                          value={form.name}
+                          onChange={(e) => setForm({ ...form, name: e.target.value })}
+                          className="w-full px-3.5 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500"
+                          placeholder="Full name"
+                        />
+                      </div>
                       <div>
                         <label className="block text-xs font-bold text-slate-700 mb-1">
                           Date of Birth <span className="text-red-500">*</span>
@@ -2160,7 +2163,7 @@ function ApplyPageInner() {
                       </div>
                       <div>
                         <label className="block text-xs font-bold text-slate-700 mb-1">
-                          Age (Years) <span className="text-red-500">*</span>
+                          Age <span className="text-red-500">*</span>
                         </label>
                         <input
                           required
@@ -2168,9 +2171,38 @@ function ApplyPageInner() {
                           value={form.age}
                           onChange={(e) => setForm({ ...form, age: e.target.value })}
                           className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500"
-                          placeholder="e.g. 28"
+                          placeholder="28"
                         />
                       </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">
+                          Gender <span className="text-red-500">*</span>
+                        </label>
+                        <select
+                          required
+                          value={form.gender}
+                          onChange={(e) => setForm({ ...form, gender: e.target.value })}
+                          className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500"
+                        >
+                          <option value="MALE">Male</option>
+                          <option value="FEMALE">Female</option>
+                          <option value="OTHER">Other</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="sm:col-span-2">
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Father / Husband Name <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        required
+                        type="text"
+                        value={form.fatherOrHusband}
+                        onChange={(e) => setForm({ ...form, fatherOrHusband: e.target.value })}
+                        className="w-full px-3.5 py-2 border border-slate-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-blue-500"
+                        placeholder="Father's or Husband's Full Name"
+                      />
                     </div>
 
                     <div className="sm:col-span-2 rounded-xl border border-slate-200 bg-slate-50/60 p-4 space-y-3">
@@ -2183,7 +2215,7 @@ function ApplyPageInner() {
                         onChange={(value) => updatePresent("presentAddress", value)}
                         placeholder="House / street / locality"
                       />
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                         <AddressInput
                           label="P.O."
                           value={form.presentPO}
@@ -2878,6 +2910,21 @@ function ApplyPageInner() {
 
                     <div>
                       <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Emergency contact no. <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        required
+                        type="tel"
+                        maxLength={10}
+                        value={form.emergencyContact}
+                        onChange={(e) => setForm({ ...form, emergencyContact: e.target.value.replace(/\D/g, "") })}
+                        className="w-full px-3.5 py-2 border border-slate-300 rounded-lg text-sm font-mono bg-white"
+                        placeholder="10-digit emergency number"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
                         Applicant email <span className="text-red-500">*</span>
                       </label>
                       <input
@@ -3405,9 +3452,15 @@ function ApplyPageInner() {
                   <button
                     onClick={() => {
                       setAdminFiller((prev) => ({ ...prev, confirmed: false }));
+                      setSelectedRole(null);
+                      setSelectedCategory(null);
                       setStep("ROLE");
                       setSubmittedRef("");
-                      setForm(initialForm());
+                      setForm(
+                        officeAdmin
+                          ? initialForm()
+                          : prefillRef.current || personPrefillFrom(form, candidate),
+                      );
                     }}
                     className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg shadow-sm"
                   >

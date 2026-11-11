@@ -14,10 +14,11 @@ import {
 
 async function fileToDataUrl(file: File) {
   const buf = Buffer.from(await file.arrayBuffer());
+  const head = buf.subarray(0, Math.min(buf.length, 2048)).toString("latin1");
   const looksPdf =
-    /\.pdf$/i.test(file.name) ||
-    /pdf/i.test(file.type) ||
-    buf.subarray(0, 4).toString("utf8") === "%PDF";
+    head.includes("%PDF") ||
+    /\.pdf$/i.test(String(file.name || "").trim()) ||
+    /pdf/i.test(file.type || "");
   const mime = looksPdf ? "application/pdf" : file.type || "application/octet-stream";
   return `data:${mime};base64,${buf.toString("base64")}`;
 }

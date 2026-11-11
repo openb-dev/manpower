@@ -942,7 +942,7 @@ function ApplyPageInner() {
     const input = e.target;
     const file = input.files?.[0];
     if (!file) return;
-    const isPdf = /\.pdf$/i.test(file.name) || /pdf/i.test(file.type);
+    const isPdf = /\.pdf$/i.test(String(file.name || "").trim()) || /pdf/i.test(file.type || "");
     if (dataKey === "photo" && isPdf) {
       setError("Passport photo must be a JPG or PNG picture, not a PDF.");
       input.value = "";
@@ -950,7 +950,7 @@ function ApplyPageInner() {
     }
     setError("");
     setCompressingLabel(file.name);
-    fileToCompressedUpload(file)
+    fileToCompressedUpload(file, dataKey === "photo" ? "photo" : "document")
       .then(({ dataUrl, fileName }) => {
         setForm((prev) => ({
           ...prev,
@@ -2386,7 +2386,7 @@ function ApplyPageInner() {
                       </label>
                       <input
                         type="file"
-                        accept="image/*,.pdf"
+                        accept="application/pdf,.pdf,image/jpeg,.jpg,.jpeg,image/png,.png"
                         required={!form.educationFileName}
                         onChange={(e) => handleFileUpload(e, "educationFile", "educationFileName")}
                         className="w-full text-xs text-slate-600 file:mr-2 file:py-1 file:px-2.5 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-100 file:text-blue-800"
@@ -2414,7 +2414,7 @@ function ApplyPageInner() {
                       </label>
                       <input
                         type="file"
-                        accept="image/*,.pdf"
+                        accept="application/pdf,.pdf,image/jpeg,.jpg,.jpeg,image/png,.png"
                         onChange={(e) => handleFileUpload(e, "otherQualFile", "otherQualFileName")}
                         className="w-full text-xs text-slate-600 file:mr-2 file:py-1 file:px-2.5 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-100 file:text-blue-800"
                       />
@@ -3232,7 +3232,7 @@ function ApplyPageInner() {
                         </label>
                         <input
                           type="file"
-                          accept="image/*,.pdf"
+                          accept="application/pdf,.pdf,image/jpeg,.jpg,.jpeg,image/png,.png"
                           required={!form.passbookFileName}
                           onChange={(e) => handleFileUpload(e, "passbookFile", "passbookFileName")}
                           className="w-full text-xs text-slate-600 file:mr-2 file:py-1 file:px-2.5 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-100 file:text-blue-800"
@@ -3284,7 +3284,7 @@ function ApplyPageInner() {
                           </label>
                           <input
                             type="file"
-                            accept="image/*,.pdf"
+                            accept="application/pdf,.pdf,image/jpeg,.jpg,.jpeg,image/png,.png"
                             required={!form.policeFileName}
                             onChange={(e) => handleFileUpload(e, "policeFile", "policeFileName")}
                             className="w-full text-xs text-slate-600 file:mr-2 file:py-1 file:px-2.5 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-100 file:text-blue-800"
@@ -3331,7 +3331,7 @@ function ApplyPageInner() {
                       </div>
                       <input
                         type="file"
-                        accept="image/*,.pdf"
+                        accept="application/pdf,.pdf,image/jpeg,.jpg,.jpeg,image/png,.png"
                         required={!form.aadhaarFileName}
                         onChange={(e) => handleFileUpload(e, "aadhaarFile", "aadhaarFileName")}
                         className="w-full text-xs text-slate-600 file:mr-2 file:py-1 file:px-2.5 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-100 file:text-blue-800"
@@ -3349,7 +3349,7 @@ function ApplyPageInner() {
                       </div>
                       <input
                         type="file"
-                        accept="image/*,.pdf"
+                        accept="application/pdf,.pdf,image/jpeg,.jpg,.jpeg,image/png,.png"
                         required={!form.panFileName}
                         onChange={(e) => handleFileUpload(e, "panFile", "panFileName")}
                         className="w-full text-xs text-slate-600 file:mr-2 file:py-1 file:px-2.5 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-100 file:text-blue-800"

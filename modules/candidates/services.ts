@@ -163,6 +163,7 @@ export async function getCandidateApplications({
     orderBy: { createdAt: "desc" },
     select: {
       id: true,
+      applicationNo: true,
       status: true,
       createdAt: true,
       jobRoleId: true,
@@ -178,6 +179,7 @@ export async function getCandidateApplications({
     const extra = String(fd.otherCategory || fd.gemProfile || "").trim();
     return {
       id: row.id,
+      applicationNo: row.applicationNo || String((row.formData as any)?.applicationNo || ""),
       status: row.status,
       createdAt: row.createdAt,
       jobRoleId: row.jobRoleId,
@@ -214,43 +216,20 @@ function docOf(docs: any[], type: string) {
   };
 }
 
-export async function getCandidatePrefill({
-  companySlug,
-  candidateId,
-}: {
-  companySlug: string;
-  candidateId: string;
+export function formPrefillFromApplicant(row: {
+  fullName?: string | null;
+  mobile?: string | null;
+  email?: string | null;
+  fatherOrHusband?: string | null;
+  dateOfBirth?: Date | string | null;
+  gender?: string | null;
+  pan?: string | null;
+  aadhaarEncrypted?: string | null;
+  exServiceNo?: string | null;
+  armsLicenseNo?: string | null;
+  formData?: unknown;
+  documents?: unknown;
 }) {
-  const company = await prisma.company.findUnique({
-    where: { slug: companySlug },
-    select: { id: true },
-  });
-  if (!company) throw new Error("Company not found.");
-
-  const row = await prisma.applicant.findFirst({
-    where: {
-      companyId: company.id,
-      candidateAccountId: candidateId,
-      deletedAt: null,
-    },
-    orderBy: { createdAt: "desc" },
-    select: {
-      fullName: true,
-      mobile: true,
-      email: true,
-      fatherOrHusband: true,
-      dateOfBirth: true,
-      gender: true,
-      pan: true,
-      aadhaarEncrypted: true,
-      exServiceNo: true,
-      armsLicenseNo: true,
-      formData: true,
-      documents: true,
-    },
-  });
-  if (!row) return null;
-
   const fd = (row.formData || {}) as Record<string, any>;
   const docs = Array.isArray(row.documents) ? row.documents : [];
   const photo = docOf(docs, "PHOTO");
@@ -289,6 +268,10 @@ export async function getCandidatePrefill({
     reference: fd.reference || "",
     referenceYears: String(fd.referenceYears || ""),
     uploadBankDetails: fd.uploadBankDetails || "",
+    skillCategory: fd.skillCategory || "",
+    gemProfile: fd.gemProfile || "",
+    gemExperience: fd.gemExperience || "",
+    otherCategory: fd.otherCategory || "",
     height: fd.height || "",
     heightUnit: fd.heightUnit || "cm",
     heightCm: fd.heightCm || "",
@@ -350,4 +333,43 @@ export async function getCandidatePrefill({
     otherQualFile: otherQual.file || fd.otherQualFile || "",
     otherQualFileName: otherQual.name || fd.otherQualFileName || "",
   };
+}
+
+export async function getCandidatePrefill({
+  companySlug,
+  candidateId,
+}: {
+  companySlug: string;
+  candidateId: string;
+}) {
+  const company = await prisma.company.findUnique({
+    where: { slug: companySlug },
+    select: { id: true },
+  });
+  if (!company) throw new Error("Company not found.");
+
+  const row = await prisma.applicant.findFirst({
+    where: {
+      companyId: company.id,
+      candidateAccountId: candidateId,
+      deletedAt: null,
+    },
+    orderBy: { createdAt: "desc" },
+    select: {
+      fullName: true,
+      mobile: true,
+      email: true,
+      fatherOrHusband: true,
+      dateOfBirth: true,
+      gender: true,
+      pan: true,
+      aadhaarEncrypted: true,
+      exServiceNo: true,
+      armsLicenseNo: true,
+      formData: true,
+      documents: true,
+    },
+  });
+  if (!row) return null;
+  return formPrefillFromApplicant(row);
 }

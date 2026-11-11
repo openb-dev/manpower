@@ -53,6 +53,7 @@ interface CandidateSession {
 
 type CandidateApplication = {
   id: string;
+  applicationNo?: string;
   status: string;
   createdAt: string;
   jobRoleId: string;
@@ -105,7 +106,7 @@ function CandidateApplicationsPanel({ items }: { items: CandidateApplication[] }
           <tbody>
             {items.map((app) => (
               <tr key={app.id} className="border-t border-slate-200 align-top">
-                <td className="py-2 pr-3 font-mono text-[11px] break-all text-slate-800">{app.id}</td>
+                <td className="py-2 pr-3 font-mono text-[11px] text-slate-800">{app.applicationNo || app.id}</td>
                 <td className="py-2 pr-3 font-semibold text-slate-800">{app.role || "—"}</td>
                 <td className="py-2 pr-3 text-slate-700">{app.category || "—"}</td>
                 <td className="py-2 pr-3">
@@ -271,6 +272,15 @@ function personPrefillFrom(source: Record<string, any>, account?: CandidateSessi
   next.name = String(next.name || account?.fullName || "");
   next.mobile = String(next.mobile || account?.whatsappNo || "");
   next.email = String(next.email || account?.email || "");
+  return next;
+}
+
+function personEditFrom(source: Record<string, any>) {
+  const next: any = { ...initialForm(), ...source };
+  next.workHistory = jobList(next.workHistory);
+  next.family = Array.isArray(next.family) && next.family.length ? next.family : blankFamily();
+  next.declarationAccepted = true;
+  next.termsAccepted = true;
   return next;
 }
 
@@ -485,6 +495,7 @@ function ApplyPageInner() {
   const searchParams = useSearchParams();
   const companySlug = params?.companySlug as string;
   const fillAsAdmin = searchParams.get("fill") === "admin";
+  const editApplicantId = fillAsAdmin ? String(searchParams.get("edit") || "").trim() : "";
 
   const [company, setCompany] = useState<CompanyData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -526,6 +537,7 @@ function ApplyPageInner() {
   const [form, setForm] = useState(initialForm);
   const [submitting, setSubmitting] = useState(false);
   const [submittedRef, setSubmittedRef] = useState("");
+  const [editingNo, setEditingNo] = useState("");
   const [compressingLabel, setCompressingLabel] = useState("");
   const [myApplications, setMyApplications] = useState<CandidateApplication[]>([]);
   const prefillRef = useRef<ReturnType<typeof initialForm> | null>(null);
@@ -629,12 +641,14 @@ function ApplyPageInner() {
           email: String(user.email || ""),
         });
         setCandidate(null);
-        setForm((prev) => ({
-          ...prev,
-          name: "",
-          mobile: "",
-          email: "",
-        }));
+        if (!editApplicantId) {
+          setForm((prev) => ({
+            ...prev,
+            name: "",
+            mobile: "",
+            email: "",
+          }));
+        }
         setAdminFiller((prev) => ({
           ...prev,
           name: prev.name || adminName,
@@ -642,7 +656,7 @@ function ApplyPageInner() {
       })
       .catch(() => {})
       .finally(() => setOfficeAdminChecked(true));
-  }, [companySlug, fillAsAdmin]);
+  }, [companySlug, fillAsAdmin, editApplicantId]);
 
   // Fetch Company Data
   useEffect(() => {
@@ -651,12 +665,44 @@ function ApplyPageInner() {
         if (!res.ok) throw new Error("Could not find company recruitment portal.");
         const data = await readApiJson(res);
         setCompany(data);
-        setSelectedRole(null);
-        setSelectedCategory(null);
+        if (!editApplicantId) {
+          setSelectedRole(null);
+          setSelectedCategory(null);
+        }
       })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
-  }, [companySlug]);
+  }, [companySlug, editApplicantId]);
+
+  useEffect(() => {
+    if (!editApplicantId || !officeAdmin || !company) return;
+    let cancelled = false;
+    fetch(`/api/apply/${companySlug}`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "GET_ADMIN_APPLICATION", applicantId: editApplicantId }),
+    })
+      .then(async (res) => {
+        const data = await readApiJson(res);
+        if (!res.ok) throw new Error(data.error || "This application could not be opened for edit.");
+        if (cancelled) return;
+        const application = data.application;
+        const role = (company.jobRoles || []).find((item: JobRole) => item.id === application.jobRoleId) || null;
+        const category = role?.categories?.find((item) => item.id === application.roleCategoryId) || null;
+        setSelectedRole(role);
+        setSelectedCategory(category);
+        setForm(personEditFrom(application.prefill || {}));
+        setEditingNo(application.applicationNo || "");
+        setStep("FORM");
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err.message || "This application could not be opened for edit.");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [editApplicantId, officeAdmin, company, companySlug]);
 
   // Countdown timer for OTP resend
   useEffect(() => {
@@ -1271,7 +1317,8 @@ function ApplyPageInner() {
       submitBody.append(
         "payload",
         JSON.stringify({
-          action: "SUBMIT_APPLICATION",
+          action: editApplicantId ? "UPDATE_APPLICATION" : "SUBMIT_APPLICATION",
+          applicantId: editApplicantId || undefined,
           data: payload,
           fillByAdmin: Boolean(officeAdmin),
           adminFillerName: officeAdmin ? adminFiller.name.trim() : undefined,
@@ -1291,7 +1338,7 @@ function ApplyPageInner() {
 
       const data = await readApiJson(res);
       if (!res.ok) throw new Error(data.error || "The application could not be submitted. Please check the form and try again.");
-      setSubmittedRef(data.id);
+      setSubmittedRef(data.applicationNo || data.id);
       setSuccessMsg("");
       setError("");
       if (!officeAdmin) {
@@ -2059,6 +2106,17 @@ function ApplyPageInner() {
             {/* Step 2: The Complete Application Form with ALL Details */}
             {step === "FORM" && (
               <form onSubmit={handleSubmitApplication} className="p-6 sm:p-8 space-y-8">
+                {editApplicantId ? (
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-950">
+                    <div className="text-[10px] font-bold uppercase tracking-wide">Editing saved application</div>
+                    <div className="text-sm font-semibold mt-0.5 font-mono">
+                      Application ID: {editingNo || editApplicantId}
+                    </div>
+                    <p className="text-xs mt-1">
+                      Save changes to update this same form. The Application ID will stay the same.
+                    </p>
+                  </div>
+                ) : null}
                 {/* Header banner */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-200 gap-2">
                   <div>
@@ -3392,7 +3450,15 @@ function ApplyPageInner() {
                     disabled={submitting || Boolean(compressingLabel)}
                     className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold py-3.5 rounded-xl shadow-md transition text-sm flex items-center justify-center gap-2"
                   >
-                    <span>{submitting ? "Submitting Official Application..." : "Submit Official Application"}</span>
+                    <span>
+                      {submitting
+                        ? editApplicantId
+                          ? "Saving changes..."
+                          : "Submitting Official Application..."
+                        : editApplicantId
+                          ? "Save changes"
+                          : "Submit Official Application"}
+                    </span>
                     <span>✓</span>
                   </button>
                 </div>
@@ -3406,10 +3472,14 @@ function ApplyPageInner() {
                   ✓
                 </div>
                 <div>
-                  <h2 className="text-xl font-bold text-slate-900">Application Successfully Submitted!</h2>
+                  <h2 className="text-xl font-bold text-slate-900">
+                    {editApplicantId ? "Application updated" : "Application Successfully Submitted!"}
+                  </h2>
                   <p className="text-xs text-slate-500 mt-1">
                     {officeAdmin
-                      ? "This form was filled up by admin and saved in the Applicant Book."
+                      ? editApplicantId
+                        ? "The form was updated and saved in the Applicant Book."
+                        : "This form was filled up by admin and saved in the Applicant Book."
                       : "Your candidate profile has been registered in the company's Applicant Book for review and verification."}
                   </p>
                 </div>
@@ -3451,6 +3521,10 @@ function ApplyPageInner() {
                 <div className="pt-2 flex justify-center gap-3">
                   <button
                     onClick={() => {
+                      if (editApplicantId) {
+                        window.location.href = `/apply/${companySlug}?fill=admin`;
+                        return;
+                      }
                       setAdminFiller((prev) => ({ ...prev, confirmed: false }));
                       setSelectedRole(null);
                       setSelectedCategory(null);

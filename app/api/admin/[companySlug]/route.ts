@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { Role } from "@prisma/client";
-import { addApplicantRemark, listApplicants, saveOfficeApplicantId, updateApplicantStatus } from "@/modules/applicants/services";
+import { addApplicantRemark, listApplicants, saveOfficeApplicantId, softDeleteApplicant, updateApplicantStatus } from "@/modules/applicants/services";
 import { approveApplicantAndCreateEmployee, assignEmployeeSite, listEmployees, softDeleteEmployee } from "@/modules/employees/services";
 import { bulkMarkAttendance, getMonthlyAttendanceSummary, lockMonthAttendance } from "@/modules/attendance/services";
 import { publicCatchMessage } from "@/lib/publicErrors";
@@ -199,6 +199,15 @@ export async function POST(
         userId: user.id,
         employeeId: body.employeeId,
         siteId: body.siteId,
+      });
+      return NextResponse.json(data);
+    }
+
+    if (body.action === "DELETE_APPLICANT") {
+      const data = await softDeleteApplicant({
+        companyId: company.id,
+        userId: user.id,
+        applicantId: body.applicantId,
       });
       return NextResponse.json(data);
     }

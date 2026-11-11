@@ -248,6 +248,11 @@ export function attachmentBlobUrl(src: string) {
   return URL.createObjectURL(new Blob([bytes], { type: mime }));
 }
 
+export function applicationDisplayId(person: any) {
+  const code = String(person?.applicationNo || person?.formData?.applicationNo || "").trim();
+  return code;
+}
+
 export function downloadAttachedFile(src: string, fileName: string) {
   const href = attachmentBlobUrl(src);
   const link = document.createElement("a");

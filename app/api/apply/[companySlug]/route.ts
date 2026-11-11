@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requestApplicantOtp, verifyApplicantOtp } from "@/modules/otp/services";
-import { submitApplicant } from "@/modules/applicants/services";
+import { getApplicantForAdminEdit, submitApplicant, updateApplicant } from "@/modules/applicants/services";
 import { registerCandidate, loginCandidate, getCandidateApplications, getCandidatePrefill } from "@/modules/candidates/services";
 import { publicCatchMessage } from "@/lib/publicErrors";
 import { currentOfficeAdmin } from "@/lib/officeAdmin";
@@ -228,7 +228,24 @@ export async function POST(
       return NextResponse.json({ prefill });
     }
 
-    if (body.action === "SUBMIT_APPLICATION") {
+    if (body.action === "GET_ADMIN_APPLICATION") {
+      const officeAdmin = await currentOfficeAdmin(companySlug);
+      if (!officeAdmin) {
+        return NextResponse.json({ error: "Please sign in as office admin to edit this form." }, { status: 401 });
+      }
+      const company = await prisma.company.findUnique({
+        where: { slug: companySlug },
+        select: { id: true },
+      });
+      if (!company) throw new Error("Company not found.");
+      const application = await getApplicantForAdminEdit({
+        companyId: company.id,
+        applicantId: String(body.applicantId || ""),
+      });
+      return NextResponse.json({ application });
+    }
+
+    if (body.action === "SUBMIT_APPLICATION" || body.action === "UPDATE_APPLICATION") {
       const officeAdmin = body.fillByAdmin ? await currentOfficeAdmin(companySlug) : null;
       const candidate = officeAdmin ? null : await currentCandidate(request, companySlug);
       if (!officeAdmin && !candidate) {
@@ -236,15 +253,30 @@ export async function POST(
       }
       const fillerName = String(body.adminFillerName || officeAdmin?.name || "").trim();
       const fillerPhone = String(body.adminFillerPhone || "").replace(/\D/g, "").slice(-10);
+      const admin = officeAdmin
+        ? { ...officeAdmin, name: fillerName || officeAdmin.name, phone: fillerPhone }
+        : null;
+      if (body.action === "UPDATE_APPLICATION") {
+        if (!admin) {
+          return NextResponse.json({ error: "Only office admin can edit an application." }, { status: 401 });
+        }
+        const res = await updateApplicant(
+          String(body.applicantId || ""),
+          {
+            ...body.data,
+            companySlug,
+          },
+          admin,
+        );
+        return NextResponse.json(res);
+      }
       const res = await submitApplicant(
         {
           ...body.data,
           companySlug,
           candidateAccountId: officeAdmin ? undefined : candidate?.id,
         },
-        officeAdmin
-          ? { ...officeAdmin, name: fillerName || officeAdmin.name, phone: fillerPhone }
-          : null,
+        admin,
       );
       return NextResponse.json(res);
     }

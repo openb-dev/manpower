@@ -2,15 +2,15 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { DECLARATION, TERMS } from "@/server/data/joiningText.js";
-import { applicantPhotoUrl } from "@/lib/applicantFormFields";
+import { applicantPhotoUrl, applicationDisplayId } from "@/lib/applicantFormFields";
 
 const NK_LETTERHEAD = {
   address: [
     "Nabanari Apartment, F-3/2, 3rd Floor, Mohishgote, Dhalipara,",
     "P.O.- Krishnapur, P.S.- New Town, Kolkata-700102",
   ],
-  website: "www.nkenterpriselkolkata.com",
-  email: "nkenterprise0633@gmail.com",
+  website: "www.nkenterprisekolkata.com",
+  email: "nkenterprise063@gmail.com",
   mobile: "9804057947 / 7980350454",
 };
 
@@ -411,6 +411,10 @@ export function ApplicantPaperForm({
               </div>
               {head.mobile ? <div className="text-[10px]">Mobile : {head.mobile}</div> : null}
             </div>
+          </div>
+
+          <div className="mt-1 mb-0.5">
+            <DashBits items={[{ label: "Application ID", value: applicationDisplayId(person), grow: true }]} />
           </div>
 
           {(person?.jobRole?.name || person?.roleCategory?.name || fd.skillCategory || fd.gemExperience) && (

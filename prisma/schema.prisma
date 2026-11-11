@@ -88,11 +88,12 @@ model Company {
 }
 
 model CompanySequence {
-  id         String   @id @default(uuid())
-  companyId  String   @unique @map("company_id")
-  prefix     String   @default("EMP")
-  nextNumber Int      @default(1) @map("next_number")
-  company    Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  id                   String   @id @default(uuid())
+  companyId            String   @unique @map("company_id")
+  prefix               String   @default("EMP")
+  nextNumber           Int      @default(1) @map("next_number")
+  nextApplicantNumber  Int      @default(1) @map("next_applicant_number")
+  company              Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@map("company_sequences")
 }
@@ -224,6 +225,7 @@ model Applicant {
   formData          Json            @default("{}") @map("form_data")
   documents         Json            @default("[]")
 
+  applicationNo     String?         @map("application_no")
   status            ApplicantStatus @default(NEW)
   deletedAt         DateTime?       @map("deleted_at")
   createdAt         DateTime        @default(now()) @map("created_at")
@@ -237,6 +239,7 @@ model Applicant {
   remarks           ApplicantRemark[]
   employee          Employee?
 
+  @@unique([companyId, applicationNo])
   @@index([companyId, status])
   @@index([companyId, mobile])
   @@index([companyId, aadhaarHash])

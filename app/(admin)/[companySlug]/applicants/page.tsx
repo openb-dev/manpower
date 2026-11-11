@@ -8,7 +8,7 @@ import { statusLabel } from "@/components/admin/SimpleGuide";
 import { loadApplicantBook, loadApplicantDetail } from "../actions";
 import { downloadPaperFormPdf, paperFormFileName, printPaperFormPdf } from "@/lib/downloadPaperFormPdf";
 import { friendlyPublicError, readApiJson } from "@/lib/publicErrors";
-import { applicantPhotoUrl, filledByAdminInfo, indianAddressLine } from "@/lib/applicantFormFields";
+import { applicantPhotoUrl, applicationDisplayId, filledByAdminInfo, indianAddressLine } from "@/lib/applicantFormFields";
 import AttachedDocuments from "@/components/admin/AttachedDocuments";
 
 const ApplicantPaperForm = dynamic(
@@ -71,6 +71,7 @@ export default function ApplicantBookPage() {
   const [downloading, setDownloading] = useState(false);
   const [downloadStatus, setDownloadStatus] = useState("");
   const [printingForm, setPrintingForm] = useState(false);
+  const [deletingId, setDeletingId] = useState("");
 
   function loadApplicants() {
     setLoading(true);
@@ -95,6 +96,37 @@ export default function ApplicantBookPage() {
   useEffect(() => {
     loadApplicants();
   }, [companySlug, statusFilter]);
+
+  async function handleDeleteApplicant(row: any) {
+    const code = applicationDisplayId(row) || row.id;
+    const extra = row.employee
+      ? "\n\nThis person is already an employee. The application will be hidden from this book. The employee record will stay."
+      : "";
+    const ok = window.confirm(
+      `Remove this application from the book?\n\nName: ${row.fullName}\nApplication ID: ${code}${extra}`,
+    );
+    if (!ok) return;
+    setDeletingId(row.id);
+    try {
+      const res = await fetch(`/api/admin/${companySlug}`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "DELETE_APPLICANT", applicantId: row.id }),
+      });
+      const data = await readApiJson(res);
+      if (!res.ok) {
+        alert(friendlyPublicError(data.error || "This application could not be removed."));
+        return;
+      }
+      if (selectedApplicant?.id === row.id) setSelectedApplicant(null);
+      loadApplicants();
+    } catch (err: any) {
+      alert(friendlyPublicError(err.message || "This application could not be removed."));
+    } finally {
+      setDeletingId("");
+    }
+  }
 
   async function handleStatusChange(applicantId: string, newStatus: string, remark: string) {
     try {
@@ -447,7 +479,7 @@ export default function ApplicantBookPage() {
                   <th className="p-4">Aadhaar</th>
                   <th className="p-4">Stage</th>
                   <th className="p-4">Date</th>
-                  <th className="p-4 text-right">Open</th>
+                  <th className="p-4 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -474,7 +506,7 @@ export default function ApplicantBookPage() {
                         </span>
                       ) : null}
                     </td>
-                    <td className="p-4 font-mono text-[11px] text-slate-700 break-all max-w-[11rem]">{a.id}</td>
+                    <td className="p-4 font-mono text-[11px] text-slate-700">{applicationDisplayId(a) || a.id}</td>
                     <td className="p-4">
                       <span className="font-medium text-slate-800">{a.jobRole?.name}</span>
                       <span className="block text-xs text-slate-400">{a.roleCategory?.name}</span>
@@ -500,25 +532,41 @@ export default function ApplicantBookPage() {
                       {new Date(a.createdAt).toLocaleDateString()}
                     </td>
                     <td className="p-4 text-right">
-                      <button
-                        onClick={async () => {
-                          setPendingStatus(null);
-                          setStatusRemark("");
-                          setSelectedApplicant(a);
-                          try {
-                            const detail = await loadApplicantDetail(companySlug, a.id);
-                            setSelectedApplicant(detail);
-                            setOfficeApplicantId(
-                              detail.employee?.employeeCode || detail.formData?.officeApplicantId || "",
-                            );
-                          } catch (err: any) {
-                            alert(friendlyPublicError(err.message || "Could not open this form."));
-                          }
-                        }}
-                        className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold rounded-md transition"
-                      >
-                        Open
-                      </button>
+                      <div className="inline-flex flex-wrap justify-end gap-1">
+                        <button
+                          onClick={async () => {
+                            setPendingStatus(null);
+                            setStatusRemark("");
+                            setSelectedApplicant(a);
+                            try {
+                              const detail = await loadApplicantDetail(companySlug, a.id);
+                              setSelectedApplicant(detail);
+                              setOfficeApplicantId(
+                                detail.employee?.employeeCode || detail.formData?.officeApplicantId || "",
+                              );
+                            } catch (err: any) {
+                              alert(friendlyPublicError(err.message || "Could not open this form."));
+                            }
+                          }}
+                          className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold rounded-md transition"
+                        >
+                          Open
+                        </button>
+                        <a
+                          href={`/apply/${companySlug}?fill=admin&edit=${a.id}`}
+                          className="px-3 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 text-xs font-semibold rounded-md transition"
+                        >
+                          Edit
+                        </a>
+                        <button
+                          type="button"
+                          disabled={deletingId === a.id}
+                          onClick={() => handleDeleteApplicant(a)}
+                          className="px-3 py-1 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-semibold rounded-md transition disabled:opacity-50"
+                        >
+                          {deletingId === a.id ? "Removing..." : "Delete"}
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -541,7 +589,7 @@ export default function ApplicantBookPage() {
                 <div>
                   <h2 className="text-xl font-bold text-slate-900">{selectedApplicant.fullName}</h2>
                   <div className="text-[11px] font-mono text-slate-600 mt-0.5 break-all">
-                    Application ID: {selectedApplicant.id}
+                    Application ID: {applicationDisplayId(selectedApplicant) || selectedApplicant.id}
                   </div>
                   <div className="flex flex-wrap items-center gap-2 mt-1 text-xs">
                     {selectedApplicant.status === "APPROVED" &&
@@ -599,6 +647,20 @@ export default function ApplicantBookPage() {
               </div>
 
               <div className="flex items-center gap-2">
+                <a
+                  href={`/apply/${companySlug}?fill=admin&edit=${selectedApplicant.id}`}
+                  className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 text-xs font-bold rounded-lg"
+                >
+                  Edit form
+                </a>
+                <button
+                  type="button"
+                  disabled={deletingId === selectedApplicant.id}
+                  onClick={() => handleDeleteApplicant(selectedApplicant)}
+                  className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold rounded-lg disabled:opacity-50"
+                >
+                  {deletingId === selectedApplicant.id ? "Removing..." : "Delete"}
+                </button>
                 <button
                   type="button"
                   disabled={printingForm}

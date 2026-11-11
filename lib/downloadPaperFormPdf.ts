@@ -1,5 +1,5 @@
 import { DECLARATION, TERMS } from "@/server/data/joiningText.js";
-import { applicantPhotoUrl } from "@/lib/applicantFormFields";
+import { applicantPhotoUrl, applicationDisplayId } from "@/lib/applicantFormFields";
 
 const NK = {
   name: "M/s. N.K. Enterprise",
@@ -7,8 +7,8 @@ const NK = {
     "Nabanari Apartment, F-3/2, 3rd Floor, Mohishgote, Dhalipara,",
     "P.O.- Krishnapur, P.S.- New Town, Kolkata-700102",
   ],
-  website: "www.nkenterpriselkolkata.com",
-  email: "nkenterprise0633@gmail.com",
+  website: "www.nkenterprisekolkata.com",
+  email: "nkenterprise063@gmail.com",
   mobile: "9804057947 / 7980350454",
 };
 
@@ -373,6 +373,7 @@ export async function buildPaperFormPdf(
   // Page 1 — full application on one A4 sheet
   let y = banner("APPLICATION FOR EMPLOYMENT", 14);
   y = letterhead(y + 2, true);
+  y = lineFill("Application ID", applicationDisplayId(person), y, 9.5);
   if (postApplied) y = lineFill("Post applied :", postApplied, y, 9.5);
   y = rowFields(
     [

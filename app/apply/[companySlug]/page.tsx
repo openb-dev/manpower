@@ -533,6 +533,8 @@ function ApplyPageInner() {
   const [resetConfirmPassword, setResetConfirmPassword] = useState("");
   const [resetOtpSent, setResetOtpSent] = useState(false);
   const [resetCountdown, setResetCountdown] = useState(0);
+  const [resetCodeStatus, setResetCodeStatus] = useState<"" | "checking" | "ok" | "bad">("");
+  const resetVerifyLock = useRef("");
 
   // Application Steps
   const [step, setStep] = useState<"ROLE" | "FORM" | "SUCCESS">("ROLE");
@@ -722,6 +724,50 @@ function ApplyPageInner() {
     const timer = setInterval(() => setResetCountdown((prev) => prev - 1), 1000);
     return () => clearInterval(timer);
   }, [resetCountdown]);
+
+  useEffect(() => {
+    if (authTab !== "FORGOT") return;
+    const email = resetEmail.trim().toLowerCase();
+    const code = resetOtpCode;
+    if (!resetOtpSent || code.length !== 6 || !email.includes("@")) {
+      setResetCodeStatus("");
+      return;
+    }
+    const key = `${email}:${code}`;
+    if (resetVerifyLock.current === key) return;
+    resetVerifyLock.current = key;
+    let cancelled = false;
+    setResetCodeStatus("checking");
+    fetch(`/api/apply/${companySlug}`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "VERIFY_OTP",
+        identifier: email,
+        code,
+      }),
+    })
+      .then(async (res) => {
+        const data = await readApiJson(res);
+        if (cancelled) return;
+        if (!res.ok) throw new Error(data.error || "That code is not correct.");
+        setResetCodeStatus("ok");
+        setError("");
+        setSuccessMsg("Code verified. Type your new password below.");
+        window.setTimeout(() => document.getElementById("reset-new-password")?.focus(), 50);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        resetVerifyLock.current = "";
+        setResetCodeStatus("bad");
+        setError(err.message || "That code is not correct.");
+        setSuccessMsg("");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [authTab, companySlug, resetEmail, resetOtpCode, resetOtpSent]);
 
   // When candidate logs in or updates, sync name & mobile
   useEffect(() => {
@@ -917,16 +963,19 @@ function ApplyPageInner() {
       });
       const data = await readApiJson(res);
       if (!res.ok) throw new Error(data.error || "Could not send the verification code. Please try again.");
+      resetVerifyLock.current = "";
+      setResetCodeStatus("");
       setResetOtpSent(true);
       setResetCountdown(60);
       if (data.trialCode) {
         setResetOtpCode(data.trialCode);
-        setSuccessMsg(`No email service is set on this computer. Test code: ${data.trialCode}`);
+        setSuccessMsg(`No email service is set on this computer. Test code: ${data.trialCode}. Write it in the 6-digit box.`);
       } else if (data.delivered) {
-        setSuccessMsg(`Code sent to ${email}. Open your Gmail inbox and enter it below.`);
+        setSuccessMsg(`Code sent to ${email}. Open Gmail, copy the 6 digits, and write them in the box labelled “Write the 6-digit code here”. Also check Spam.`);
       } else {
-        setSuccessMsg("Enter the 6-digit code sent to your email.");
+        setSuccessMsg("Write the 6-digit code from Gmail in the box below.");
       }
+      window.setTimeout(() => document.getElementById("reset-otp-code")?.focus(), 50);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -949,6 +998,10 @@ function ApplyPageInner() {
     }
     if (!resetOtpCode || resetOtpCode.length !== 6) {
       setError("Please enter the 6-digit code sent to your email.");
+      return;
+    }
+    if (resetCodeStatus !== "ok") {
+      setError("Please wait until the 6-digit code is verified.");
       return;
     }
     if (resetPassword.length < 6) {
@@ -1875,6 +1928,8 @@ function ApplyPageInner() {
                           setResetPassword("");
                           setResetConfirmPassword("");
                           setResetOtpSent(false);
+                          setResetCodeStatus("");
+                          resetVerifyLock.current = "";
                           setError("");
                           setSuccessMsg("");
                         }}
@@ -1902,13 +1957,13 @@ function ApplyPageInner() {
                 <div>
                   <h2 className="text-lg font-bold text-slate-900">Set a new password</h2>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    We will send a 6-digit code to your registered email (Gmail inbox). Enter that code, then type a new password.
+                    Use the same Gmail you registered with. The 6-digit code comes in that inbox. Write it in the box below, then type a new password.
                   </p>
                 </div>
 
                 <div>
                   <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                    Registered email *
+                    1. Registered Gmail *
                   </label>
                   <input
                     required
@@ -1920,14 +1975,14 @@ function ApplyPageInner() {
                   />
                 </div>
 
-                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-3">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <div>
-                      <div className="text-xs font-bold text-slate-800">Email verification</div>
-                      <div className="text-[11px] text-slate-500">
+                      <div className="text-xs font-bold text-slate-800">2. Send the Gmail code</div>
+                      <div className="text-[11px] text-slate-600">
                         {resetOtpSent
-                          ? `Code sent to ${resetEmail}. Check Gmail (and Spam).`
-                          : "Click Send code to receive the 6-digit email code."}
+                          ? `Code sent to ${resetEmail}. Open Gmail, then write the 6 digits in the box below. Also check Spam.`
+                          : "Click Send code. Then open that Gmail inbox."}
                       </div>
                     </div>
                     <button
@@ -1943,30 +1998,46 @@ function ApplyPageInner() {
                         : "Send code"}
                     </button>
                   </div>
-                  {resetOtpSent && (
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                        6-digit email code *
-                      </label>
-                      <input
-                        required
-                        type="text"
-                        inputMode="numeric"
-                        maxLength={6}
-                        placeholder="• • • • • •"
-                        value={resetOtpCode}
-                        onChange={(e) => setResetOtpCode(e.target.value.replace(/\D/g, ""))}
-                        className="w-full sm:w-48 px-3.5 py-2.5 border border-slate-300 rounded-lg text-lg text-center tracking-widest font-mono font-bold bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
-                  )}
+                  <div>
+                    <label htmlFor="reset-otp-code" className="block text-xs font-bold text-slate-800 uppercase tracking-wider mb-1">
+                      3. Write the 6-digit code here *
+                    </label>
+                    <input
+                      id="reset-otp-code"
+                      required
+                      type="text"
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      maxLength={6}
+                      placeholder="123456"
+                      value={resetOtpCode}
+                      onChange={(e) => setResetOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                      className={`w-full px-3.5 py-3 border-2 rounded-lg text-2xl text-center tracking-[0.4em] font-mono font-bold bg-white focus:outline-none focus:ring-2 ${
+                        resetCodeStatus === "ok"
+                          ? "border-emerald-500 focus:ring-emerald-500"
+                          : resetCodeStatus === "bad"
+                          ? "border-red-400 focus:ring-red-500"
+                          : "border-blue-400 focus:ring-blue-500"
+                      }`}
+                    />
+                    <p className="text-[11px] mt-1 font-semibold">
+                      {resetCodeStatus === "checking"
+                        ? "Checking the code..."
+                        : resetCodeStatus === "ok"
+                        ? "Code verified. You can set a new password now."
+                        : resetCodeStatus === "bad"
+                        ? "That code is not correct. Check Gmail and type it again."
+                        : "Type all 6 digits. The code is checked automatically."}
+                    </p>
+                  </div>
                 </div>
 
                 <div>
                   <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                    New password *
+                    4. New password *
                   </label>
                   <input
+                    id="reset-new-password"
                     required
                     type="password"
                     placeholder="At least 6 characters"
@@ -1991,10 +2062,10 @@ function ApplyPageInner() {
 
                 <button
                   type="submit"
-                  disabled={authLoading || !resetOtpSent}
+                  disabled={authLoading || resetCodeStatus !== "ok"}
                   className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold py-3 rounded-xl shadow-md transition text-sm flex items-center justify-center gap-2"
                 >
-                  <span>{authLoading && resetOtpSent ? "Saving..." : "Verify email & save new password"}</span>
+                  <span>{authLoading && resetCodeStatus === "ok" ? "Saving..." : "Save new password"}</span>
                   <span>→</span>
                 </button>
                 <button

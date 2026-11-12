@@ -1,7 +1,7 @@
 import { prisma } from "../../lib/db/index.ts";
 import bcrypt from "bcryptjs";
 import { normalizeOtpIdentifier } from "../../lib/otp/index.ts";
-import { verifyApplicantOtp } from "../otp/services.ts";
+import { requestApplicantOtp, verifyApplicantOtp } from "../otp/services.ts";
 import { decryptText } from "../../lib/crypto/index.ts";
 import { ensureApplicantNumbers } from "../../lib/applicationNumbers.ts";
 
@@ -172,7 +172,7 @@ export async function requestCandidatePasswordReset({
     select: { id: true },
   });
   if (!candidate) {
-    throw new Error("No candidate account found with this email. Please register.");
+    throw new Error("This Gmail is not registered. Type the exact email used at registration, then click Send code.");
   }
 
   return requestApplicantOtp({
@@ -231,11 +231,23 @@ export async function resetCandidatePassword({
     throw new Error("No candidate account found with this email. Please register.");
   }
 
-  await verifyApplicantOtp({
-    companySlug,
-    identifier: cleanEmail,
-    code: String(otpCode).trim(),
+  const tenMinsAgo = new Date(Date.now() - 10 * 60 * 1000);
+  const alreadyVerified = await prisma.applicantOtp.findFirst({
+    where: {
+      companyId: company.id,
+      identifier: cleanEmail,
+      verifiedAt: { gte: tenMinsAgo },
+    },
+    orderBy: { verifiedAt: "desc" },
+    select: { id: true },
   });
+  if (!alreadyVerified) {
+    await verifyApplicantOtp({
+      companySlug,
+      identifier: cleanEmail,
+      code: String(otpCode).trim(),
+    });
+  }
 
   const passwordHash = await bcrypt.hash(password, 10);
   await prisma.candidateAccount.update({

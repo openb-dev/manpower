@@ -92,6 +92,20 @@ button { cursor: pointer; }
   font-size: 13px;
 }
 .forgot:hover { text-decoration: underline; }
+.password-field {
+  position: relative;
+  display: block;
+}
+.password-field .forgot {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  margin: 0;
+}
+.password-field input {
+  padding-right: 52px;
+}
 .company-cards {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

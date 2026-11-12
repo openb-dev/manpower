@@ -597,6 +597,7 @@ function CompanyRegistration({ onOpen }) {
 function Login({ rejected, onSuccess, onReject, onBack }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [forgot, setForgot] = useState(false);
 
@@ -656,15 +657,20 @@ function Login({ rejected, onSuccess, onReject, onBack }) {
               </label>
               <label>
                 Password
-                <input
-                  type="password"
-                  autoComplete="current-password"
-                  value={password}
-                  onChange={(event) => {
-                    setPassword(event.target.value);
-                    setError("");
-                  }}
-                />
+                <span className="password-field">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    autoComplete="current-password"
+                    value={password}
+                    onChange={(event) => {
+                      setPassword(event.target.value);
+                      setError("");
+                    }}
+                  />
+                  <button type="button" className="forgot" onClick={() => setShowPassword((open) => !open)}>
+                    {showPassword ? "Hide" : "View"}
+                  </button>
+                </span>
               </label>
               <button className="forgot" type="button" onClick={() => setForgot((open) => !open)}>
                 Forgot password

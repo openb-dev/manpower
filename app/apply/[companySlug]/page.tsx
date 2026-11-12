@@ -21,6 +21,7 @@ import {
   isManpowerRole,
   isSecurityGuardRole,
 } from "@/lib/gem";
+import { PasswordInput } from "@/components/PasswordInput";
 
 interface JobRole {
   id: string;
@@ -1727,12 +1728,12 @@ function ApplyPageInner() {
                       <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
                         Account Password (min 6 chars) *
                       </label>
-                      <input
+                      <PasswordInput
                         required
-                        type="password"
                         placeholder="••••••••"
                         value={regPassword}
                         onChange={(e) => setRegPassword(e.target.value)}
+                        autoComplete="new-password"
                         className="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
                     </div>
@@ -1740,12 +1741,12 @@ function ApplyPageInner() {
                       <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
                         Confirm Password *
                       </label>
-                      <input
+                      <PasswordInput
                         required
-                        type="password"
                         placeholder="••••••••"
                         value={regConfirmPassword}
                         onChange={(e) => setRegConfirmPassword(e.target.value)}
+                        autoComplete="new-password"
                         className="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
                     </div>
@@ -1910,12 +1911,12 @@ function ApplyPageInner() {
                     <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
                       Password *
                     </label>
-                    <input
+                    <PasswordInput
                       required
-                      type="password"
                       placeholder="••••••••"
                       value={loginPassword}
                       onChange={(e) => setLoginPassword(e.target.value)}
+                      autoComplete="current-password"
                       className="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                     <div className="mt-2 text-right">
@@ -2036,13 +2037,13 @@ function ApplyPageInner() {
                   <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
                     4. New password *
                   </label>
-                  <input
+                  <PasswordInput
                     id="reset-new-password"
                     required
-                    type="password"
                     placeholder="At least 6 characters"
                     value={resetPassword}
                     onChange={(e) => setResetPassword(e.target.value)}
+                    autoComplete="new-password"
                     className="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
@@ -2050,12 +2051,12 @@ function ApplyPageInner() {
                   <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
                     Confirm new password *
                   </label>
-                  <input
+                  <PasswordInput
                     required
-                    type="password"
                     placeholder="Type the new password again"
                     value={resetConfirmPassword}
                     onChange={(e) => setResetConfirmPassword(e.target.value)}
+                    autoComplete="new-password"
                     className="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>

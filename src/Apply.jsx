@@ -35,6 +35,7 @@ export function Apply() {
   const [code, setCode] = useState("");
   const [setupToken, setSetupToken] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [token, setToken] = useState("");
   const [roles, setRoles] = useState([]);
   const [jobRole, setJobRole] = useState("");
@@ -222,7 +223,12 @@ export function Apply() {
               {returning ? (
                 <label>
                   Password
-                  <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} />
+                  <span className="password-field">
+                    <input type={showPassword ? "text" : "password"} value={password} onChange={(event) => setPassword(event.target.value)} />
+                    <button type="button" className="forgot" onClick={() => setShowPassword((open) => !open)}>
+                      {showPassword ? "Hide" : "View"}
+                    </button>
+                  </span>
                 </label>
               ) : null}
               {error ? <div className="error">{error}</div> : null}
@@ -247,7 +253,12 @@ export function Apply() {
             <form className="gate-fields" onSubmit={savePassword}>
               <label>
                 Password
-                <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} />
+                <span className="password-field">
+                  <input type={showPassword ? "text" : "password"} value={password} onChange={(event) => setPassword(event.target.value)} />
+                  <button type="button" className="forgot" onClick={() => setShowPassword((open) => !open)}>
+                    {showPassword ? "Hide" : "View"}
+                  </button>
+                </span>
               </label>
               {error ? <div className="error">{error}</div> : null}
               <button className="signin" type="submit" disabled={busy}>Save password</button>

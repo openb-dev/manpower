@@ -288,6 +288,10 @@ export async function getCandidateApplications({
       formData: true,
       jobRole: { select: { name: true } },
       roleCategory: { select: { name: true } },
+      remarks: {
+        orderBy: { createdAt: "desc" },
+        select: { remark: true, createdAt: true },
+      },
     },
   });
 
@@ -304,8 +308,20 @@ export async function getCandidateApplications({
       role: row.jobRole?.name || "",
       category: extra || row.roleCategory?.name || "",
       extra: extra.toLowerCase(),
+      remarks: (row.remarks || [])
+        .map((item) => ({
+          remark: candidateFacingRemark(item.remark),
+          createdAt: item.createdAt,
+        }))
+        .filter((item) => item.remark),
     };
   });
+}
+
+function candidateFacingRemark(remark?: string) {
+  return String(remark || "")
+    .replace(/^Status changed to [A-Z_]+:\s*/i, "")
+    .trim();
 }
 
 function isoDate(value: unknown) {

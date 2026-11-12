@@ -62,6 +62,7 @@ type CandidateApplication = {
   role: string;
   category: string;
   extra?: string;
+  remarks?: { remark: string; createdAt: string }[];
 };
 
 function candidateStatusLabel(status?: string) {
@@ -114,6 +115,19 @@ function CandidateApplicationsPanel({ items }: { items: CandidateApplication[] }
                   <span className={`inline-block px-2 py-0.5 rounded-full font-bold ${candidateStatusClass(app.status)}`}>
                     {candidateStatusLabel(app.status)}
                   </span>
+                  {app.remarks?.length ? (
+                    <div className="mt-1.5 space-y-1 max-w-xs">
+                      {app.remarks.map((note, idx) => (
+                        <div key={`${app.id}-note-${idx}`} className="text-[11px] text-slate-700 leading-snug">
+                          <div>
+                            <span className="font-bold text-slate-800">Office note: </span>
+                            {note.remark}
+                          </div>
+                          <div className="text-[10px] text-slate-500">{formatApplyDate(note.createdAt)}</div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
                 </td>
                 <td className="py-2 text-slate-700 whitespace-nowrap">{formatApplyDate(app.createdAt)}</td>
               </tr>
@@ -3831,8 +3845,21 @@ function ApplyPageInner() {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-slate-500">Status:</span>
-                    <span className="font-bold text-amber-600">Under review</span>
+                    <span className="font-bold text-amber-600">
+                      {candidateStatusLabel(
+                        myApplications.find((app) => app.applicationNo === submittedRef || app.id === submittedRef)
+                          ?.status || "NEW",
+                      )}
+                    </span>
                   </div>
+                  {(myApplications.find((app) => app.applicationNo === submittedRef || app.id === submittedRef)
+                    ?.remarks || []
+                  ).map((note, idx) => (
+                    <div key={`success-note-${idx}`}>
+                      <span className="text-slate-500 block">Office note:</span>
+                      <span className="font-semibold text-slate-800 whitespace-pre-wrap">{note.remark}</span>
+                    </div>
+                  ))}
                 </div>
 
                 {!officeAdmin ? (

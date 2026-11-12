@@ -5,7 +5,8 @@ import {
   SkillCategory,
   VerificationStatus,
 } from "@prisma/client";
-import { encryptText, getAadhaarLast4, hashAadhaar } from "../lib/crypto/index.ts";
+import { maskAadhaar } from "../lib/crypto/index.ts";
+import { findOrCreatePerson } from "../lib/personIdentity.ts";
 
 function dummyImage(label: string, bg: string) {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="240" height="300"><rect width="240" height="300" fill="${bg}"/><text x="120" y="150" fill="white" text-anchor="middle" font-family="Arial" font-size="18">${label}</text></svg>`;
@@ -86,7 +87,7 @@ function buildFormAndDocs(person: {
     presentPin: "700012",
     permanentAddress: "Vill + P.O. Bishnupur, Dist. South 24 Parganas",
     permanentPin: "743503",
-    aadhaar: person.aadhaar,
+    aadhaar: maskAadhaar(person.aadhaar),
     pan: person.pan,
     previousEmployer: "Eastern Security Services Pvt. Ltd.",
     uan: person.uan,
@@ -311,6 +312,7 @@ export async function clearPeopleData(prisma: PrismaClient) {
   await prisma.applicant.deleteMany();
   await prisma.applicantOtp.deleteMany();
   await prisma.candidateAccount.deleteMany();
+  await prisma.person.deleteMany();
 }
 
 export async function seedDemoPeople(prisma: PrismaClient, companyId: string, companySlug: string, prefix: string) {
@@ -325,41 +327,40 @@ export async function seedDemoPeople(prisma: PrismaClient, companyId: string, co
   const people = peopleForCompany(companySlug);
   let employeeNumber = 1;
 
-  for (const person of people) {
-    const jobRole = roles.find((role) => role.code === person.roleCode);
-    const roleCategory = jobRole?.categories.find((cat) => cat.code === person.categoryCode);
+  for (const demo of people) {
+    const jobRole = roles.find((role) => role.code === demo.roleCode);
+    const roleCategory = jobRole?.categories.find((cat) => cat.code === demo.categoryCode);
     if (!jobRole || !roleCategory) {
-      throw new Error(`Missing role ${person.roleCode}/${person.categoryCode} for ${companySlug}`);
+      throw new Error(`Missing role ${demo.roleCode}/${demo.categoryCode} for ${companySlug}`);
     }
 
-    const { formData, documents } = buildFormAndDocs(person);
+    const identity = await findOrCreatePerson(companyId, demo.aadhaar);
+    const { formData, documents } = buildFormAndDocs(demo);
     const applicant = await prisma.applicant.create({
       data: {
         companyId,
+        personId: identity.id,
         jobRoleId: jobRole.id,
         roleCategoryId: roleCategory.id,
-        fullName: person.name,
-        mobile: person.mobile,
-        email: person.email,
-        fatherOrHusband: person.fatherOrHusband,
-        dateOfBirth: new Date(person.dateOfBirth),
-        gender: person.gender,
+        fullName: demo.name,
+        mobile: demo.mobile,
+        email: demo.email,
+        fatherOrHusband: demo.fatherOrHusband,
+        dateOfBirth: new Date(demo.dateOfBirth),
+        gender: demo.gender,
         presentAddress: `${formData.presentAddress} (PIN: ${formData.presentPin})`,
         permanentAddress: `${formData.permanentAddress} (PIN: ${formData.permanentPin})`,
-        aadhaarLast4: getAadhaarLast4(person.aadhaar),
-        aadhaarHash: hashAadhaar(person.aadhaar),
-        aadhaarEncrypted: encryptText(person.aadhaar),
-        pan: person.pan,
-        armsLicenseNo: person.gunLicence,
-        exServiceNo: person.exServiceNo,
+        pan: demo.pan,
+        armsLicenseNo: demo.gunLicence,
+        exServiceNo: demo.exServiceNo,
         pvcStatus: VerificationStatus.VERIFIED,
         formData,
         documents,
-        status: person.status,
+        status: demo.status,
       },
     });
 
-    if (!person.convertToEmployee) continue;
+    if (!demo.convertToEmployee) continue;
 
     const employeeCode = `${prefix}-${String(employeeNumber).padStart(4, "0")}`;
     employeeNumber += 1;
@@ -369,29 +370,27 @@ export async function seedDemoPeople(prisma: PrismaClient, companyId: string, co
         companyId,
         employeeCode,
         applicantId: applicant.id,
+        personId: identity.id,
         jobRoleId: jobRole.id,
         roleCategoryId: roleCategory.id,
         siteId: site?.id || null,
-        fullName: person.name,
-        mobile: person.mobile,
-        email: person.email,
-        fatherOrHusband: person.fatherOrHusband,
-        dateOfBirth: new Date(person.dateOfBirth),
-        gender: person.gender,
+        fullName: demo.name,
+        mobile: demo.mobile,
+        email: demo.email,
+        fatherOrHusband: demo.fatherOrHusband,
+        dateOfBirth: new Date(demo.dateOfBirth),
+        gender: demo.gender,
         presentAddress: applicant.presentAddress,
         permanentAddress: applicant.permanentAddress,
-        skill: person.skill || SkillCategory.UNSKILLED,
-        basicRate: person.basicRate || 14000,
+        skill: demo.skill || SkillCategory.UNSKILLED,
+        basicRate: demo.basicRate || 14000,
         divisorDays: 26,
         bankAccountNo: formData.accountNo,
         bankIfsc: formData.ifsc,
         bankBranch: formData.branchName,
-        uan: person.uan === "NA" ? null : person.uan,
-        esicNo: person.esiIp === "NA" ? null : person.esiIp,
-        aadhaarLast4: applicant.aadhaarLast4,
-        aadhaarHash: applicant.aadhaarHash,
-        aadhaarEncrypted: applicant.aadhaarEncrypted,
-        pan: person.pan,
+        uan: demo.uan === "NA" ? null : demo.uan,
+        esicNo: demo.esiIp === "NA" ? null : demo.esiIp,
+        pan: demo.pan,
         status: EmployeeStatus.ACTIVE,
         joiningDate: new Date("2026-04-01"),
       },

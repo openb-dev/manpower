@@ -1,6 +1,6 @@
 import { prisma, getTenantPrisma } from "../../lib/db/index.ts";
-import { decryptText, encryptText, formatAadhaar, getAadhaarLast4, hashAadhaar, maskAadhaar } from "../../lib/crypto/index.ts";
-import { ApplicantStatus, Role, VerificationStatus } from "@prisma/client";
+import { maskAadhaar } from "../../lib/crypto/index.ts";
+import { ApplicantStatus, VerificationStatus } from "@prisma/client";
 import { z } from "zod";
 import { ApplicantSubmitSchema } from "./schema.ts";
 import { formDataWithoutFiles } from "../../lib/applicantFormFields.ts";
@@ -8,6 +8,7 @@ import { firstZodMessage } from "../../lib/publicErrors.ts";
 import type { OfficeAdmin } from "../../lib/officeAdmin.ts";
 import { formPrefillFromApplicant } from "../candidates/services.ts";
 import { allocateApplicationNo, ensureApplicantNumbers } from "../../lib/applicationNumbers.ts";
+import { aadhaarDisplayOf, ensurePeople, findOrCreatePerson } from "../../lib/personIdentity.ts";
 
 export { ensureApplicantNumbers };
 
@@ -48,9 +49,6 @@ function applicantWriteFields(input: z.infer<typeof ApplicantSubmitSchema>, form
     gender: input.gender || null,
     presentAddress: input.presentAddress.trim(),
     permanentAddress: input.permanentAddress?.trim() || null,
-    aadhaarLast4: getAadhaarLast4(input.aadhaarNumber),
-    aadhaarHash: hashAadhaar(input.aadhaarNumber),
-    aadhaarEncrypted: encryptText(input.aadhaarNumber),
     pan: input.panNumber ? input.panNumber.trim().toUpperCase() : null,
     armsLicenseNo: input.armsLicenseNo?.trim() || null,
     armsExpiryDate: input.armsExpiryDate ? new Date(input.armsExpiryDate) : null,
@@ -119,8 +117,11 @@ export async function submitApplicant(
     }
   }
 
+  await ensureApplicantNumbers(company.id);
+  await ensurePeople(company.id);
+  const person = await findOrCreatePerson(company.id, input.aadhaarNumber);
+
   // Same person may apply for more than one trade/category, but not the same post twice.
-  const aadhaarHmac = hashAadhaar(input.aadhaarNumber);
   const incomingExtra = String(
     input.formData?.otherCategory || input.formData?.gemProfile || "",
   )
@@ -129,7 +130,7 @@ export async function submitApplicant(
   const existingSameAadhaar = await prisma.applicant.findMany({
     where: {
       companyId: company.id,
-      aadhaarHash: aadhaarHmac,
+      personId: person.id,
       deletedAt: null,
       status: { in: [ApplicantStatus.NEW, ApplicantStatus.SHORTLISTED, ApplicantStatus.APPROVED] },
     },
@@ -156,12 +157,12 @@ export async function submitApplicant(
     pvcStatus = VerificationStatus.REJECTED;
   }
 
-  await ensureApplicantNumbers(company.id);
   const applicationNo = await allocateApplicationNo(company);
 
   const applicant = await prisma.applicant.create({
     data: {
       companyId: company.id,
+      personId: person.id,
       candidateAccountId: input.candidateAccountId || null,
       jobRoleId: input.jobRoleId,
       roleCategoryId: input.roleCategoryId,
@@ -173,9 +174,6 @@ export async function submitApplicant(
       gender: input.gender || null,
       presentAddress: input.presentAddress.trim(),
       permanentAddress: input.permanentAddress?.trim() || null,
-      aadhaarLast4: getAadhaarLast4(input.aadhaarNumber),
-      aadhaarHash: aadhaarHmac,
-      aadhaarEncrypted: encryptText(input.aadhaarNumber),
       pan: input.panNumber ? input.panNumber.trim().toUpperCase() : null,
       armsLicenseNo: input.armsLicenseNo?.trim() || null,
       armsExpiryDate: input.armsExpiryDate ? new Date(input.armsExpiryDate) : null,
@@ -228,6 +226,7 @@ export async function listApplicants({
 }) {
   const tenantDb = getTenantPrisma(companyId);
   await ensureApplicantNumbers(companyId);
+  await ensurePeople(companyId);
 
   const where: any = {
     deletedAt: null,
@@ -240,6 +239,7 @@ export async function listApplicants({
       { fullName: { contains: search, mode: "insensitive" } },
       { mobile: { contains: search } },
       { aadhaarLast4: { contains: search } },
+      { person: { aadhaarLast4: { contains: search } } },
       { applicationNo: { contains: search, mode: "insensitive" } },
     ];
   }
@@ -262,6 +262,7 @@ export async function listApplicants({
         jobRole: { select: { id: true, name: true, code: true } },
         roleCategory: { select: { id: true, name: true, code: true } },
         employee: { select: { id: true } },
+        person: { select: { aadhaarEncrypted: true, aadhaarLast4: true } },
       },
       orderBy: { createdAt: "desc" },
       skip: (page - 1) * limit,
@@ -270,12 +271,12 @@ export async function listApplicants({
     tenantDb.applicant.count({ where }),
   ]);
 
-  const safeItems = items.map(({ aadhaarEncrypted, aadhaarLast4, formData, ...app }) => ({
+  const safeItems = items.map(({ aadhaarEncrypted, aadhaarLast4, formData, person, ...app }) => ({
     ...app,
     applicationNo: app.applicationNo || String((formData as any)?.applicationNo || "") || null,
     officeApplicantId: String((formData as any)?.officeApplicantId || ""),
     filledByAdmin: (formData as any)?.filledByAdmin || null,
-    aadhaarDisplay: formatAadhaar(decryptText(aadhaarEncrypted) || aadhaarLast4),
+    aadhaarDisplay: aadhaarDisplayOf({ person, aadhaarEncrypted, aadhaarLast4 }),
   }));
 
   return { items: safeItems, total, page, totalPages: Math.ceil(total / limit) };
@@ -440,6 +441,7 @@ export async function getApplicantForAdminEdit({
     throw new Error("Applicant not found in this company.");
   }
   await ensureApplicantNumbers(companyId);
+  await ensurePeople(companyId);
   const row = await prisma.applicant.findFirst({
     where: { id: applicantId, companyId, deletedAt: null },
     select: {
@@ -460,6 +462,7 @@ export async function getApplicantForAdminEdit({
       armsLicenseNo: true,
       formData: true,
       documents: true,
+      person: { select: { aadhaarEncrypted: true } },
     },
   });
   if (!row) throw new Error("Applicant not found in this company.");
@@ -469,7 +472,10 @@ export async function getApplicantForAdminEdit({
     status: row.status,
     jobRoleId: row.jobRoleId,
     roleCategoryId: row.roleCategoryId,
-    prefill: formPrefillFromApplicant(row),
+    prefill: formPrefillFromApplicant({
+      ...row,
+      aadhaarEncrypted: row.person?.aadhaarEncrypted || row.aadhaarEncrypted,
+    }),
   };
 }
 
@@ -498,12 +504,13 @@ export async function updateApplicant(
   if (fillerName.length < 2) throw new Error("Please enter the filling admin name.");
   if (fillerPhone.length !== 10) throw new Error("Please enter the filling admin 10-digit phone number.");
 
-  const aadhaarHmac = hashAadhaar(input.aadhaarNumber);
+  await ensurePeople(company.id);
+  const person = await findOrCreatePerson(company.id, input.aadhaarNumber);
   const incomingExtra = extraPostKey(input.formData);
   const existingSameAadhaar = await prisma.applicant.findMany({
     where: {
       companyId: company.id,
-      aadhaarHash: aadhaarHmac,
+      personId: person.id,
       deletedAt: null,
       status: { in: [ApplicantStatus.NEW, ApplicantStatus.SHORTLISTED, ApplicantStatus.APPROVED] },
       NOT: { id: applicantId },
@@ -548,6 +555,10 @@ export async function updateApplicant(
         },
         pvcStatus,
       ),
+      personId: person.id,
+      aadhaarEncrypted: null,
+      aadhaarHash: null,
+      aadhaarLast4: null,
       documents: mergeApplicantDocuments(existing.documents, input.documents),
     },
   });

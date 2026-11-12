@@ -71,6 +71,7 @@ model Company {
   jobRoles         JobRole[]
   roleCategories   RoleCategory[]
   formDefinitions  FormDefinition[]
+  people           Person[]
   applicants       Applicant[]
   employees        Employee[]
   sites            Site[]
@@ -195,9 +196,28 @@ model ApplicantOtp {
   @@map("applicant_otps")
 }
 
+model Person {
+  id                String   @id @default(uuid())
+  companyId         String   @map("company_id")
+  aadhaarLast4      String?  @map("aadhaar_last_4")
+  aadhaarHash       String   @map("aadhaar_hash")
+  aadhaarEncrypted  String   @map("aadhaar_encrypted")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  company           Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  applicants        Applicant[]
+  employees         Employee[]
+
+  @@unique([companyId, aadhaarHash])
+  @@index([companyId])
+  @@map("people")
+}
+
 model Applicant {
   id                String          @id @default(uuid())
   companyId         String          @map("company_id")
+  personId          String?         @map("person_id")
   jobRoleId         String          @map("job_role_id")
   roleCategoryId    String          @map("role_category_id")
   fullName          String          @map("full_name")
@@ -232,6 +252,7 @@ model Applicant {
   updatedAt         DateTime        @updatedAt @map("updated_at")
 
   company           Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  person            Person?         @relation(fields: [personId], references: [id], onDelete: SetNull)
   candidateAccountId String?        @map("candidate_account_id")
   candidateAccount  CandidateAccount? @relation(fields: [candidateAccountId], references: [id], onDelete: SetNull)
   jobRole           JobRole         @relation(fields: [jobRoleId], references: [id])
@@ -243,6 +264,7 @@ model Applicant {
   @@index([companyId, status])
   @@index([companyId, mobile])
   @@index([companyId, aadhaarHash])
+  @@index([personId])
   @@index([candidateAccountId])
   @@map("applicants")
 }
@@ -303,6 +325,7 @@ model Site {
 model Employee {
   id                String          @id @default(uuid())
   companyId         String          @map("company_id")
+  personId          String?         @map("person_id")
   employeeCode      String          @unique @map("employee_code")
   applicantId       String?         @unique @map("applicant_id")
   jobRoleId         String          @map("job_role_id")
@@ -343,6 +366,7 @@ model Employee {
   updatedAt         DateTime        @updatedAt @map("updated_at")
 
   company           Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  person            Person?         @relation(fields: [personId], references: [id], onDelete: SetNull)
   applicant         Applicant?      @relation(fields: [applicantId], references: [id])
   jobRole           JobRole         @relation(fields: [jobRoleId], references: [id])
   roleCategory      RoleCategory    @relation(fields: [roleCategoryId], references: [id])
@@ -352,6 +376,7 @@ model Employee {
 
   @@index([companyId, status])
   @@index([companyId, siteId])
+  @@index([personId])
   @@map("employees")
 }
 

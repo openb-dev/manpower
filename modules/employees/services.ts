@@ -1,5 +1,5 @@
 import { prisma, getTenantPrisma } from "../../lib/db/index.ts";
-import { decryptText, formatAadhaar } from "../../lib/crypto/index.ts";
+import { aadhaarDisplayOf, ensurePeople } from "../../lib/personIdentity.ts";
 import { ApplicantStatus, EmployeeStatus, Prisma } from "@prisma/client";
 
 export async function approveApplicantAndCreateEmployee({
@@ -38,9 +38,10 @@ export async function approveApplicantAndCreateEmployee({
   const tenantDb = getTenantPrisma(companyId);
 
   // 1. Validate applicant under this company
+  await ensurePeople(companyId);
   const applicant = await tenantDb.applicant.findFirst({
     where: { id: applicantId, deletedAt: null },
-    include: { roleCategory: true },
+    include: { roleCategory: true, person: { select: { id: true } } },
   });
 
   if (!applicant) {
@@ -116,9 +117,7 @@ export async function approveApplicantAndCreateEmployee({
         bankBranch,
         uan: uan?.trim() || formData.uan || null,
         esicNo: esicNo?.trim() || formData.esiIp || null,
-        aadhaarLast4: applicant.aadhaarLast4,
-        aadhaarHash: applicant.aadhaarHash,
-        aadhaarEncrypted: applicant.aadhaarEncrypted,
+        personId: applicant.personId || applicant.person?.id || null,
         pan: applicant.pan,
         status: EmployeeStatus.ACTIVE,
       },
@@ -207,6 +206,7 @@ export async function listEmployees({
   limit?: number;
 }) {
   const tenantDb = getTenantPrisma(companyId);
+  await ensurePeople(companyId);
 
   const where: any = {
     deletedAt: null,
@@ -221,6 +221,7 @@ export async function listEmployees({
       { employeeCode: { contains: search, mode: "insensitive" } },
       { mobile: { contains: search } },
       { aadhaarLast4: { contains: search } },
+      { person: { aadhaarLast4: { contains: search } } },
     ];
   }
 
@@ -248,6 +249,7 @@ export async function listEmployees({
         roleCategory: { select: { id: true, name: true, code: true } },
         site: { select: { id: true, name: true, code: true } },
         documents: { select: { id: true, docType: true, fileName: true } },
+        person: { select: { aadhaarEncrypted: true, aadhaarLast4: true } },
       },
       orderBy: { employeeCode: "asc" },
       skip: (page - 1) * limit,
@@ -256,12 +258,13 @@ export async function listEmployees({
     tenantDb.employee.count({ where }),
   ]);
 
-  const safeItems = items.map(({ aadhaarEncrypted, ...emp }) => ({
-    ...emp,
-    aadhaarEncrypted: undefined,
-    aadhaarHash: undefined,
-    aadhaarDisplay: formatAadhaar(decryptText(aadhaarEncrypted) || emp.aadhaarLast4),
-  }));
+  const safeItems = items.map(({ aadhaarEncrypted, person, ...emp }) => {
+    const { aadhaarLast4, ...rest } = emp;
+    return {
+      ...rest,
+      aadhaarDisplay: aadhaarDisplayOf({ person, aadhaarEncrypted, aadhaarLast4 }),
+    };
+  });
 
   return { items: safeItems, total, page, totalPages: Math.ceil(total / limit) };
 }

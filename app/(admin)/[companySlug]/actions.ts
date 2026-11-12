@@ -2,7 +2,7 @@
 
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { decryptText, formatAadhaar } from "@/lib/crypto";
+import { aadhaarDisplayOf, ensurePeople } from "@/lib/personIdentity";
 import { ApplicantStatus, AttendanceStatus, Role } from "@prisma/client";
 import { listApplicants } from "@/modules/applicants/services";
 import { ensureApplicantNumbers } from "@/lib/applicationNumbers";
@@ -85,12 +85,14 @@ export async function loadApplicantBook(
 export async function loadApplicantDetail(companySlug: string, applicantId: string) {
   const { company } = await requireCompany(companySlug);
   await ensureApplicantNumbers(company.id);
+  await ensurePeople(company.id);
   const applicant = await prisma.applicant.findFirst({
     where: { id: applicantId, companyId: company.id, deletedAt: null },
     include: {
       jobRole: { select: { id: true, name: true, code: true } },
       roleCategory: { select: { id: true, name: true, code: true } },
       employee: { select: { id: true, employeeCode: true } },
+      person: { select: { aadhaarEncrypted: true, aadhaarLast4: true } },
       remarks: {
         include: { user: { select: { name: true, email: true } } },
         orderBy: { createdAt: "desc" },
@@ -98,8 +100,8 @@ export async function loadApplicantDetail(companySlug: string, applicantId: stri
     },
   });
   if (!applicant) throw new Error("Applicant not found in this company.");
-  const { aadhaarEncrypted, aadhaarHash: _aadhaarHash, ...safe } = applicant;
-  const aadhaarDisplay = formatAadhaar(decryptText(aadhaarEncrypted) || applicant.aadhaarLast4);
+  const { aadhaarEncrypted, aadhaarHash: _aadhaarHash, person, ...safe } = applicant;
+  const aadhaarDisplay = aadhaarDisplayOf({ person, aadhaarEncrypted, aadhaarLast4: applicant.aadhaarLast4 });
   const formData = {
     ...((revealFormAadhaar(applicant.formData, aadhaarDisplay) as Record<string, unknown>) || {}),
     applicationNo: applicant.applicationNo || (applicant.formData as any)?.applicationNo || "",
@@ -505,18 +507,20 @@ export async function loadReportPerson(
   const { company } = await requireCompany(companySlug);
 
   if (kind === "applicant") {
+    await ensurePeople(company.id);
     const applicant = await prisma.applicant.findFirst({
       where: { id, companyId: company.id, deletedAt: null },
       include: {
         jobRole: { select: { name: true } },
         roleCategory: { select: { name: true } },
         employee: { select: { id: true, employeeCode: true } },
+        person: { select: { aadhaarEncrypted: true, aadhaarLast4: true } },
       },
     });
     if (!applicant) throw new Error("Applicant not found in this company.");
 
-    const { aadhaarEncrypted, aadhaarHash: _aadhaarHash, ...safe } = applicant;
-    const aadhaarDisplay = formatAadhaar(decryptText(aadhaarEncrypted) || applicant.aadhaarLast4);
+    const { aadhaarEncrypted, aadhaarHash: _aadhaarHash, person, ...safe } = applicant;
+    const aadhaarDisplay = aadhaarDisplayOf({ person, aadhaarEncrypted, aadhaarLast4: applicant.aadhaarLast4 });
     return toClientJson({
       kind: "applicant" as const,
       ...safe,
@@ -525,6 +529,7 @@ export async function loadReportPerson(
     });
   }
 
+  await ensurePeople(company.id);
   const employee = await prisma.employee.findFirst({
     where: { id, companyId: company.id, deletedAt: null },
     include: {
@@ -532,6 +537,7 @@ export async function loadReportPerson(
       roleCategory: { select: { name: true } },
       site: { select: { name: true } },
       documents: true,
+      person: { select: { aadhaarEncrypted: true, aadhaarLast4: true } },
       applicant: {
         select: {
           formData: true,
@@ -551,8 +557,8 @@ export async function loadReportPerson(
   });
   if (!employee) throw new Error("Employee not found in this company.");
 
-  const { aadhaarEncrypted, aadhaarHash: _aadhaarHash, ...safe } = employee;
-  const aadhaarDisplay = formatAadhaar(decryptText(aadhaarEncrypted) || employee.aadhaarLast4);
+  const { aadhaarEncrypted, aadhaarHash: _aadhaarHash, person, ...safe } = employee;
+  const aadhaarDisplay = aadhaarDisplayOf({ person, aadhaarEncrypted, aadhaarLast4: employee.aadhaarLast4 });
   return toClientJson({
     kind: "employee" as const,
     ...safe,

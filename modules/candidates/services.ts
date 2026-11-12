@@ -370,8 +370,12 @@ export async function getCandidatePrefill({
       armsLicenseNo: true,
       formData: true,
       documents: true,
+      person: { select: { aadhaarEncrypted: true } },
     },
   });
   if (!row) return null;
-  return formPrefillFromApplicant(row);
+  return formPrefillFromApplicant({
+    ...row,
+    aadhaarEncrypted: row.person?.aadhaarEncrypted || row.aadhaarEncrypted,
+  });
 }

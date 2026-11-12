@@ -1560,9 +1560,8 @@ function ApplyPageInner() {
           {officeAdmin ? (
             <div className="flex items-center gap-3 text-xs">
               <div className="hidden sm:block text-right">
-                <div className="font-bold text-indigo-900">Form fill up by admin</div>
-                <div className="text-[11px] text-indigo-700 font-semibold">
-                  {adminFiller.confirmed ? adminFiller.name : officeAdmin.name}
+                <div className="font-bold text-indigo-900">
+                  Form fill up by admin — {adminFiller.confirmed ? adminFiller.name : officeAdmin.name}
                 </div>
                 <div className="text-[11px] text-slate-500 font-mono">
                   {adminFiller.confirmed && adminFiller.phone
@@ -2104,7 +2103,9 @@ function ApplyPageInner() {
               className="p-6 sm:p-8 space-y-5"
             >
               <div className="rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-indigo-950">
-                <div className="text-[10px] font-bold uppercase tracking-wide">Form fill up by admin</div>
+                <div className="text-[10px] font-bold uppercase tracking-wide">
+                  Form fill up by admin — {adminFiller.name || officeAdmin.name}
+                </div>
                 <div className="text-xs mt-1">Logged in as {officeAdmin.email || officeAdmin.name}</div>
               </div>
               <div>
@@ -2168,7 +2169,9 @@ function ApplyPageInner() {
                 <div>
                   {officeAdmin ? (
                     <div className="rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 mb-3 text-indigo-950">
-                      <div className="text-[10px] font-bold uppercase tracking-wide">Form fill up by admin</div>
+                      <div className="text-[10px] font-bold uppercase tracking-wide">
+                        Form fill up by admin — {adminFiller.name || officeAdmin.name}
+                      </div>
                       <div className="text-sm font-semibold mt-0.5">{adminFiller.name || officeAdmin.name}</div>
                       <div className="text-xs font-mono mt-1">Phone: {adminFiller.phone || "—"}</div>
                       <div className="text-xs font-mono">Email: {officeAdmin.email || "—"}</div>
@@ -2455,7 +2458,9 @@ function ApplyPageInner() {
 
                 {officeAdmin ? (
                   <div className="rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-indigo-950">
-                    <div className="text-[10px] font-bold uppercase tracking-wide">Form fill up by admin</div>
+                    <div className="text-[10px] font-bold uppercase tracking-wide">
+                      Form fill up by admin — {adminFiller.name || officeAdmin.name}
+                    </div>
                     <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4 text-xs mt-2">
                       <div>
                         <span className="block uppercase font-bold text-[10px] text-indigo-700">Admin name</span>
@@ -3796,7 +3801,9 @@ function ApplyPageInner() {
                 </div>
                 {officeAdmin ? (
                   <div className="p-4 bg-indigo-50 border border-indigo-200 rounded-xl text-left text-xs space-y-1 max-w-sm w-full mx-auto">
-                    <div className="text-[10px] font-bold uppercase tracking-wide text-indigo-800">Form filled up by admin</div>
+                    <div className="text-[10px] font-bold uppercase tracking-wide text-indigo-800">
+                      Form filled up by admin — {adminFiller.name || officeAdmin.name}
+                    </div>
                     <div className="font-semibold text-slate-900">{adminFiller.name || officeAdmin.name}</div>
                     <div className="font-mono text-slate-700">Phone: {adminFiller.phone || "—"}</div>
                     <div className="font-mono text-slate-700">Email: {officeAdmin.email || "—"}</div>

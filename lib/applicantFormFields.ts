@@ -119,7 +119,7 @@ export function filledByAdminInfo(person: any): FilledByAdmin | null {
   const email = String(raw.email || "").trim();
   const name = String(raw.name || "").trim();
   const phone = String(raw.phone || "").replace(/\D/g, "").slice(-10);
-  if (!userId && !email) return null;
+  if (!userId && !email && !name) return null;
   return {
     userId,
     name: name || "Admin",
@@ -127,6 +127,12 @@ export function filledByAdminInfo(person: any): FilledByAdmin | null {
     phone,
     filledAt: String(raw.filledAt || ""),
   };
+}
+
+export function filledByAdminLine(person: any, fallbackName = "") {
+  const info = filledByAdminInfo(person);
+  const name = String(info?.name || fallbackName || "").trim();
+  return name ? `Form filled up by admin — ${name}` : "Form filled up by admin";
 }
 
 export function wantsBankUpload(form: Record<string, any> | null | undefined) {

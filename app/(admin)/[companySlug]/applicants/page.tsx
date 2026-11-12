@@ -8,7 +8,7 @@ import { statusLabel } from "@/components/admin/SimpleGuide";
 import { loadApplicantBook, loadApplicantDetail } from "../actions";
 import { downloadPaperFormPdf, paperFormFileName, printPaperFormPdf } from "@/lib/downloadPaperFormPdf";
 import { friendlyPublicError, readApiJson } from "@/lib/publicErrors";
-import { applicantPhotoUrl, applicationDisplayId, filledByAdminInfo, indianAddressLine } from "@/lib/applicantFormFields";
+import { applicantPhotoUrl, applicationDisplayId, filledByAdminInfo, filledByAdminLine, indianAddressLine } from "@/lib/applicantFormFields";
 import AttachedDocuments from "@/components/admin/AttachedDocuments";
 
 const ApplicantPaperForm = dynamic(
@@ -507,7 +507,7 @@ export default function ApplicantBookPage() {
                       {a.fullName}
                       {filledByAdminInfo(a) ? (
                         <span className="block text-[10px] font-bold uppercase tracking-wide text-indigo-700 mt-0.5">
-                          Form filled up by admin
+                          {filledByAdminLine(a)}
                         </span>
                       ) : null}
                     </td>
@@ -624,7 +624,7 @@ export default function ApplicantBookPage() {
                     </span>
                     {filledByAdminInfo(selectedApplicant) ? (
                       <span className="px-2 py-0.5 rounded font-bold bg-indigo-100 text-indigo-800">
-                        Form filled up by admin
+                        {filledByAdminLine(selectedApplicant)}
                       </span>
                     ) : null}
                   </div>

@@ -561,6 +561,7 @@ export async function buildPaperFormPdf(
   familyMark("No", !bankYes(fd), left + 66);
   y += 7;
   if (bankYes(fd)) {
+    y = lineFill("Bank Name", text(fd.bankName), y);
     y = rowFields(
       [
         { label: "SB A/C No.", value: text(person?.bankAccountNo || fd.accountNo) },
@@ -568,7 +569,6 @@ export async function buildPaperFormPdf(
       ],
       y,
     );
-    y = lineFill("Bank Name", text(fd.bankName), y);
     y = lineFill("Branch name & address", text(person?.bankBranch || fd.branchName), y);
   }
   footer("Full Signature of the Applicant");

@@ -3495,7 +3495,7 @@ function ApplyPageInner() {
                   </p>
                   {form.uploadBankDetails === "YES" ? (
                     <div className="grid gap-4 sm:grid-cols-2 p-4 bg-slate-50 border border-slate-200 rounded-xl">
-                      <div>
+                      <div className="sm:col-span-2">
                         <label className="block text-xs font-bold text-slate-700 mb-1">
                           Bank name <span className="text-red-500">*</span>
                         </label>
@@ -3523,7 +3523,7 @@ function ApplyPageInner() {
                       </div>
                       <div>
                         <label className="block text-xs font-bold text-slate-700 mb-1">
-                          IFSC <span className="text-red-500">*</span>
+                          IFSC code <span className="text-red-500">*</span>
                         </label>
                         <input
                           required
@@ -3534,7 +3534,7 @@ function ApplyPageInner() {
                           placeholder="e.g. SBIN0001234"
                         />
                       </div>
-                      <div>
+                      <div className="sm:col-span-2">
                         <label className="block text-xs font-bold text-slate-700 mb-1">
                           Branch name &amp; address <span className="text-red-500">*</span>
                         </label>

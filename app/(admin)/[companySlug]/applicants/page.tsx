@@ -1269,7 +1269,7 @@ export default function ApplicantBookPage() {
                   Bank details <span className="text-red-600">*</span>
                 </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
+                  <div className="sm:col-span-2">
                     <label className="block text-xs font-semibold text-slate-700 mb-1">
                       Bank name <span className="text-red-600">*</span>
                     </label>
@@ -1297,7 +1297,7 @@ export default function ApplicantBookPage() {
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      IFSC <span className="text-red-600">*</span>
+                      IFSC code <span className="text-red-600">*</span>
                     </label>
                     <input
                       type="text"
@@ -1308,7 +1308,7 @@ export default function ApplicantBookPage() {
                       placeholder="e.g. SBIN0001234"
                     />
                   </div>
-                  <div>
+                  <div className="sm:col-span-2">
                     <label className="block text-xs font-semibold text-slate-700 mb-1">
                       Branch name &amp; address <span className="text-red-600">*</span>
                     </label>

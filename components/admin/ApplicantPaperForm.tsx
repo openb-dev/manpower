@@ -235,11 +235,11 @@ function BankFields({
 }) {
   return (
     <div className="mt-1 space-y-1">
+      <LineField label="Bank Name" value={bankName} />
       <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-x-4">
         <LineField label="SB A/C No." value={account} />
         <LineField label="IFSC" value={ifsc} />
       </div>
-      <LineField label="Bank Name" value={bankName} />
       <LineField label="Branch name & address" value={branch} />
     </div>
   );

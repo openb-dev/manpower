@@ -2,7 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requestApplicantOtp, verifyApplicantOtp } from "@/modules/otp/services";
 import { getApplicantForAdminEdit, submitApplicant, updateApplicant } from "@/modules/applicants/services";
-import { registerCandidate, loginCandidate, getCandidateApplications, getCandidatePrefill } from "@/modules/candidates/services";
+import {
+  registerCandidate,
+  loginCandidate,
+  requestCandidatePasswordReset,
+  resetCandidatePassword,
+  getCandidateApplications,
+  getCandidatePrefill,
+} from "@/modules/candidates/services";
 import { publicCatchMessage } from "@/lib/publicErrors";
 import { currentOfficeAdmin } from "@/lib/officeAdmin";
 import { applyRolesForForm, ensureApplyRoles } from "@/lib/applyRoles";
@@ -183,6 +190,37 @@ export async function POST(
       const candidate = await loginCandidate({
         companySlug,
         email: body.email,
+        password: body.password,
+      });
+      return withCandidateCookie(
+        NextResponse.json({ success: true, candidate }),
+        candidate,
+        companySlug,
+      );
+    }
+
+    if (body.action === "REQUEST_PASSWORD_RESET") {
+      const result = await requestCandidatePasswordReset({
+        companySlug,
+        email: body.email,
+        ipAddress: request.headers.get("x-forwarded-for") || undefined,
+      });
+      const isProduction = process.env.NODE_ENV === "production";
+      return NextResponse.json({
+        success: true,
+        delivered: result.delivered,
+        provider: result.provider,
+        channel: "EMAIL",
+        expiresAt: result.expiresAt,
+        trialCode: isProduction ? undefined : result.trialCode,
+      });
+    }
+
+    if (body.action === "RESET_CANDIDATE_PASSWORD") {
+      const candidate = await resetCandidatePassword({
+        companySlug,
+        email: body.email,
+        otpCode: body.otpCode || body.code,
         password: body.password,
       });
       return withCandidateCookie(

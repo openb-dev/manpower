@@ -143,6 +143,109 @@ export async function loginCandidate({
   };
 }
 
+export async function requestCandidatePasswordReset({
+  companySlug,
+  email,
+  ipAddress,
+}: {
+  companySlug: string;
+  email: string;
+  ipAddress?: string;
+}) {
+  const company = await prisma.company.findUnique({
+    where: { slug: companySlug },
+  });
+  if (!company) throw new Error("Company not found.");
+
+  const cleanEmail = normalizeOtpIdentifier(email, "EMAIL");
+  if (!cleanEmail || !cleanEmail.includes("@")) {
+    throw new Error("Please enter a valid email address.");
+  }
+
+  const candidate = await prisma.candidateAccount.findUnique({
+    where: {
+      companyId_email: {
+        companyId: company.id,
+        email: cleanEmail,
+      },
+    },
+    select: { id: true },
+  });
+  if (!candidate) {
+    throw new Error("No candidate account found with this email. Please register.");
+  }
+
+  return requestApplicantOtp({
+    companySlug,
+    identifier: cleanEmail,
+    channel: "EMAIL",
+    ipAddress,
+    purpose: "RESET",
+  });
+}
+
+export async function resetCandidatePassword({
+  companySlug,
+  email,
+  otpCode,
+  password,
+}: {
+  companySlug: string;
+  email: string;
+  otpCode: string;
+  password: string;
+}) {
+  const company = await prisma.company.findUnique({
+    where: { slug: companySlug },
+  });
+  if (!company) throw new Error("Company not found.");
+
+  const cleanEmail = normalizeOtpIdentifier(email, "EMAIL");
+  if (!cleanEmail || !cleanEmail.includes("@")) {
+    throw new Error("Please enter a valid email address.");
+  }
+  if (!password || password.length < 6) {
+    throw new Error("Password must be at least 6 characters.");
+  }
+  if (!otpCode || String(otpCode).replace(/\D/g, "").length !== 6) {
+    throw new Error("Please enter the 6-digit code sent to your email.");
+  }
+
+  const candidate = await prisma.candidateAccount.findUnique({
+    where: {
+      companyId_email: {
+        companyId: company.id,
+        email: cleanEmail,
+      },
+    },
+    select: {
+      id: true,
+      companyId: true,
+      fullName: true,
+      email: true,
+      whatsappNo: true,
+      otpVerifiedVia: true,
+    },
+  });
+  if (!candidate) {
+    throw new Error("No candidate account found with this email. Please register.");
+  }
+
+  await verifyApplicantOtp({
+    companySlug,
+    identifier: cleanEmail,
+    code: String(otpCode).trim(),
+  });
+
+  const passwordHash = await bcrypt.hash(password, 10);
+  await prisma.candidateAccount.update({
+    where: { id: candidate.id },
+    data: { passwordHash },
+  });
+
+  return candidate;
+}
+
 export async function getCandidateApplications({
   companySlug,
   candidateId,

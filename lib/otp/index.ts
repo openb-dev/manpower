@@ -8,13 +8,33 @@ export interface OtpSendResult {
   provider?: string;
 }
 
+export type OtpPurpose = "VERIFY" | "RESET";
+
 export interface OtpProvider {
   sendOtp(
     identifier: string,
     code: string,
     companyName: string,
-    channel?: "EMAIL" | "WHATSAPP"
+    channel?: "EMAIL" | "WHATSAPP",
+    purpose?: OtpPurpose
   ): Promise<OtpSendResult>;
+}
+
+function emailCopy(companyName: string, code: string, purpose?: OtpPurpose) {
+  if (purpose === "RESET") {
+    return {
+      subject: `${code} is your ${companyName} password reset code`,
+      heading: `${companyName} Password Reset`,
+      intro: "Please enter this 6-digit code to set a new password for your candidate account:",
+      text: `Your ${companyName} password reset code is: ${code}. Valid for 5 minutes. Do not share this OTP with anyone.`,
+    };
+  }
+  return {
+    subject: `${code} is your ${companyName} verification code`,
+    heading: `${companyName} Verification Code`,
+    intro: "Please enter the following 6-digit verification code to authenticate your candidate account:",
+    text: `Your ${companyName} verification code is: ${code}. Valid for 5 minutes. Do not share this OTP with anyone.`,
+  };
 }
 
 export interface DispatchResult {
@@ -31,7 +51,8 @@ export interface DispatchResult {
 async function sendSmtpEmail(
   to: string,
   code: string,
-  companyName: string
+  companyName: string,
+  purpose?: OtpPurpose
 ): Promise<DispatchResult> {
   const host = process.env.SMTP_HOST;
   const user = process.env.SMTP_USER;
@@ -56,20 +77,21 @@ async function sendSmtpEmail(
       auth: { user, pass },
     });
 
+    const copy = emailCopy(companyName, code, purpose);
     const info = await transporter.sendMail({
       from,
       to,
-      subject: `${code} is your ${companyName} verification code`,
-      text: `Your ${companyName} verification code is: ${code}. Valid for 5 minutes. Do not share this OTP with anyone.`,
+      subject: copy.subject,
+      text: copy.text,
       html: `
         <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 520px; margin: 0 auto; padding: 32px 24px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px;">
           <div style="border-bottom: 1px solid #f1f5f9; padding-bottom: 16px; margin-bottom: 24px;">
             <div style="display: inline-block; background: #2563eb; color: #ffffff; font-weight: 900; font-size: 14px; padding: 6px 12px; border-radius: 8px;">NK</div>
-            <h2 style="margin: 12px 0 4px; font-size: 20px; font-weight: 700; color: #0f172a;">${companyName} Verification Code</h2>
+            <h2 style="margin: 12px 0 4px; font-size: 20px; font-weight: 700; color: #0f172a;">${copy.heading}</h2>
             <p style="margin: 0; font-size: 13px; color: #64748b;">Candidate Recruitment & Onboarding Portal</p>
           </div>
           <p style="font-size: 14px; color: #334155; line-height: 1.5; margin-bottom: 20px;">
-            Please enter the following 6-digit verification code to authenticate your candidate account:
+            ${copy.intro}
           </p>
           <div style="text-align: center; margin: 28px 0;">
             <div style="display: inline-block; font-family: monospace; font-size: 36px; font-weight: 800; letter-spacing: 8px; color: #1e3a8a; background: #eff6ff; border: 1px solid #bfdbfe; padding: 14px 28px; border-radius: 12px;">
@@ -95,7 +117,8 @@ async function sendSmtpEmail(
 async function sendResendEmail(
   to: string,
   code: string,
-  companyName: string
+  companyName: string,
+  purpose?: OtpPurpose
 ): Promise<DispatchResult> {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) {
@@ -115,11 +138,11 @@ async function sendResendEmail(
       body: JSON.stringify({
         from,
         to: [to],
-        subject: `${code} is your ${companyName} verification code`,
+        subject: emailCopy(companyName, code, purpose).subject,
         html: `
           <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 520px; margin: 0 auto; padding: 32px 24px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px;">
-            <h2 style="margin: 0 0 16px; font-size: 20px; font-weight: 700; color: #0f172a;">${companyName} Verification Code</h2>
-            <p style="font-size: 14px; color: #334155; line-height: 1.5;">Your 6-digit authentication code is:</p>
+            <h2 style="margin: 0 0 16px; font-size: 20px; font-weight: 700; color: #0f172a;">${emailCopy(companyName, code, purpose).heading}</h2>
+            <p style="font-size: 14px; color: #334155; line-height: 1.5;">${emailCopy(companyName, code, purpose).intro}</p>
             <div style="text-align: center; margin: 24px 0;">
               <div style="display: inline-block; font-family: monospace; font-size: 36px; font-weight: 800; letter-spacing: 8px; color: #1e3a8a; background: #eff6ff; border: 1px solid #bfdbfe; padding: 14px 28px; border-radius: 12px;">
                 ${code}
@@ -144,7 +167,8 @@ async function sendResendEmail(
 async function sendSendGridEmail(
   to: string,
   code: string,
-  companyName: string
+  companyName: string,
+  purpose?: OtpPurpose
 ): Promise<DispatchResult> {
   const apiKey = process.env.SENDGRID_API_KEY;
   if (!apiKey) {
@@ -163,11 +187,11 @@ async function sendSendGridEmail(
       body: JSON.stringify({
         personalizations: [{ to: [{ email: to }] }],
         from: { email: fromEmail, name: companyName },
-        subject: `${code} is your ${companyName} verification code`,
+        subject: emailCopy(companyName, code, purpose).subject,
         content: [
           {
             type: "text/plain",
-            value: `Your ${companyName} verification code is: ${code}. Valid for 5 minutes.`,
+            value: emailCopy(companyName, code, purpose).text,
           },
         ],
       }),
@@ -514,14 +538,15 @@ export class RealIntegratedOtpProvider implements OtpProvider {
     identifier: string,
     code: string,
     companyName: string,
-    channel: "EMAIL" | "WHATSAPP" = "WHATSAPP"
+    channel: "EMAIL" | "WHATSAPP" = "WHATSAPP",
+    purpose: OtpPurpose = "VERIFY"
   ): Promise<OtpSendResult> {
     const isEmail = channel === "EMAIL" || identifier.includes("@");
     const failures: string[] = [];
 
     if (isEmail) {
       if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
-        const result = await sendSmtpEmail(identifier, code, companyName);
+        const result = await sendSmtpEmail(identifier, code, companyName, purpose);
         if (result.success) {
           console.log(`[EMAIL DISPATCH] Sent OTP to ${identifier} via SMTP (${result.messageId})`);
           return ok(result);
@@ -530,7 +555,7 @@ export class RealIntegratedOtpProvider implements OtpProvider {
       }
 
       if (process.env.RESEND_API_KEY) {
-        const result = await sendResendEmail(identifier, code, companyName);
+        const result = await sendResendEmail(identifier, code, companyName, purpose);
         if (result.success) {
           console.log(`[EMAIL DISPATCH] Sent OTP to ${identifier} via Resend (${result.messageId})`);
           return ok(result);
@@ -539,7 +564,7 @@ export class RealIntegratedOtpProvider implements OtpProvider {
       }
 
       if (process.env.SENDGRID_API_KEY) {
-        const result = await sendSendGridEmail(identifier, code, companyName);
+        const result = await sendSendGridEmail(identifier, code, companyName, purpose);
         if (result.success) {
           console.log(`[EMAIL DISPATCH] Sent OTP to ${identifier} via SendGrid (${result.messageId})`);
           return ok(result);
@@ -640,7 +665,8 @@ export class ConsoleOtpProvider implements OtpProvider {
     identifier: string,
     code: string,
     companyName: string,
-    channel: "EMAIL" | "WHATSAPP" = "WHATSAPP"
+    channel: "EMAIL" | "WHATSAPP" = "WHATSAPP",
+    _purpose: OtpPurpose = "VERIFY"
   ): Promise<OtpSendResult> {
     console.log(
       `[OTP DISPATCH] To: ${identifier} | Company: ${companyName} | Code: ${code} (Expires in 5m) [Via ${channel}]`

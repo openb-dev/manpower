@@ -13,9 +13,10 @@ export interface RequestOtpParams {
   identifier: string; // Mobile or Email
   channel?: "EMAIL" | "WHATSAPP";
   ipAddress?: string;
+  purpose?: "VERIFY" | "RESET";
 }
 
-export async function requestApplicantOtp({ companySlug, identifier, channel, ipAddress }: RequestOtpParams) {
+export async function requestApplicantOtp({ companySlug, identifier, channel, ipAddress, purpose }: RequestOtpParams) {
   const company = await prisma.company.findUnique({
     where: { slug: companySlug },
   });
@@ -62,7 +63,7 @@ export async function requestApplicantOtp({ companySlug, identifier, channel, ip
   });
 
   const provider = ProviderRegistry.getProvider();
-  const dispatch = await provider.sendOtp(cleanId, plainOtp, company.shortName, chosenChannel);
+  const dispatch = await provider.sendOtp(cleanId, plainOtp, company.shortName, chosenChannel, purpose || "VERIFY");
 
   if (!dispatch.success) {
     throw new Error("The verification code could not be sent. Please try again.");

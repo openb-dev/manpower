@@ -510,7 +510,7 @@ function ApplyPageInner() {
   const [officeAdmin, setOfficeAdmin] = useState<{ id: string; name: string; email: string } | null>(null);
   const [officeAdminChecked, setOfficeAdminChecked] = useState(false);
   const [adminFiller, setAdminFiller] = useState({ name: "", phone: "", confirmed: false });
-  const [authTab, setAuthTab] = useState<"REGISTER" | "LOGIN">("REGISTER");
+  const [authTab, setAuthTab] = useState<"REGISTER" | "LOGIN" | "FORGOT">("REGISTER");
 
   // Registration Form State
   const [regFullName, setRegFullName] = useState("");
@@ -527,6 +527,12 @@ function ApplyPageInner() {
   // Login Form State
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
+  const [resetEmail, setResetEmail] = useState("");
+  const [resetOtpCode, setResetOtpCode] = useState("");
+  const [resetPassword, setResetPassword] = useState("");
+  const [resetConfirmPassword, setResetConfirmPassword] = useState("");
+  const [resetOtpSent, setResetOtpSent] = useState(false);
+  const [resetCountdown, setResetCountdown] = useState(0);
 
   // Application Steps
   const [step, setStep] = useState<"ROLE" | "FORM" | "SUCCESS">("ROLE");
@@ -711,6 +717,12 @@ function ApplyPageInner() {
     return () => clearInterval(timer);
   }, [otpCountdown]);
 
+  useEffect(() => {
+    if (resetCountdown <= 0) return;
+    const timer = setInterval(() => setResetCountdown((prev) => prev - 1), 1000);
+    return () => clearInterval(timer);
+  }, [resetCountdown]);
+
   // When candidate logs in or updates, sync name & mobile
   useEffect(() => {
     if (candidate) {
@@ -877,6 +889,101 @@ function ApplyPageInner() {
       setCandidate(session);
       await loadPrefill(session);
       setSuccessMsg("Signed in successfully!");
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setAuthLoading(false);
+    }
+  }
+
+  async function handleSendResetOtp() {
+    setError("");
+    setSuccessMsg("");
+    const email = resetEmail.trim().toLowerCase();
+    if (!email || !email.includes("@")) {
+      setError("Please enter the email used to register.");
+      return;
+    }
+    setAuthLoading(true);
+    try {
+      const res = await fetch(`/api/apply/${companySlug}`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "REQUEST_PASSWORD_RESET",
+          email,
+        }),
+      });
+      const data = await readApiJson(res);
+      if (!res.ok) throw new Error(data.error || "Could not send the verification code. Please try again.");
+      setResetOtpSent(true);
+      setResetCountdown(60);
+      if (data.trialCode) {
+        setResetOtpCode(data.trialCode);
+        setSuccessMsg(`No email service is set on this computer. Test code: ${data.trialCode}`);
+      } else if (data.delivered) {
+        setSuccessMsg(`Code sent to ${email}. Open your Gmail inbox and enter it below.`);
+      } else {
+        setSuccessMsg("Enter the 6-digit code sent to your email.");
+      }
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setAuthLoading(false);
+    }
+  }
+
+  async function handleResetPassword(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+    setSuccessMsg("");
+    const email = resetEmail.trim().toLowerCase();
+    if (!email || !email.includes("@")) {
+      setError("Please enter the email used to register.");
+      return;
+    }
+    if (!resetOtpSent) {
+      setError("Please send the email verification code first.");
+      return;
+    }
+    if (!resetOtpCode || resetOtpCode.length !== 6) {
+      setError("Please enter the 6-digit code sent to your email.");
+      return;
+    }
+    if (resetPassword.length < 6) {
+      setError("Password must be at least 6 characters.");
+      return;
+    }
+    if (resetPassword !== resetConfirmPassword) {
+      setError("Passwords do not match.");
+      return;
+    }
+    setAuthLoading(true);
+    try {
+      const res = await fetch(`/api/apply/${companySlug}`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "RESET_CANDIDATE_PASSWORD",
+          email,
+          otpCode: resetOtpCode,
+          password: resetPassword,
+        }),
+      });
+      const data = await readApiJson(res);
+      if (!res.ok) throw new Error(data.error || "Password could not be changed. Please try again.");
+      const session: CandidateSession = data.candidate;
+      setCandidate(session);
+      setLoginEmail(email);
+      setLoginPassword("");
+      setResetPassword("");
+      setResetConfirmPassword("");
+      setResetOtpCode("");
+      setResetOtpSent(false);
+      await loadPrefill(session);
+      setSuccessMsg("Password updated. You are signed in.");
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -1492,7 +1599,7 @@ function ApplyPageInner() {
                   setError("");
                 }}
                 className={`py-3.5 text-center transition border-b-2 ${
-                  authTab === "LOGIN"
+                  authTab === "LOGIN" || authTab === "FORGOT"
                     ? "border-blue-600 text-blue-700 bg-white"
                     : "border-transparent hover:text-slate-900"
                 }`}
@@ -1758,6 +1865,24 @@ function ApplyPageInner() {
                       onChange={(e) => setLoginPassword(e.target.value)}
                       className="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
+                    <div className="mt-2 text-right">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAuthTab("FORGOT");
+                          setResetEmail(loginEmail);
+                          setResetOtpCode("");
+                          setResetPassword("");
+                          setResetConfirmPassword("");
+                          setResetOtpSent(false);
+                          setError("");
+                          setSuccessMsg("");
+                        }}
+                        className="text-xs font-semibold text-blue-700 hover:text-blue-900"
+                      >
+                        Forgot password?
+                      </button>
+                    </div>
                   </div>
                 </div>
 
@@ -1768,6 +1893,120 @@ function ApplyPageInner() {
                 >
                   <span>{authLoading ? "Signing In..." : "Sign In & Proceed"}</span>
                   <span>→</span>
+                </button>
+              </form>
+            )}
+
+            {authTab === "FORGOT" && (
+              <form onSubmit={handleResetPassword} className="p-6 sm:p-8 space-y-5">
+                <div>
+                  <h2 className="text-lg font-bold text-slate-900">Set a new password</h2>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    We will send a 6-digit code to your registered email (Gmail inbox). Enter that code, then type a new password.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                    Registered email *
+                  </label>
+                  <input
+                    required
+                    type="email"
+                    placeholder="e.g. ramesh@gmail.com"
+                    value={resetEmail}
+                    onChange={(e) => setResetEmail(e.target.value)}
+                    className="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                      <div className="text-xs font-bold text-slate-800">Email verification</div>
+                      <div className="text-[11px] text-slate-500">
+                        {resetOtpSent
+                          ? `Code sent to ${resetEmail}. Check Gmail (and Spam).`
+                          : "Click Send code to receive the 6-digit email code."}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={authLoading || resetCountdown > 0}
+                      onClick={handleSendResetOtp}
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-bold rounded-lg shadow-xs whitespace-nowrap transition"
+                    >
+                      {resetCountdown > 0
+                        ? `Resend in ${resetCountdown}s`
+                        : resetOtpSent
+                        ? "Resend code"
+                        : "Send code"}
+                    </button>
+                  </div>
+                  {resetOtpSent && (
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                        6-digit email code *
+                      </label>
+                      <input
+                        required
+                        type="text"
+                        inputMode="numeric"
+                        maxLength={6}
+                        placeholder="• • • • • •"
+                        value={resetOtpCode}
+                        onChange={(e) => setResetOtpCode(e.target.value.replace(/\D/g, ""))}
+                        className="w-full sm:w-48 px-3.5 py-2.5 border border-slate-300 rounded-lg text-lg text-center tracking-widest font-mono font-bold bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                    New password *
+                  </label>
+                  <input
+                    required
+                    type="password"
+                    placeholder="At least 6 characters"
+                    value={resetPassword}
+                    onChange={(e) => setResetPassword(e.target.value)}
+                    className="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                    Confirm new password *
+                  </label>
+                  <input
+                    required
+                    type="password"
+                    placeholder="Type the new password again"
+                    value={resetConfirmPassword}
+                    onChange={(e) => setResetConfirmPassword(e.target.value)}
+                    className="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={authLoading || !resetOtpSent}
+                  className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold py-3 rounded-xl shadow-md transition text-sm flex items-center justify-center gap-2"
+                >
+                  <span>{authLoading && resetOtpSent ? "Saving..." : "Verify email & save new password"}</span>
+                  <span>→</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAuthTab("LOGIN");
+                    setError("");
+                    setSuccessMsg("");
+                  }}
+                  className="w-full text-xs font-semibold text-slate-600 hover:text-slate-900"
+                >
+                  Back to sign in
                 </button>
               </form>
             )}

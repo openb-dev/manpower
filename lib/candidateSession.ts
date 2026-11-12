@@ -41,10 +41,27 @@ function readToken(token: string): { sub?: string; slug?: string; exp?: number }
   }
 }
 
-function cookieOptions(maxAge: number) {
+function shouldUseSecureCookie(request?: Request) {
+  const proto = String(
+    request?.headers.get("x-forwarded-proto") ||
+      request?.headers.get("x-forwarded-protocol") ||
+      "",
+  )
+    .split(",")[0]
+    .trim()
+    .toLowerCase();
+  if (proto === "https") return true;
+  if (proto === "http") return false;
+  const authUrl = String(process.env.AUTH_URL || process.env.NEXTAUTH_URL || "")
+    .trim()
+    .toLowerCase();
+  return authUrl.startsWith("https://");
+}
+
+function cookieOptions(maxAge: number, request?: Request) {
   return {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: shouldUseSecureCookie(request),
     sameSite: "lax" as const,
     path: "/",
     maxAge,
@@ -54,17 +71,18 @@ function cookieOptions(maxAge: number) {
 export function setCandidateCookie(
   response: NextResponse,
   candidate: { id: string; companySlug: string },
+  request?: Request,
 ) {
   const token = signToken({
     sub: candidate.id,
     slug: candidate.companySlug,
     exp: Date.now() + SESSION_HOURS * 60 * 60 * 1000,
   });
-  response.cookies.set(CANDIDATE_COOKIE, token, cookieOptions(SESSION_HOURS * 60 * 60));
+  response.cookies.set(CANDIDATE_COOKIE, token, cookieOptions(SESSION_HOURS * 60 * 60, request));
 }
 
-export function clearCandidateCookie(response: NextResponse) {
-  response.cookies.set(CANDIDATE_COOKIE, "", cookieOptions(0));
+export function clearCandidateCookie(response: NextResponse, request?: Request) {
+  response.cookies.set(CANDIDATE_COOKIE, "", cookieOptions(0, request));
 }
 
 export async function currentCandidate(

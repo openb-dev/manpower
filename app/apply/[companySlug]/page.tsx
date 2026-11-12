@@ -504,6 +504,7 @@ function ApplyPageInner() {
   const [successMsg, setSuccessMsg] = useState("");
   function setError(message: string) {
     setErrorState(message ? friendlyPublicError(message) : "");
+    if (message) setSuccessMsg("");
   }
 
   // Candidate Authentication State
@@ -553,28 +554,26 @@ function ApplyPageInner() {
 
   useEffect(() => {
     if (fillAsAdmin) return;
-    let cancelled = false;
+    const controller = new AbortController();
     fetch(`/api/apply/${companySlug}`, {
       method: "POST",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "GET_CANDIDATE_ME" }),
+      signal: controller.signal,
     })
       .then(async (res) => {
         const data = await readApiJson(res);
-        if (cancelled) return;
-        if (!res.ok || !data.candidate) {
-          setCandidate(null);
-          return;
-        }
+        if (controller.signal.aborted) return;
+        if (!data.candidate) return;
         setCandidate(data.candidate);
         loadPrefill(data.candidate);
       })
-      .catch(() => {
-        if (!cancelled) setCandidate(null);
+      .catch((err) => {
+        if (err?.name === "AbortError") return;
       });
     return () => {
-      cancelled = true;
+      controller.abort();
     };
   }, [companySlug, fillAsAdmin]);
 
@@ -714,6 +713,12 @@ function ApplyPageInner() {
   }, [editApplicantId, officeAdmin, company, companySlug]);
 
   // Countdown timer for OTP resend
+  useEffect(() => {
+    if (!successMsg || step === "SUCCESS") return;
+    const timer = setTimeout(() => setSuccessMsg(""), 4000);
+    return () => clearTimeout(timer);
+  }, [successMsg, step]);
+
   useEffect(() => {
     if (otpCountdown <= 0) return;
     const timer = setInterval(() => setOtpCountdown((prev) => prev - 1), 1000);

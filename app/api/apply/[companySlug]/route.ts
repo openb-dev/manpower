@@ -116,8 +116,9 @@ function withCandidateCookie(
   response: NextResponse,
   candidate: { id: string } | null,
   companySlug: string,
+  request?: NextRequest,
 ) {
-  if (candidate?.id) setCandidateCookie(response, { id: candidate.id, companySlug });
+  if (candidate?.id) setCandidateCookie(response, { id: candidate.id, companySlug }, request);
   return response;
 }
 
@@ -183,6 +184,7 @@ export async function POST(
         NextResponse.json({ success: true, candidate }),
         candidate,
         companySlug,
+        request,
       );
     }
 
@@ -196,6 +198,7 @@ export async function POST(
         NextResponse.json({ success: true, candidate }),
         candidate,
         companySlug,
+        request,
       );
     }
 
@@ -227,19 +230,18 @@ export async function POST(
         NextResponse.json({ success: true, candidate }),
         candidate,
         companySlug,
+        request,
       );
     }
 
     if (body.action === "GET_CANDIDATE_ME") {
       const candidate = await currentCandidate(request, companySlug);
-      const res = NextResponse.json({ candidate: candidate || null });
-      if (!candidate) clearCandidateCookie(res);
-      return res;
+      return NextResponse.json({ candidate: candidate || null });
     }
 
     if (body.action === "LOGOUT_CANDIDATE") {
       const res = NextResponse.json({ success: true });
-      clearCandidateCookie(res);
+      clearCandidateCookie(res, request);
       return res;
     }
 

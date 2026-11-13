@@ -181,7 +181,9 @@ function familyYes(fd: Record<string, any>) {
   if (choice === "YES") return true;
   const rows = Array.isArray(fd?.family) ? fd.family : [];
   return rows.some((member: any) =>
-    [member?.name, member?.relation, member?.dateOfBirth, member?.aadhaar].some((part) => String(part || "").trim()),
+    [member?.name, member?.relation, member?.dateOfBirth, member?.aadhaar, member?.contactNo].some((part) =>
+      String(part || "").trim(),
+    ),
   );
 }
 
@@ -205,6 +207,7 @@ function FamilyTable({ fd }: { fd: Record<string, any> }) {
           <th className="border border-black py-0.5 font-semibold">Relation</th>
           <th className="border border-black py-0.5 font-semibold">Date of Birth</th>
           <th className="border border-black py-0.5 font-semibold">Aadhaar No.</th>
+          <th className="border border-black py-0.5 font-semibold">Contact No.</th>
         </tr>
       </thead>
       <tbody>
@@ -215,6 +218,7 @@ function FamilyTable({ fd }: { fd: Record<string, any> }) {
             <td className="border border-black px-1 py-0.5">{text(member.relation)}</td>
             <td className="border border-black px-1 py-0.5">{dmy(member.dateOfBirth)}</td>
             <td className="border border-black px-1 py-0.5">{text(member.aadhaar)}</td>
+            <td className="border border-black px-1 py-0.5">{text(member.contactNo)}</td>
           </tr>
         ))}
       </tbody>

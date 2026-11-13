@@ -100,7 +100,9 @@ function familyYes(fd: Record<string, any>) {
   if (choice === "YES") return true;
   const rows = Array.isArray(fd?.family) ? fd.family : [];
   return rows.some((member: any) =>
-    [member?.name, member?.relation, member?.dateOfBirth, member?.aadhaar].some((part) => String(part || "").trim()),
+    [member?.name, member?.relation, member?.dateOfBirth, member?.aadhaar, member?.contactNo].some((part) =>
+      String(part || "").trim(),
+    ),
   );
 }
 
@@ -527,8 +529,8 @@ export async function buildPaperFormPdf(
   familyMark("No", !familyYes(fd), left + 82);
   y += 7;
   if (familyYes(fd)) {
-    const cols = [left, left + 12, left + 72, left + 108, left + 148, right];
-    const headers = ["Sl.", "Name of Family Members", "Relation", "Date of Birth", "Aadhaar No."];
+    const cols = [left, left + 10, left + 58, left + 84, left + 112, left + 154, right];
+    const headers = ["Sl.", "Name of Family Members", "Relation", "Date of Birth", "Aadhaar No.", "Contact No."];
     pdf.setFont("times", "bold");
     pdf.setFontSize(8);
     pdf.rect(left, y, width, 6);
@@ -545,6 +547,7 @@ export async function buildPaperFormPdf(
         text(member.relation),
         dmy(member.dateOfBirth),
         text(member.aadhaar),
+        text(member.contactNo),
       ];
       cells.forEach((c, i) => {
         const maxW = cols[i + 1] - cols[i] - 2.2;

@@ -447,7 +447,10 @@ export function formPrefillFromApplicant(row: {
     esiIp: fd.esiIp || "",
     preferredDispensary: fd.preferredDispensary || "",
     includeFamily: fd.includeFamily || "",
-    family: Array.isArray(fd.family) && fd.family.length ? fd.family : [{ name: "", relation: "", dateOfBirth: "", aadhaar: "" }],
+    family:
+      Array.isArray(fd.family) && fd.family.length
+        ? fd.family
+        : [{ name: "", relation: "", dateOfBirth: "", aadhaar: "", contactNo: "" }],
     bankName: fd.bankName || "",
     accountNo: fd.accountNo || "",
     ifsc: fd.ifsc || "",

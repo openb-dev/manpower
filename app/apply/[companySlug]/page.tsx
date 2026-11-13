@@ -144,10 +144,23 @@ interface FamilyMember {
   relation: string;
   dateOfBirth: string;
   aadhaar: string;
+  contactNo: string;
+}
+
+function familyMemberFrom(member?: Partial<FamilyMember> | Record<string, any>): FamilyMember {
+  return {
+    name: String(member?.name || ""),
+    relation: String(member?.relation || ""),
+    dateOfBirth: String(member?.dateOfBirth || ""),
+    aadhaar: String(member?.aadhaar || "").replace(/\D/g, "").slice(0, 12),
+    contactNo: String(member?.contactNo || member?.mobile || member?.phone || "")
+      .replace(/\D/g, "")
+      .slice(-10),
+  };
 }
 
 function blankFamily(): FamilyMember[] {
-  return [{ name: "", relation: "", dateOfBirth: "", aadhaar: "" }];
+  return [familyMemberFrom()];
 }
 
 interface WorkJob {
@@ -283,7 +296,8 @@ function personPrefillFrom(source: Record<string, any>, account?: CandidateSessi
   next.declarationAccepted = false;
   next.termsAccepted = false;
   next.workHistory = jobList(next.workHistory);
-  next.family = Array.isArray(next.family) && next.family.length ? next.family : blankFamily();
+  next.family =
+    Array.isArray(next.family) && next.family.length ? next.family.map(familyMemberFrom) : blankFamily();
   next.name = String(next.name || account?.fullName || "");
   next.mobile = String(next.mobile || account?.whatsappNo || "");
   next.email = String(next.email || account?.email || "");
@@ -293,7 +307,8 @@ function personPrefillFrom(source: Record<string, any>, account?: CandidateSessi
 function personEditFrom(source: Record<string, any>) {
   const next: any = { ...initialForm(), ...source };
   next.workHistory = jobList(next.workHistory);
-  next.family = Array.isArray(next.family) && next.family.length ? next.family : blankFamily();
+  next.family =
+    Array.isArray(next.family) && next.family.length ? next.family.map(familyMemberFrom) : blankFamily();
   next.declarationAccepted = true;
   next.termsAccepted = true;
   return next;
@@ -1176,7 +1191,7 @@ function ApplyPageInner() {
       if (prev.family.length >= 5) return prev;
       return {
         ...prev,
-        family: [...prev.family, { name: "", relation: "", dateOfBirth: "", aadhaar: "" }],
+        family: [...prev.family, familyMemberFrom()],
       };
     });
   }
@@ -1360,16 +1375,25 @@ function ApplyPageInner() {
     if (!form.includeFamily) return setError("Please select Yes or No for family member details.");
     const filledFamily =
       form.includeFamily === "YES"
-        ? (form.family || []).filter((member) =>
-            [member.name, member.relation, member.dateOfBirth, member.aadhaar].some((part) => String(part || "").trim()),
-          )
+        ? (form.family || [])
+            .map((member) => familyMemberFrom(member))
+            .filter((member) =>
+              [member.name, member.relation, member.dateOfBirth, member.aadhaar, member.contactNo].some((part) =>
+                String(part || "").trim(),
+              ),
+            )
         : [];
     if (form.includeFamily === "YES") {
       if (filledFamily.length === 0) return setError("Please add at least one family member, or select No.");
       const incompleteFamily = filledFamily.find(
-        (member) => !member.name.trim() || !member.relation.trim() || !member.dateOfBirth || !member.aadhaar.trim(),
+        (member) =>
+          !member.name.trim() ||
+          !member.relation.trim() ||
+          !member.dateOfBirth ||
+          !member.aadhaar.trim() ||
+          member.contactNo.length !== 10,
       );
-      if (incompleteFamily) return setError("Please complete the family row you started, or remove it.");
+      if (incompleteFamily) return setError("Please complete the family row you started, including contact no., or remove it.");
     }
 
     if (!form.uploadBankDetails) return setError("Please select Yes or No for bank details.");
@@ -3404,7 +3428,7 @@ function ApplyPageInner() {
                       {form.family.map((member, idx) => (
                         <div
                           key={idx}
-                          className="p-3.5 bg-slate-50/70 border border-slate-200 rounded-xl grid grid-cols-1 sm:grid-cols-4 gap-3 text-xs relative"
+                          className="p-3.5 pr-16 bg-slate-50/70 border border-slate-200 rounded-xl grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 text-xs relative"
                         >
                           {form.family.length > 1 ? (
                             <button
@@ -3464,6 +3488,22 @@ function ApplyPageInner() {
                               placeholder="12 digits"
                               value={member.aadhaar}
                               onChange={(e) => updateFamilyMember(idx, "aadhaar", e.target.value.replace(/\D/g, ""))}
+                              className="w-full px-3 py-1.5 border border-slate-300 rounded-md bg-white text-xs font-mono"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                              Contact no. <span className="text-red-500">*</span>
+                            </label>
+                            <input
+                              required
+                              type="tel"
+                              maxLength={10}
+                              placeholder="10-digit mobile"
+                              value={member.contactNo || ""}
+                              onChange={(e) =>
+                                updateFamilyMember(idx, "contactNo", e.target.value.replace(/\D/g, "").slice(-10))
+                              }
                               className="w-full px-3 py-1.5 border border-slate-300 rounded-md bg-white text-xs font-mono"
                             />
                           </div>

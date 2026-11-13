@@ -48,7 +48,7 @@ function buildFormAndDocs(person: {
   esiIp: string;
   pan: string;
   aadhaar: string;
-  family: { name: string; relation: string; dateOfBirth: string; aadhaar: string }[];
+  family: { name: string; relation: string; dateOfBirth: string; aadhaar: string; contactNo: string }[];
 }) {
   const photo = dummyImage("PHOTO", "#1e3a5f");
   const aadhaarFile = dummyPdf(`${person.name} Aadhaar`);
@@ -149,7 +149,7 @@ type DemoPerson = {
   gunNo: string;
   uan: string;
   esiIp: string;
-  family: { name: string; relation: string; dateOfBirth: string; aadhaar: string }[];
+  family: { name: string; relation: string; dateOfBirth: string; aadhaar: string; contactNo: string }[];
 };
 
 function demoMobile(slug: string, seq: number) {
@@ -184,8 +184,8 @@ function peopleForCompany(slug: string): DemoPerson[] {
       uan: "100234567890",
       esiIp: "4112345678",
       family: [
-        { name: "Sita Devi Singh", relation: "Wife", dateOfBirth: "1996-08-21", aadhaar: "612345678901" },
-        { name: "Aarav Singh", relation: "Son", dateOfBirth: "2018-01-09", aadhaar: "712345678902" },
+        { name: "Sita Devi Singh", relation: "Wife", dateOfBirth: "1996-08-21", aadhaar: "612345678901", contactNo: "9876501101" },
+        { name: "Aarav Singh", relation: "Son", dateOfBirth: "2018-01-09", aadhaar: "712345678902", contactNo: "9876501102" },
       ],
     },
     {
@@ -212,7 +212,7 @@ function peopleForCompany(slug: string): DemoPerson[] {
       gunNo: "NA",
       uan: "NA",
       esiIp: "NA",
-      family: [{ name: "Alok Das", relation: "Father", dateOfBirth: "1972-05-16", aadhaar: "812345678903" }],
+      family: [{ name: "Alok Das", relation: "Father", dateOfBirth: "1972-05-16", aadhaar: "812345678903", contactNo: "9876502201" }],
     },
     {
       status: ApplicantStatus.APPROVED,
@@ -242,8 +242,8 @@ function peopleForCompany(slug: string): DemoPerson[] {
       uan: "101198765432",
       esiIp: "4198765432",
       family: [
-        { name: "Rina Roy", relation: "Wife", dateOfBirth: "1989-02-11", aadhaar: "912345678904" },
-        { name: "Neha Roy", relation: "Daughter", dateOfBirth: "2012-09-03", aadhaar: "112345678905" },
+        { name: "Rina Roy", relation: "Wife", dateOfBirth: "1989-02-11", aadhaar: "912345678904", contactNo: "9876503301" },
+        { name: "Neha Roy", relation: "Daughter", dateOfBirth: "2012-09-03", aadhaar: "112345678905", contactNo: "9876503302" },
       ],
     },
     {
@@ -270,7 +270,7 @@ function peopleForCompany(slug: string): DemoPerson[] {
       gunNo: "NA",
       uan: "NA",
       esiIp: "NA",
-      family: [{ name: "Gopal Halder", relation: "Father", dateOfBirth: "1965-12-02", aadhaar: "212345678906" }],
+      family: [{ name: "Gopal Halder", relation: "Father", dateOfBirth: "1965-12-02", aadhaar: "212345678906", contactNo: "9876504401" }],
     },
     {
       status: ApplicantStatus.APPROVED,
@@ -299,7 +299,7 @@ function peopleForCompany(slug: string): DemoPerson[] {
       gunNo: "NA",
       uan: "100556677889",
       esiIp: "4155667788",
-      family: [{ name: "Bikash Mondal", relation: "Husband", dateOfBirth: "1992-04-17", aadhaar: "312345678907" }],
+      family: [{ name: "Bikash Mondal", relation: "Husband", dateOfBirth: "1992-04-17", aadhaar: "312345678907", contactNo: "9876505501" }],
     },
   ];
 }

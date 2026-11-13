@@ -974,6 +974,7 @@ export default function ApplicantBookPage() {
                         <th className="px-4 py-2">Relation</th>
                         <th className="px-4 py-2">Date of Birth</th>
                         <th className="px-4 py-2">Aadhaar No.</th>
+                        <th className="px-4 py-2">Contact no.</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -984,6 +985,7 @@ export default function ApplicantBookPage() {
                           <td className="px-4 py-2 text-slate-600">{member.relation || "—"}</td>
                           <td className="px-4 py-2 text-slate-600">{member.dateOfBirth || "—"}</td>
                           <td className="px-4 py-2 font-mono text-slate-600">{member.aadhaar || "—"}</td>
+                          <td className="px-4 py-2 font-mono text-slate-600">{member.contactNo || "—"}</td>
                         </tr>
                       ))}
                     </tbody>

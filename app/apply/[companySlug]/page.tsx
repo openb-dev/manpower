@@ -83,6 +83,10 @@ function candidateStatusClass(status?: string) {
   return "bg-amber-100 text-amber-800";
 }
 
+function blocksSameRole(status?: string) {
+  return status === "NEW" || status === "SHORTLISTED" || status === "APPROVED";
+}
+
 function formatApplyDate(value?: string) {
   if (!value) return "—";
   const d = new Date(value);
@@ -116,6 +120,9 @@ function CandidateApplicationsPanel({ items }: { items: CandidateApplication[] }
                   <span className={`inline-block px-2 py-0.5 rounded-full font-bold ${candidateStatusClass(app.status)}`}>
                     {candidateStatusLabel(app.status)}
                   </span>
+                  {app.status === "REJECTED" ? (
+                    <div className="mt-1 text-[11px] text-slate-600">You can apply again for this role.</div>
+                  ) : null}
                   {app.remarks?.length ? (
                     <div className="mt-1.5 space-y-1 max-w-xs">
                       {app.remarks.map((note, idx) => (
@@ -2522,12 +2529,15 @@ function ApplyPageInner() {
                       .toLowerCase();
                     const already = myApplications.some(
                       (app) =>
+                        blocksSameRole(app.status) &&
                         app.jobRoleId === selectedRole.id &&
                         (!nextCategory?.id || app.roleCategoryId === nextCategory.id) &&
                         String(app.extra || "").toLowerCase() === extra,
                     );
                     if (already) {
-                      return setError("You already applied for this same trade and category. Please choose a different one.");
+                      return setError(
+                        "You already have an open application for this same trade and category. If it was not selected, you can apply again.",
+                      );
                     }
                     setError("");
                     setStep("FORM");

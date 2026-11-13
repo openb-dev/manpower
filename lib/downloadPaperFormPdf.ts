@@ -1,5 +1,23 @@
 import { DECLARATION, TERMS } from "@/server/data/joiningText.js";
 import { applicantPhotoUrl, applicationDisplayId } from "@/lib/applicantFormFields";
+import { NK_LOGO_SRC } from "@/lib/nkLogo";
+
+async function loadNkLogoDataUrl() {
+  if (typeof window === "undefined") return "";
+  try {
+    const res = await fetch(NK_LOGO_SRC);
+    if (!res.ok) return "";
+    const blob = await res.blob();
+    return await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ""));
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    return "";
+  }
+}
 
 const NK = {
   name: "M/s. N.K. Enterprise",
@@ -149,6 +167,7 @@ export async function buildPaperFormPdf(
 
   const fd = person?.formData || {};
   const nk = !company?.slug || company.slug === "nk";
+  const nkLogo = nk ? await loadNkLogoDataUrl() : "";
   const companyName = company?.legalName || person?.company?.legalName || (nk ? NK.name : "Company");
   const address = nk ? NK.address : ["West Bengal, India"];
   const websiteLine = nk
@@ -345,30 +364,41 @@ export async function buildPaperFormPdf(
       }
     }
 
+    const logoSize = nkLogo ? 16 : 0;
+    const logoGap = nkLogo ? 3 : 0;
+    const textX = left + logoSize + logoGap;
+    const textW = Math.max(40, textMax - logoSize - logoGap);
+    if (nkLogo) {
+      try {
+        pdf.addImage(nkLogo, "PNG", left, startY - 2, logoSize, logoSize);
+      } catch {
+        /* skip logo if the file cannot be drawn */
+      }
+    }
     pdf.setFont("times", "bold");
     pdf.setFontSize(15);
     pdf.setTextColor(0, 0, 0);
-    const nameLines = pdf.splitTextToSize(companyName, textMax);
-    pdf.text(nameLines, left, startY);
+    const nameLines = pdf.splitTextToSize(companyName, textW);
+    pdf.text(nameLines, textX, startY);
     let ty = startY + nameLines.length * 6;
     pdf.setFont("times", "normal");
     pdf.setFontSize(9);
     for (const line of address) {
-      const lines = pdf.splitTextToSize(line, textMax);
-      pdf.text(lines, left, ty);
+      const lines = pdf.splitTextToSize(line, textW);
+      pdf.text(lines, textX, ty);
       ty += lines.length * 4;
     }
     if (websiteLine) {
-      const lines = pdf.splitTextToSize(websiteLine, textMax);
-      pdf.text(lines, left, ty);
+      const lines = pdf.splitTextToSize(websiteLine, textW);
+      pdf.text(lines, textX, ty);
       ty += lines.length * 4;
     }
     if (mobileLine) {
-      const lines = pdf.splitTextToSize(mobileLine, textMax);
-      pdf.text(lines, left, ty);
+      const lines = pdf.splitTextToSize(mobileLine, textW);
+      pdf.text(lines, textX, ty);
       ty += lines.length * 4;
     }
-    const bottom = withPhoto ? Math.max(ty, photoY + photoH) : ty;
+    const bottom = withPhoto ? Math.max(ty, photoY + photoH, startY - 2 + logoSize) : Math.max(ty, startY - 2 + logoSize);
     return bottom + 5;
   };
 
@@ -638,6 +668,14 @@ export async function buildPaperFormPdf(
 
   writeFullPageList("TERMS & CONDITIONS", `(${TERMS.note})`, TERMS.points, () => {
     let hy = 16;
+    if (nkLogo) {
+      try {
+        pdf.addImage(nkLogo, "PNG", pageW / 2 - 8, hy, 16, 16);
+        hy += 18;
+      } catch {
+        /* skip logo if the file cannot be drawn */
+      }
+    }
     pdf.setFont("times", "bold");
     pdf.setFontSize(16);
     pdf.text(companyName, pageW / 2, hy, { align: "center" });

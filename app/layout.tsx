@@ -6,11 +6,12 @@ export const metadata: Metadata = {
   description: "Enterprise Multi-Tenant Manpower Architecture",
   icons: {
     icon: [
-      { url: "/favicon.svg?v=nk", type: "image/svg+xml" },
-      { url: "/favicon.ico?v=nk" },
+      { url: "/nk-logo.png", type: "image/png" },
+      { url: "/favicon.svg?v=nk2", type: "image/svg+xml" },
+      { url: "/favicon.ico?v=nk2" },
     ],
-    shortcut: "/favicon.ico?v=nk",
-    apple: "/icon.png?v=nk",
+    shortcut: "/nk-logo.png",
+    apple: "/nk-logo.png",
   },
 };
 

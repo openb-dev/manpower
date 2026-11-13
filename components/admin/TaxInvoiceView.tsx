@@ -138,7 +138,7 @@ export function TaxInvoiceView({
               <td className="p-2">
                 <div className="flex items-start gap-3">
                   {nk ? (
-                    <img src="/nk-letterhead.jpg" alt="N.K. Enterprise" className="h-[52px] w-auto mt-0.5 shrink-0" />
+                    <img src="/nk-logo.png" alt="N.K. Enterprise" className="h-[58px] w-[58px] object-contain bg-black mt-0.5 shrink-0" />
                   ) : (
                     <div className="h-[52px] w-[88px] shrink-0 border border-black flex items-center justify-center text-[10px] font-bold">
                       {(company?.shortName || "CO").slice(0, 3).toUpperCase()}

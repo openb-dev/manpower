@@ -23,6 +23,8 @@ import {
 } from "@/lib/gem";
 import { PasswordInput } from "@/components/PasswordInput";
 import ImageCropDialog from "@/components/ImageCropDialog";
+import NkLogo from "@/components/NkLogo";
+import { isNkCompany } from "@/lib/nkLogo";
 
 interface JobRole {
   id: string;
@@ -1674,9 +1676,13 @@ function ApplyPageInner() {
       <header className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-xs">
         <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-blue-600 text-white font-black flex items-center justify-center shadow-xs">
-              {(company?.shortName || "NK").replace(/[^A-Za-z]/g, "").slice(0, 2).toUpperCase() || "NK"}
-            </div>
+            {isNkCompany(companySlug || company?.slug) ? (
+              <NkLogo className="h-11 w-11 rounded-md object-contain bg-black shadow-xs shrink-0" />
+            ) : (
+              <div className="w-9 h-9 rounded-lg bg-blue-600 text-white font-black flex items-center justify-center shadow-xs">
+                {(company?.shortName || "NK").replace(/[^A-Za-z]/g, "").slice(0, 2).toUpperCase() || "NK"}
+              </div>
+            )}
             <div>
               <h1 className="text-sm font-bold text-slate-900 tracking-tight leading-none">
                 {company?.legalName || "N.K. Enterprise"}

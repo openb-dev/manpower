@@ -20,6 +20,8 @@ import {
   LogOut,
   Building2,
 } from "lucide-react";
+import NkLogo from "@/components/NkLogo";
+import { isNkCompany } from "@/lib/nkLogo";
 
 interface CompanyInfo {
   id: string;
@@ -101,9 +103,14 @@ export default function Sidebar({ company, user }: SidebarProps) {
           <Menu className="h-4 w-4" strokeWidth={1.75} aria-hidden />
           Menu
         </button>
-        <div className="min-w-0 text-right">
-          <div className="text-sm font-bold text-slate-900 truncate">{company.shortName}</div>
-          <div className="text-[11px] text-slate-500 truncate">{company.prefix}</div>
+        <div className="min-w-0 flex items-center gap-2">
+          {isNkCompany(company.slug) ? (
+            <NkLogo className="h-9 w-9 rounded-md object-contain bg-black shrink-0" />
+          ) : null}
+          <div className="min-w-0 text-right">
+            <div className="text-sm font-bold text-slate-900 truncate">{company.shortName}</div>
+            <div className="text-[11px] text-slate-500 truncate">{company.prefix}</div>
+          </div>
         </div>
       </div>
 
@@ -123,9 +130,14 @@ export default function Sidebar({ company, user }: SidebarProps) {
       >
         <div className="p-4 border-b border-slate-100 bg-slate-50/70 shrink-0 flex items-start justify-between gap-2">
           <div className="min-w-0">
+            {isNkCompany(company.slug) ? (
+              <NkLogo className="h-14 w-14 rounded-md object-contain bg-black mb-2" />
+            ) : null}
             <div className="flex items-center justify-between gap-2">
               <span className="inline-flex items-center gap-1.5 text-xs uppercase tracking-wider text-blue-700 font-extrabold">
-                <Building2 className="h-3.5 w-3.5" strokeWidth={2} aria-hidden />
+                {isNkCompany(company.slug) ? null : (
+                  <Building2 className="h-3.5 w-3.5" strokeWidth={2} aria-hidden />
+                )}
                 {company.shortName}
               </span>
               <span className="text-[10px] bg-blue-50 text-blue-700 font-mono font-bold px-2 py-0.5 rounded border border-blue-200">

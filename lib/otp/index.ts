@@ -1,4 +1,6 @@
 import { createHash, randomInt } from "node:crypto";
+import { existsSync } from "node:fs";
+import path from "node:path";
 
 export interface OtpSendResult {
   success: boolean;
@@ -78,15 +80,30 @@ async function sendSmtpEmail(
     });
 
     const copy = emailCopy(companyName, code, purpose);
+    const logoPath = path.join(process.cwd(), "public", "nk-logo.png");
+    const hasLogo = existsSync(logoPath);
     const info = await transporter.sendMail({
       from,
       to,
       subject: copy.subject,
       text: copy.text,
+      attachments: hasLogo
+        ? [
+            {
+              filename: "nk-logo.png",
+              path: logoPath,
+              cid: "nk-logo",
+            },
+          ]
+        : [],
       html: `
         <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 520px; margin: 0 auto; padding: 32px 24px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px;">
           <div style="border-bottom: 1px solid #f1f5f9; padding-bottom: 16px; margin-bottom: 24px;">
-            <div style="display: inline-block; background: #2563eb; color: #ffffff; font-weight: 900; font-size: 14px; padding: 6px 12px; border-radius: 8px;">NK</div>
+            ${
+              hasLogo
+                ? `<img src="cid:nk-logo" alt="N.K. Enterprise" width="56" height="56" style="display:block;background:#000000;border-radius:8px;" />`
+                : `<div style="display: inline-block; background: #000000; color: #ffffff; font-weight: 900; font-size: 14px; padding: 6px 12px; border-radius: 8px;">NK</div>`
+            }
             <h2 style="margin: 12px 0 4px; font-size: 20px; font-weight: 700; color: #0f172a;">${copy.heading}</h2>
             <p style="margin: 0; font-size: 13px; color: #64748b;">Candidate Recruitment & Onboarding Portal</p>
           </div>

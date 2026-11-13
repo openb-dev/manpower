@@ -3,6 +3,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { DECLARATION, TERMS } from "@/server/data/joiningText.js";
 import { applicantPhotoUrl, applicationDisplayId } from "@/lib/applicantFormFields";
+import { NK_LOGO_SRC, isNkCompany } from "@/lib/nkLogo";
 
 const NK_LETTERHEAD = {
   address: [
@@ -407,18 +408,23 @@ export function ApplicantPaperForm({
                 <img src={photo} alt={name} className="max-w-full max-h-full object-contain" />
               ) : null}
             </div>
-            <div className="min-w-0">
-              <div className="text-[16px] font-bold leading-tight">{head.name}</div>
-              {head.address.map((line) => (
-                <div key={line} className="text-[10px] leading-snug">
-                  {line}
+            <div className="flex items-start gap-2 min-w-0">
+              {isNkCompany(company?.slug) ? (
+                <img src={NK_LOGO_SRC} alt="" className="h-[72px] w-[72px] object-contain bg-black shrink-0" />
+              ) : null}
+              <div className="min-w-0">
+                <div className="text-[16px] font-bold leading-tight">{head.name}</div>
+                {head.address.map((line) => (
+                  <div key={line} className="text-[10px] leading-snug">
+                    {line}
+                  </div>
+                ))}
+                <div className="text-[10px] leading-snug mt-0.5">
+                  {head.website ? <>Website : {head.website}, </> : null}
+                  {head.email ? <>Email : {head.email}</> : null}
                 </div>
-              ))}
-              <div className="text-[10px] leading-snug mt-0.5">
-                {head.website ? <>Website : {head.website}, </> : null}
-                {head.email ? <>Email : {head.email}</> : null}
+                {head.mobile ? <div className="text-[10px]">Mobile : {head.mobile}</div> : null}
               </div>
-              {head.mobile ? <div className="text-[10px]">Mobile : {head.mobile}</div> : null}
             </div>
           </div>
 
@@ -665,6 +671,9 @@ export function ApplicantPaperForm({
         <div className="paper-form-sheet flex flex-col min-h-[297mm]">
           <div className="flex-1 min-h-0 border-2 border-black px-3 py-3 flex flex-col">
             <div className="text-center mb-3">
+              {isNkCompany(company?.slug) ? (
+                <img src={NK_LOGO_SRC} alt="" className="h-[56px] w-[56px] object-contain bg-black mx-auto mb-1" />
+              ) : null}
               <div className="text-[22px] font-bold leading-none">{head.name}</div>
               {head.address.map((line) => (
                 <div key={line} className="text-[11px] leading-snug">

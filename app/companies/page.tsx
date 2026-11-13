@@ -4,6 +4,8 @@ import { redirect } from "next/navigation";
 import { Role } from "@prisma/client";
 import Link from "next/link";
 import { Building2, ArrowRight, LogOut } from "lucide-react";
+import NkLogo from "@/components/NkLogo";
+import { isNkCompany } from "@/lib/nkLogo";
 
 export default async function CompaniesPage() {
   const session = await auth();
@@ -46,9 +48,13 @@ export default async function CompaniesPage() {
             >
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2 min-w-0">
-                  <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-50 text-blue-700 shrink-0">
-                    <Building2 className="h-4 w-4" strokeWidth={1.75} aria-hidden />
-                  </span>
+                  {isNkCompany(company.slug) ? (
+                    <NkLogo className="h-10 w-10 rounded-lg object-contain bg-black shrink-0" />
+                  ) : (
+                    <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-50 text-blue-700 shrink-0">
+                      <Building2 className="h-4 w-4" strokeWidth={1.75} aria-hidden />
+                    </span>
+                  )}
                   <div className="text-lg font-bold text-slate-900 truncate">{company.shortName}</div>
                 </div>
                 <span className="text-[10px] font-mono font-bold bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded">

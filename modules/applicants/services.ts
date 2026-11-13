@@ -20,7 +20,55 @@ function scrubFormDataPii(form: Record<string, any>) {
 
 function extraPostKey(formData: unknown) {
   const fd = (formData || {}) as Record<string, any>;
-  return String(fd.otherCategory || fd.gemProfile || "").trim().toLowerCase();
+  const other = String(fd.otherCategory || "").trim().toLowerCase().replace(/\s+/g, " ");
+  const gem = String(fd.gemProfile || "").trim().toLowerCase().replace(/\s+/g, " ");
+  if (other && other !== "others") return other;
+  if (gem && gem !== "others") return gem;
+  return "";
+}
+
+function extraPostLabel(formData: unknown) {
+  const fd = (formData || {}) as Record<string, any>;
+  const other = String(fd.otherCategory || "").trim();
+  const gem = String(fd.gemProfile || "").trim();
+  if (other && other.toLowerCase() !== "others") return other;
+  if (gem && gem.toLowerCase() !== "others") return gem;
+  return "";
+}
+
+function isSamePost(
+  row: { jobRoleId: string; roleCategoryId: string; formData: unknown },
+  jobRoleId: string,
+  roleCategoryId: string,
+  extra: string,
+) {
+  if (row.jobRoleId !== jobRoleId || row.roleCategoryId !== roleCategoryId) return false;
+  return extraPostKey(row.formData) === extra;
+}
+
+async function restoreHiddenDifferentRoles(companyId: string) {
+  const hidden = await prisma.applicant.findMany({
+    where: { companyId, deletedAt: { not: null } },
+    select: { id: true },
+  });
+  if (!hidden.length) return;
+  const ids = hidden.map((row) => row.id);
+  const userDeleted = await prisma.auditLog.findMany({
+    where: {
+      companyId,
+      entityType: "APPLICANT",
+      action: "SOFT_DELETE",
+      entityId: { in: ids },
+    },
+    select: { entityId: true },
+  });
+  const keepHidden = new Set(userDeleted.map((row) => row.entityId));
+  const restoreIds = ids.filter((id) => !keepHidden.has(id));
+  if (!restoreIds.length) return;
+  await prisma.applicant.updateMany({
+    where: { companyId, id: { in: restoreIds } },
+    data: { deletedAt: null },
+  });
 }
 
 function mergeApplicantDocuments(existing: unknown, incoming: unknown) {
@@ -121,40 +169,86 @@ export async function submitApplicant(
   await ensurePeople(company.id);
   const person = await findOrCreatePerson(company.id, input.aadhaarNumber);
 
-  // Same person may apply for more than one trade/category, but not the same post twice.
-  const incomingExtra = String(
-    input.formData?.otherCategory || input.formData?.gemProfile || "",
-  )
-    .trim()
-    .toLowerCase();
-  const existingSameAadhaar = await prisma.applicant.findMany({
-    where: {
-      companyId: company.id,
-      personId: person.id,
-      deletedAt: null,
-      status: { in: [ApplicantStatus.NEW, ApplicantStatus.SHORTLISTED, ApplicantStatus.APPROVED] },
-    },
-    select: { jobRoleId: true, roleCategoryId: true, formData: true },
-  });
-  const sameTradeAndCategory = existingSameAadhaar.some((row) => {
-    if (row.jobRoleId !== input.jobRoleId || row.roleCategoryId !== input.roleCategoryId) return false;
-    const fd = (row.formData || {}) as Record<string, any>;
-    const extra = String(fd.otherCategory || fd.gemProfile || "").trim().toLowerCase();
-    return extra === incomingExtra;
-  });
-  if (sameTradeAndCategory) {
-    throw new Error(
-      "You already have an application for this same trade and category. Please choose a different trade or category.",
-    );
-  }
-
-  // Determine Police Verification Status
   let pvcStatus: VerificationStatus = VerificationStatus.PENDING;
   const rawPolice = String(input.formData?.policeStatus || "").toLowerCase();
   if (rawPolice === "verified") {
     pvcStatus = VerificationStatus.VERIFIED;
   } else if (rawPolice === "rejected") {
     pvcStatus = VerificationStatus.REJECTED;
+  }
+
+  const incomingExtra = extraPostKey(input.formData);
+  const existingSamePerson = await prisma.applicant.findMany({
+    where: {
+      companyId: company.id,
+      deletedAt: null,
+      status: { in: [ApplicantStatus.NEW, ApplicantStatus.SHORTLISTED, ApplicantStatus.APPROVED] },
+      OR: [
+        { personId: person.id },
+        {
+          personId: null,
+          mobile: input.mobile.trim(),
+          fullName: { equals: input.fullName.trim(), mode: "insensitive" },
+        },
+      ],
+    },
+  });
+  const samePost = existingSamePerson.find((row) =>
+    isSamePost(row, input.jobRoleId, input.roleCategoryId, incomingExtra),
+  );
+  if (samePost && samePost.status !== ApplicantStatus.NEW) {
+    throw new Error(
+      "You already have an application for this same trade and category. Please choose a different trade or category.",
+    );
+  }
+
+  const savedForm = {
+    ...scrubFormDataPii(formDataWithoutFiles(input.formData || {})),
+    ...(filledByAdmin ? { filledByAdmin } : {}),
+  };
+
+  if (samePost) {
+    const existingForm = (samePost.formData || {}) as Record<string, any>;
+    const applicant = await prisma.applicant.update({
+      where: { id: samePost.id },
+      data: {
+        ...applicantWriteFields(
+          input,
+          {
+            ...savedForm,
+            filledByAdmin: filledByAdmin || existingForm.filledByAdmin || undefined,
+            applicationNo: samePost.applicationNo,
+            officeApplicantId: existingForm.officeApplicantId || undefined,
+          },
+          pvcStatus,
+        ),
+        personId: person.id,
+        candidateAccountId: input.candidateAccountId || samePost.candidateAccountId,
+        aadhaarEncrypted: null,
+        aadhaarHash: null,
+        aadhaarLast4: null,
+        documents: mergeApplicantDocuments(samePost.documents, input.documents),
+      },
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        companyId: company.id,
+        userId: filledByAdmin?.userId || null,
+        entityType: "APPLICANT",
+        entityId: applicant.id,
+        action: filledByAdmin ? "SUBMIT_BY_ADMIN" : "SUBMIT",
+        newValue: {
+          fullName: applicant.fullName,
+          status: applicant.status,
+          applicationNo: applicant.applicationNo,
+          reusedExisting: true,
+          ...(filledByAdmin ? { filledByAdmin } : {}),
+        },
+      },
+    });
+
+    return { id: applicant.id, applicationNo: applicant.applicationNo, status: applicant.status };
   }
 
   const applicationNo = await allocateApplicationNo(company);
@@ -181,8 +275,7 @@ export async function submitApplicant(
       pvcStatus,
       applicationNo,
       formData: {
-        ...scrubFormDataPii(formDataWithoutFiles(input.formData || {})),
-        ...(filledByAdmin ? { filledByAdmin } : {}),
+        ...savedForm,
         applicationNo,
       },
       documents: input.documents,
@@ -227,6 +320,7 @@ export async function listApplicants({
   const tenantDb = getTenantPrisma(companyId);
   await ensureApplicantNumbers(companyId);
   await ensurePeople(companyId);
+  await restoreHiddenDifferentRoles(companyId);
 
   const where: any = {
     deletedAt: null,
@@ -276,6 +370,7 @@ export async function listApplicants({
     applicationNo: app.applicationNo || String((formData as any)?.applicationNo || "") || null,
     officeApplicantId: String((formData as any)?.officeApplicantId || ""),
     filledByAdmin: (formData as any)?.filledByAdmin || null,
+    jobExtra: extraPostLabel(formData),
     aadhaarDisplay: aadhaarDisplayOf({ person, aadhaarEncrypted, aadhaarLast4 }),
   }));
 
@@ -517,10 +612,9 @@ export async function updateApplicant(
     },
     select: { jobRoleId: true, roleCategoryId: true, formData: true },
   });
-  const sameTradeAndCategory = existingSameAadhaar.some((row) => {
-    if (row.jobRoleId !== input.jobRoleId || row.roleCategoryId !== input.roleCategoryId) return false;
-    return extraPostKey(row.formData) === incomingExtra;
-  });
+  const sameTradeAndCategory = existingSameAadhaar.some((row) =>
+    isSamePost(row, input.jobRoleId, input.roleCategoryId, incomingExtra),
+  );
   if (sameTradeAndCategory) {
     throw new Error(
       "You already have an application for this same trade and category. Please choose a different trade or category.",

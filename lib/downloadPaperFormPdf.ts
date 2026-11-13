@@ -382,7 +382,6 @@ export async function buildPaperFormPdf(
     y += 5;
   }
   y = letterhead(y + 2, true);
-  y = lineFill("Application ID", appNo, y, 9.5);
   if (postApplied) y = lineFill("Post applied :", postApplied, y, 9.5);
   y = rowFields(
     [

@@ -422,10 +422,6 @@ export function ApplicantPaperForm({
             </div>
           </div>
 
-          <div className="mt-1 mb-0.5">
-            <DashBits items={[{ label: "Application ID", value: applicationDisplayId(person), grow: true }]} />
-          </div>
-
           {(person?.jobRole?.name || person?.roleCategory?.name || fd.skillCategory || fd.gemExperience) && (
             <p className="mt-2 text-[11px] leading-snug break-words">
               Post applied :{" "}

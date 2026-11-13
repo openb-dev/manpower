@@ -514,7 +514,7 @@ export default function ApplicantBookPage() {
                     <td className="p-4 font-mono text-[11px] text-slate-700">{applicationDisplayId(a) || a.id}</td>
                     <td className="p-4">
                       <span className="font-medium text-slate-800">{a.jobRole?.name}</span>
-                      <span className="block text-xs text-slate-400">{a.roleCategory?.name}</span>
+                      <span className="block text-xs text-slate-400">{a.jobExtra || a.roleCategory?.name}</span>
                     </td>
                     <td className="p-4 font-mono">{a.mobile}</td>
                     <td className="p-4 font-mono text-xs">{a.aadhaarDisplay}</td>

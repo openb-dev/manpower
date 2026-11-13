@@ -22,6 +22,7 @@ import {
   isSecurityGuardRole,
 } from "@/lib/gem";
 import { PasswordInput } from "@/components/PasswordInput";
+import ImageCropDialog from "@/components/ImageCropDialog";
 
 interface JobRole {
   id: string;
@@ -578,6 +579,27 @@ function ApplyPageInner() {
   const [submittedRef, setSubmittedRef] = useState("");
   const [editingNo, setEditingNo] = useState("");
   const [compressingLabel, setCompressingLabel] = useState("");
+  const [imageCrop, setImageCrop] = useState<{
+    src: string;
+    dataKey:
+      | "photo"
+      | "aadhaarFile"
+      | "panFile"
+      | "passbookFile"
+      | "educationFile"
+      | "otherQualFile"
+      | "policeFile";
+    nameKey:
+      | "photoName"
+      | "aadhaarFileName"
+      | "panFileName"
+      | "passbookFileName"
+      | "educationFileName"
+      | "otherQualFileName"
+      | "policeFileName";
+    title: string;
+    aspect: number;
+  } | null>(null);
   const [myApplications, setMyApplications] = useState<CandidateApplication[]>([]);
   const prefillRef = useRef<ReturnType<typeof initialForm> | null>(null);
 
@@ -1144,6 +1166,24 @@ function ApplyPageInner() {
       return;
     }
     setError("");
+    const isImage =
+      String(file.type || "").startsWith("image/") ||
+      /\.(jpe?g|png|webp|gif|heic|heif|bmp)$/i.test(file.name || "");
+    if (!isPdf && isImage) {
+      const src = URL.createObjectURL(file);
+      setImageCrop((prev) => {
+        if (prev?.src) URL.revokeObjectURL(prev.src);
+        return {
+          src,
+          dataKey,
+          nameKey,
+          title: dataKey === "photo" ? "Crop passport photo" : "Crop picture",
+          aspect: dataKey === "photo" ? 3 / 4 : 4 / 3,
+        };
+      });
+      input.value = "";
+      return;
+    }
     setCompressingLabel(file.name);
     fileToCompressedUpload(file, dataKey === "photo" ? "photo" : "document")
       .then(({ dataUrl, fileName }) => {
@@ -1156,6 +1196,31 @@ function ApplyPageInner() {
       .catch((err: any) => {
         setError(err.message || "Could not read that file.");
         input.value = "";
+      })
+      .finally(() => setCompressingLabel(""));
+  }
+
+  function closeImageCrop() {
+    if (imageCrop?.src) URL.revokeObjectURL(imageCrop.src);
+    setImageCrop(null);
+  }
+
+  function saveCroppedImage(file: File) {
+    if (!imageCrop) return;
+    const { dataKey, nameKey, src } = imageCrop;
+    setImageCrop(null);
+    URL.revokeObjectURL(src);
+    setCompressingLabel(file.name);
+    fileToCompressedUpload(file, dataKey === "photo" ? "photo" : "document")
+      .then(({ dataUrl, fileName }) => {
+        setForm((prev) => ({
+          ...prev,
+          [dataKey]: dataUrl,
+          [nameKey]: fileName || file.name,
+        }));
+      })
+      .catch((err: any) => {
+        setError(err.message || "Could not save the cropped picture.");
       })
       .finally(() => setCompressingLabel(""));
   }
@@ -1229,6 +1294,7 @@ function ApplyPageInner() {
   // Submit Job Application
   async function handleSubmitApplication(e: React.FormEvent) {
     e.preventDefault();
+    if (submitting) return;
     setError("");
 
     if (compressingLabel) return setError("Please wait for the file to finish compressing.");
@@ -1583,6 +1649,20 @@ function ApplyPageInner() {
 
   return (
     <div className="min-h-screen bg-[#f8fafc] text-slate-800 flex flex-col">
+      {imageCrop ? (
+        <ImageCropDialog
+          src={imageCrop.src}
+          title={imageCrop.title}
+          aspect={imageCrop.aspect}
+          hint={
+            imageCrop.dataKey === "photo"
+              ? "Pinch to zoom. Drag to move. Fit the face in the box, then tap Crop & use."
+              : "Pinch to zoom. Drag to move. Fit the document in the box, then tap Crop & use."
+          }
+          onCancel={closeImageCrop}
+          onCrop={saveCroppedImage}
+        />
+      ) : null}
       {/* Brand & Auth Header */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-xs">
         <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between">
@@ -2984,6 +3064,9 @@ function ApplyPageInner() {
                           onChange={(e) => handleFileUpload(e, "photo", "photoName")}
                           className="text-xs text-slate-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"
                         />
+                        <p className="text-[11px] text-slate-500 mt-1">
+                          On phone: take or choose a photo, then crop the face.
+                        </p>
                         {form.photoName && (
                           <div className="text-[11px] text-emerald-700 font-semibold mt-1">
                             {attachedNote(form.photoName, form.photo)}

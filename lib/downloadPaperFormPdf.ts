@@ -670,8 +670,9 @@ export async function buildPaperFormPdf(
     let hy = 16;
     if (nkLogo) {
       try {
-        pdf.addImage(nkLogo, "PNG", pageW / 2 - 8, hy, 16, 16);
-        hy += 18;
+        const logoSize = 14;
+        pdf.addImage(nkLogo, "PNG", pageW / 2 - logoSize / 2, hy, logoSize, logoSize);
+        hy += logoSize + 8;
       } catch {
         /* skip logo if the file cannot be drawn */
       }

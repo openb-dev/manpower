@@ -672,9 +672,13 @@ export function ApplicantPaperForm({
           <div className="flex-1 min-h-0 border-2 border-black px-3 py-3 flex flex-col">
             <div className="text-center mb-3">
               {isNkCompany(company?.slug) ? (
-                <img src={NK_LOGO_SRC} alt="" className="h-[56px] w-[56px] object-contain bg-black mx-auto mb-1" />
+                <img
+                  src={NK_LOGO_SRC}
+                  alt=""
+                  className="h-12 w-12 object-contain bg-black mx-auto mb-2 block"
+                />
               ) : null}
-              <div className="text-[22px] font-bold leading-none">{head.name}</div>
+              <div className="text-[22px] font-bold leading-tight">{head.name}</div>
               {head.address.map((line) => (
                 <div key={line} className="text-[11px] leading-snug">
                   {line}

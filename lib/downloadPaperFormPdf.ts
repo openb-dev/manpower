@@ -1,5 +1,5 @@
 import { DECLARATION, TERMS } from "@/server/data/joiningText.js";
-import { applicantPhotoUrl, applicationDisplayId } from "@/lib/applicantFormFields";
+import { applicantPhotoUrl, applicationDisplayId, personFilePrefix } from "@/lib/applicantFormFields";
 import { NK_LOGO_SRC } from "@/lib/nkLogo";
 
 async function loadNkLogoDataUrl() {
@@ -147,10 +147,10 @@ function saveBlob(blob: Blob, filename: string) {
 }
 
 export function paperFormFileName(person: any, index = 0) {
-  const raw = String(person?.fullName || "applicant").trim();
-  const safe = raw.replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-+|-+$/g, "") || "applicant";
-  const suffix = String(person?.id || index).slice(-4);
-  return `Applicant-form-${safe}-${suffix}.pdf`;
+  const prefix = personFilePrefix(person);
+  const hasId = Boolean(applicationDisplayId(person) || String(person?.employeeCode || "").trim());
+  const extra = !hasId && index > 0 ? `-${index + 1}` : "";
+  return `${prefix}_Application-form${extra}.pdf`;
 }
 
 export async function waitForImages(_root?: HTMLElement) {

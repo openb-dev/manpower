@@ -2,8 +2,8 @@
 
 import React, { useMemo, useState } from "react";
 import {
-  collectAttachedDocuments,
   documentTypeLabel,
+  documentsForDownload,
   downloadAttachedFile,
   openAttachedFile,
   type AttachedDocument,
@@ -27,7 +27,7 @@ export default function AttachedDocuments({
   person: any;
   title?: string;
 }) {
-  const documents = useMemo(() => collectAttachedDocuments(person), [person]);
+  const documents = useMemo(() => documentsForDownload(person), [person]);
   const [viewing, setViewing] = useState<AttachedDocument | null>(null);
 
   if (!documents.length) {
@@ -47,7 +47,7 @@ export default function AttachedDocuments({
           type="button"
           onClick={() => {
             documents.forEach((doc, index) => {
-              window.setTimeout(() => downloadAttachedFile(doc.src, doc.fileName), index * 250);
+              window.setTimeout(() => downloadAttachedFile(doc.src, doc.downloadName || doc.fileName), index * 400);
             });
           }}
           className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold rounded-lg"
@@ -61,7 +61,7 @@ export default function AttachedDocuments({
             <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
               {documentTypeLabel(doc.docType)}
             </div>
-            <div className="text-xs font-semibold text-slate-800 mt-0.5 break-all">{doc.fileName}</div>
+            <div className="text-xs font-semibold text-slate-800 mt-0.5 break-all">{doc.downloadName || doc.fileName}</div>
             {isImage(doc) ? (
               <img
                 src={doc.src}
@@ -83,7 +83,7 @@ export default function AttachedDocuments({
               </button>
               <button
                 type="button"
-                onClick={() => downloadAttachedFile(doc.src, doc.fileName)}
+                onClick={() => downloadAttachedFile(doc.src, doc.downloadName || doc.fileName)}
                 className="px-2.5 py-1 bg-slate-800 hover:bg-slate-900 text-white text-[11px] font-bold rounded"
               >
                 Download
@@ -101,12 +101,12 @@ export default function AttachedDocuments({
                 <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
                   {documentTypeLabel(viewing.docType)}
                 </div>
-                <div className="text-sm font-bold text-slate-900 break-all">{viewing.fileName}</div>
+                <div className="text-sm font-bold text-slate-900 break-all">{viewing.downloadName || viewing.fileName}</div>
               </div>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => downloadAttachedFile(viewing.src, viewing.fileName)}
+                  onClick={() => downloadAttachedFile(viewing.src, viewing.downloadName || viewing.fileName)}
                   className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg"
                 >
                   Download

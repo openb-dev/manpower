@@ -180,6 +180,7 @@ export type AttachedDocument = {
   docType: string;
   fileName: string;
   src: string;
+  downloadName?: string;
 };
 
 const DOC_LABELS: Record<string, string> = {
@@ -261,15 +262,80 @@ export function applicationDisplayId(person: any) {
   return code;
 }
 
+export function safeDownloadPart(value: unknown, fallback = "file") {
+  const safe = String(value || "")
+    .normalize("NFKD")
+    .replace(/[^\p{L}\p{N}]+/gu, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
+  return safe || fallback;
+}
+
+export function personFilePrefix(person: any) {
+  const id =
+    applicationDisplayId(person) ||
+    String(person?.employeeCode || person?.formData?.employeeCode || "").trim();
+  const name = safeDownloadPart(person?.fullName || person?.formData?.name, "candidate");
+  return [id, name].filter(Boolean).join("_");
+}
+
+function fileExtensionFromSrc(src: string, fileName?: string) {
+  const mime = src.match(/^data:([^;,]+)/i)?.[1]?.toLowerCase() || "";
+  if (mime.includes("pdf")) return "pdf";
+  if (mime.includes("jpeg") || mime.includes("jpg")) return "jpg";
+  if (mime.includes("png")) return "png";
+  if (mime.includes("webp")) return "webp";
+  if (mime.includes("gif")) return "gif";
+  if (src.startsWith("data:image/")) return "jpg";
+  const named = String(fileName || "").match(/\.([a-z0-9]{2,5})$/i)?.[1]?.toLowerCase();
+  if (named && !["bin", "dat", "tmp"].includes(named)) return named === "jpeg" ? "jpg" : named;
+  return "pdf";
+}
+
+export function attachedDownloadFileName(
+  person: any,
+  doc: { docType?: string; fileName?: string; src: string },
+  duplicateIndex = 0,
+) {
+  const prefix = personFilePrefix(person);
+  const type = safeDownloadPart(documentTypeLabel(String(doc.docType || "DOCUMENT")), "document");
+  const extra = duplicateIndex > 0 ? `-${duplicateIndex + 1}` : "";
+  return `${prefix}_${type}${extra}.${fileExtensionFromSrc(doc.src, doc.fileName)}`;
+}
+
+export function documentsForDownload(person: any) {
+  const used = new Map<string, number>();
+  return collectAttachedDocuments(person).map((doc) => {
+    const base = attachedDownloadFileName(person, doc);
+    const n = used.get(base) || 0;
+    used.set(base, n + 1);
+    return {
+      ...doc,
+      downloadName: n === 0 ? base : attachedDownloadFileName(person, doc, n),
+    };
+  });
+}
+
+function sanitizeDownloadName(fileName: string) {
+  const cleaned = String(fileName || "document")
+    .replace(/[<>:"/\\|?*\u0000-\u001f]+/g, "-")
+    .replace(/\s+/g, " ")
+    .trim();
+  return cleaned || "document";
+}
+
 export function downloadAttachedFile(src: string, fileName: string) {
   const href = attachmentBlobUrl(src);
   const link = document.createElement("a");
   link.href = href;
-  link.download = fileName || "document";
+  link.download = sanitizeDownloadName(fileName);
   link.rel = "noopener";
   document.body.appendChild(link);
   link.click();
   link.remove();
+  if (href.startsWith("blob:")) {
+    window.setTimeout(() => URL.revokeObjectURL(href), 4000);
+  }
 }
 
 export function openAttachedFile(src: string) {

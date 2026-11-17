@@ -54,7 +54,7 @@ export default function DashboardPage() {
 
   const summary = data?.summary;
   const peopleLinks = [
-    { href: `/${companySlug}/applicants`, label: "New applicant", note: "Forms, shortlist, reject, make employee", icon: ClipboardList },
+    { href: `/${companySlug}/applicants`, label: "New applicant", note: "Shortlist or reject. After shortlist, make employee", icon: ClipboardList },
     { href: `/${companySlug}/employees`, label: "Employees", note: "People who already joined", icon: Users },
     { href: `/${companySlug}/attendance`, label: "Attendance", note: "Daily muster and wages", icon: CalendarCheck },
   ];

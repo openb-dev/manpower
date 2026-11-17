@@ -168,6 +168,8 @@ export async function POST(
         applicantId: body.applicantId,
         newStatus: body.newStatus,
         remark: body.remark,
+        siteId: body.siteId,
+        temporaryId: body.temporaryId,
       });
       return NextResponse.json(data);
     }

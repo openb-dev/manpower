@@ -51,6 +51,9 @@ export async function approveApplicantAndCreateEmployee({
   if (applicant.status === ApplicantStatus.APPROVED) {
     throw new Error("Applicant is already approved.");
   }
+  if (applicant.status !== ApplicantStatus.SHORTLISTED) {
+    throw new Error("Shortlist this person first. Then you can make them an employee.");
+  }
 
   // 2. Perform conversion inside ONE atomic DB transaction
   const result = await prisma.$transaction(async (tx) => {

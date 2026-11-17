@@ -23,7 +23,7 @@ export default function HrmHeader({ companySlug, activeTab }: HrmHeaderProps) {
       label: "New applicant",
       icon: ClipboardList,
       href: `/${companySlug}/applicants`,
-      desc: "See forms. Shortlist, reject, or make employee.",
+      desc: "See forms. Shortlist or reject. After shortlist, make employee.",
     },
     {
       id: "employees",

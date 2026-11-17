@@ -57,6 +57,8 @@ export default function ApplicantBookPage() {
   const [statusRemark, setStatusRemark] = useState("");
   const [sites, setSites] = useState<any[]>([]);
   const [siteId, setSiteId] = useState("");
+  const [shortlistSiteId, setShortlistSiteId] = useState("");
+  const [temporaryId, setTemporaryId] = useState("");
   const [joinBankName, setJoinBankName] = useState("");
   const [joinAccountNo, setJoinAccountNo] = useState("");
   const [joinIfsc, setJoinIfsc] = useState("");
@@ -82,7 +84,6 @@ export default function ApplicantBookPage() {
         setTotal(data.total || 0);
         setSites(data.sites || []);
         setSelectedIds((prev) => prev.filter((id) => items.some((row: any) => row.id === id)));
-        if (!siteId && data.sites?.[0]?.id) setSiteId(data.sites[0].id);
         setListError(data.error || "");
       })
       .catch((e: any) => {
@@ -134,6 +135,16 @@ export default function ApplicantBookPage() {
   }
 
   async function handleStatusChange(applicantId: string, newStatus: string, remark: string) {
+    if (newStatus === "SHORTLISTED") {
+      if (!shortlistSiteId) {
+        alert("Please select the duty site.");
+        return;
+      }
+      if (!temporaryId.trim()) {
+        alert("Please enter the temporary ID (tID).");
+        return;
+      }
+    }
     try {
       const res = await fetch(`/api/admin/${companySlug}`, {
         method: "POST",
@@ -144,6 +155,9 @@ export default function ApplicantBookPage() {
           applicantId,
           newStatus,
           remark: remark || `Status marked as ${newStatus}`,
+          ...(newStatus === "SHORTLISTED"
+            ? { siteId: shortlistSiteId, temporaryId: temporaryId.trim() }
+            : {}),
         }),
       });
       const data = await readApiJson(res);
@@ -153,6 +167,10 @@ export default function ApplicantBookPage() {
       }
       setPendingStatus(null);
       setStatusRemark("");
+      if (newStatus === "SHORTLISTED") {
+        setTemporaryId("");
+        setShortlistSiteId("");
+      }
       const refreshed = await loadApplicantBook(companySlug, { search, status: statusFilter });
       setApplicants(refreshed.items || []);
       setTotal(refreshed.total || 0);
@@ -172,6 +190,10 @@ export default function ApplicantBookPage() {
   async function handleApproveAndConvert() {
     if (!selectedApplicant) return;
     setActionError("");
+    if (selectedApplicant.status !== "SHORTLISTED") {
+      setActionError("Shortlist this person first. Then you can make them an employee.");
+      return;
+    }
 
     if (!String(basicRate).trim() || !Number(basicRate)) {
       setActionError("Monthly basic rate is required.");
@@ -532,6 +554,12 @@ export default function ApplicantBookPage() {
                       >
                         {statusLabel(a.status)}
                       </span>
+                      {a.temporaryId ? (
+                        <span className="block text-[10px] font-mono text-slate-500 mt-1">tID {a.temporaryId}</span>
+                      ) : null}
+                      {a.shortlistSiteName ? (
+                        <span className="block text-[10px] text-slate-500">{a.shortlistSiteName}</span>
+                      ) : null}
                     </td>
                     <td className="p-4 text-xs text-slate-400">
                       {new Date(a.createdAt).toLocaleDateString()}
@@ -597,6 +625,16 @@ export default function ApplicantBookPage() {
                     Application ID: {applicationDisplayId(selectedApplicant) || selectedApplicant.id}
                   </div>
                   <div className="flex flex-wrap items-center gap-2 mt-1 text-xs">
+                    {selectedApplicant.formData?.temporaryId || selectedApplicant.temporaryId ? (
+                      <span className="font-mono bg-amber-50 text-amber-800 px-2 py-0.5 rounded font-semibold">
+                        tID: {selectedApplicant.formData?.temporaryId || selectedApplicant.temporaryId}
+                      </span>
+                    ) : null}
+                    {selectedApplicant.formData?.shortlistSiteName || selectedApplicant.shortlistSiteName ? (
+                      <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded font-semibold">
+                        Site: {selectedApplicant.formData?.shortlistSiteName || selectedApplicant.shortlistSiteName}
+                      </span>
+                    ) : null}
                     {selectedApplicant.status === "APPROVED" &&
                     (selectedApplicant.employee?.employeeCode ||
                       selectedApplicant.formData?.officeApplicantId) ? (
@@ -1083,49 +1121,104 @@ export default function ApplicantBookPage() {
           {/* FIXED MODAL FOOTER — company admin has the same decide actions as Super Admin */}
           <div className="shrink-0 p-4 border-t border-slate-200 bg-slate-50 space-y-3 no-print">
             {pendingStatus && selectedApplicant.status !== "APPROVED" ? (
-              <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                <label className="flex-1">
-                  <span className="block text-xs font-semibold text-slate-700 mb-1">
-                    {pendingStatus === "SHORTLISTED" ? "Why are you shortlisting this person?" : "Why are you rejecting this person?"}{" "}
-                    <span className="text-red-600">*</span>
-                  </span>
-                  <input
-                    type="text"
-                    required
-                    autoFocus
-                    value={statusRemark}
-                    onChange={(e) => setStatusRemark(e.target.value)}
-                    placeholder={
-                      pendingStatus === "SHORTLISTED"
-                        ? "Remark for shortlist"
-                        : "Reason for rejection"
-                    }
-                    className="w-full text-xs px-3 py-2 border border-slate-300 rounded-lg bg-white"
-                  />
-                </label>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setPendingStatus(null)}
-                    className="px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-white rounded-lg border border-slate-200"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (!statusRemark.trim()) {
-                        alert("Remark is required.");
-                        return;
+              <div className="space-y-3">
+                {pendingStatus === "SHORTLISTED" ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <label>
+                      <span className="block text-xs font-semibold text-slate-700 mb-1">
+                        Site allocation <span className="text-red-600">*</span>
+                      </span>
+                      <select
+                        required
+                        value={shortlistSiteId}
+                        onChange={(e) => setShortlistSiteId(e.target.value)}
+                        className="w-full text-xs px-3 py-2 border border-slate-300 rounded-lg bg-white"
+                      >
+                        <option value="">Select duty site</option>
+                        {sites.map((site) => (
+                          <option key={site.id} value={site.id}>
+                            {site.name}
+                          </option>
+                        ))}
+                      </select>
+                      {sites.length === 0 ? (
+                        <span className="block text-[10px] text-amber-700 mt-1">
+                          Add a site in Work & sites first.
+                        </span>
+                      ) : null}
+                    </label>
+                    <label>
+                      <span className="block text-xs font-semibold text-slate-700 mb-1">
+                        Temporary ID (tID) <span className="text-red-600">*</span>
+                      </span>
+                      <input
+                        type="text"
+                        required
+                        autoFocus
+                        value={temporaryId}
+                        onChange={(e) => setTemporaryId(e.target.value)}
+                        placeholder="e.g. T-0012"
+                        className="w-full text-xs px-3 py-2 border border-slate-300 rounded-lg bg-white font-mono"
+                      />
+                    </label>
+                  </div>
+                ) : null}
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                  <label className="flex-1">
+                    <span className="block text-xs font-semibold text-slate-700 mb-1">
+                      {pendingStatus === "SHORTLISTED"
+                        ? "Why are you shortlisting this person?"
+                        : "Why are you rejecting this person?"}{" "}
+                      <span className="text-red-600">*</span>
+                    </span>
+                    <input
+                      type="text"
+                      required
+                      autoFocus={pendingStatus !== "SHORTLISTED"}
+                      value={statusRemark}
+                      onChange={(e) => setStatusRemark(e.target.value)}
+                      placeholder={
+                        pendingStatus === "SHORTLISTED" ? "Remark for shortlist" : "Reason for rejection"
                       }
-                      handleStatusChange(selectedApplicant.id, pendingStatus, statusRemark.trim());
-                    }}
-                    className={`px-4 py-2 text-xs font-bold rounded-lg text-white ${
-                      pendingStatus === "REJECTED" ? "bg-red-600 hover:bg-red-700" : "bg-blue-600 hover:bg-blue-700"
-                    }`}
-                  >
-                    Confirm {pendingStatus === "REJECTED" ? "reject" : "shortlist"}
-                  </button>
+                      className="w-full text-xs px-3 py-2 border border-slate-300 rounded-lg bg-white"
+                    />
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPendingStatus(null);
+                        setTemporaryId("");
+                        setShortlistSiteId("");
+                      }}
+                      className="px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-white rounded-lg border border-slate-200"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (pendingStatus === "SHORTLISTED" && !shortlistSiteId) {
+                          alert("Please select the duty site.");
+                          return;
+                        }
+                        if (pendingStatus === "SHORTLISTED" && !temporaryId.trim()) {
+                          alert("Please enter the temporary ID (tID).");
+                          return;
+                        }
+                        if (!statusRemark.trim()) {
+                          alert("Remark is required.");
+                          return;
+                        }
+                        handleStatusChange(selectedApplicant.id, pendingStatus, statusRemark.trim());
+                      }}
+                      className={`px-4 py-2 text-xs font-bold rounded-lg text-white ${
+                        pendingStatus === "REJECTED" ? "bg-red-600 hover:bg-red-700" : "bg-blue-600 hover:bg-blue-700"
+                      }`}
+                    >
+                      Confirm {pendingStatus === "REJECTED" ? "reject" : "shortlist"}
+                    </button>
+                  </div>
                 </div>
               </div>
             ) : (
@@ -1138,7 +1231,10 @@ export default function ApplicantBookPage() {
                     <button
                       type="button"
                       onClick={() => {
+                        const fd = selectedApplicant.formData || {};
                         setStatusRemark("");
+                        setTemporaryId(String(fd.temporaryId || selectedApplicant.temporaryId || ""));
+                        setShortlistSiteId(String(fd.shortlistSiteId || selectedApplicant.shortlistSiteId || ""));
                         setPendingStatus("SHORTLISTED");
                       }}
                       className="px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-bold rounded-lg"
@@ -1160,7 +1256,7 @@ export default function ApplicantBookPage() {
                   )}
                 </div>
 
-                {selectedApplicant.status !== "APPROVED" ? (
+                {selectedApplicant.status === "SHORTLISTED" ? (
                   <button
                     type="button"
                     onClick={() => {
@@ -1170,6 +1266,7 @@ export default function ApplicantBookPage() {
                       setJoinIfsc(fd.ifsc || "");
                       setJoinBranchName(fd.branchName || "");
                       setJoinSecurityMoney(fd.securityMoney || "");
+                      setSiteId(String(fd.shortlistSiteId || selectedApplicant.shortlistSiteId || ""));
                       setActionError("");
                       setShowApproveModal(true);
                     }}
@@ -1177,11 +1274,11 @@ export default function ApplicantBookPage() {
                   >
                     Make employee
                   </button>
-                ) : (
+                ) : selectedApplicant.status === "APPROVED" ? (
                   <span className="text-xs text-emerald-600 font-bold bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-200">
                     Already employee
                   </span>
-                )}
+                ) : null}
               </div>
             )}
           </div>
@@ -1190,7 +1287,7 @@ export default function ApplicantBookPage() {
     )}
 
       {/* APPROVAL MODAL */}
-      {showApproveModal && selectedApplicant && (
+      {showApproveModal && selectedApplicant?.status === "SHORTLISTED" && (
         <div className="fixed inset-0 bg-black/60 z-[80] flex items-center justify-center p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-lg w-full p-6 max-h-[90vh] overflow-y-auto">
             <h3 className="text-lg font-bold text-slate-900 mb-1">

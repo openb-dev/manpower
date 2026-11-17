@@ -219,6 +219,9 @@ export async function submitApplicant(
             filledByAdmin: filledByAdmin || existingForm.filledByAdmin || undefined,
             applicationNo: samePost.applicationNo,
             officeApplicantId: existingForm.officeApplicantId || undefined,
+            temporaryId: existingForm.temporaryId || undefined,
+            shortlistSiteId: existingForm.shortlistSiteId || undefined,
+            shortlistSiteName: existingForm.shortlistSiteName || undefined,
           },
           pvcStatus,
         ),
@@ -369,6 +372,9 @@ export async function listApplicants({
     ...app,
     applicationNo: app.applicationNo || String((formData as any)?.applicationNo || "") || null,
     officeApplicantId: String((formData as any)?.officeApplicantId || ""),
+    temporaryId: String((formData as any)?.temporaryId || ""),
+    shortlistSiteId: String((formData as any)?.shortlistSiteId || ""),
+    shortlistSiteName: String((formData as any)?.shortlistSiteName || ""),
     filledByAdmin: (formData as any)?.filledByAdmin || null,
     jobExtra: extraPostLabel(formData),
     aadhaarDisplay: aadhaarDisplayOf({ person, aadhaarEncrypted, aadhaarLast4 }),
@@ -426,12 +432,16 @@ export async function updateApplicantStatus({
   applicantId,
   newStatus,
   remark,
+  siteId,
+  temporaryId,
 }: {
   companyId: string;
   userId: string;
   applicantId: string;
   newStatus: ApplicantStatus;
   remark: string;
+  siteId?: string;
+  temporaryId?: string;
 }) {
   const tenantDb = getTenantPrisma(companyId);
 
@@ -444,10 +454,43 @@ export async function updateApplicantStatus({
     throw new Error("Cannot change status of an already approved applicant.");
   }
 
+  const existingForm = (applicant.formData || {}) as Record<string, any>;
+  let nextForm = existingForm;
+  if (newStatus === ApplicantStatus.SHORTLISTED) {
+    const tid = String(temporaryId || "").trim();
+    const chosenSiteId = String(siteId || "").trim();
+    if (!chosenSiteId) throw new Error("Please select the duty site.");
+    if (!tid) throw new Error("Please enter the temporary ID (tID).");
+
+    const site = await prisma.site.findFirst({
+      where: { id: chosenSiteId, companyId, active: true },
+      select: { id: true, name: true },
+    });
+    if (!site) throw new Error("Please select a valid duty site.");
+
+    const taken = await prisma.applicant.findFirst({
+      where: {
+        companyId,
+        deletedAt: null,
+        id: { not: applicantId },
+        formData: { path: ["temporaryId"], equals: tid },
+      },
+      select: { id: true, fullName: true },
+    });
+    if (taken) throw new Error("This temporary ID (tID) is already used. Please type a different one.");
+
+    nextForm = {
+      ...existingForm,
+      temporaryId: tid,
+      shortlistSiteId: site.id,
+      shortlistSiteName: site.name,
+    };
+  }
+
   const updated = await prisma.$transaction(async (tx) => {
     const res = await tx.applicant.update({
       where: { id: applicantId },
-      data: { status: newStatus },
+      data: { status: newStatus, formData: nextForm },
     });
 
     await tx.applicantRemark.create({
@@ -466,7 +509,17 @@ export async function updateApplicantStatus({
         entityId: applicantId,
         action: `STATUS_${newStatus}`,
         oldValue: { status: applicant.status },
-        newValue: { status: newStatus, remark },
+        newValue: {
+          status: newStatus,
+          remark,
+          ...(newStatus === ApplicantStatus.SHORTLISTED
+            ? {
+                temporaryId: nextForm.temporaryId,
+                shortlistSiteId: nextForm.shortlistSiteId,
+                shortlistSiteName: nextForm.shortlistSiteName,
+              }
+            : {}),
+        },
       },
     });
 
@@ -646,6 +699,9 @@ export async function updateApplicant(
           filledByAdmin,
           applicationNo: existing.applicationNo,
           officeApplicantId: existingForm.officeApplicantId || undefined,
+          temporaryId: existingForm.temporaryId || undefined,
+          shortlistSiteId: existingForm.shortlistSiteId || undefined,
+          shortlistSiteName: existingForm.shortlistSiteName || undefined,
         },
         pvcStatus,
       ),

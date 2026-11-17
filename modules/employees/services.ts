@@ -8,7 +8,6 @@ export async function approveApplicantAndCreateEmployee({
   userId,
   applicantId,
   siteId,
-  otherSiteName,
   basicRate,
   divisorDays = 26,
   uan,
@@ -25,7 +24,6 @@ export async function approveApplicantAndCreateEmployee({
   userId: string;
   applicantId: string;
   siteId?: string;
-  otherSiteName?: string;
   basicRate: number;
   divisorDays?: number;
   uan?: string;
@@ -58,10 +56,14 @@ export async function approveApplicantAndCreateEmployee({
     throw new Error("Shortlist this person first. Then you can make them an employee.");
   }
 
+  const formData = (applicant.formData as Record<string, any>) || {};
+  const shortlistSiteId = String(formData.shortlistSiteId || siteId || "").trim();
+  if (!shortlistSiteId) {
+    throw new Error("This person has no duty site from shortlist.");
+  }
   const site = await findOrCreateDutySite({
     companyId,
-    siteId,
-    otherName: otherSiteName,
+    siteId: shortlistSiteId,
   });
 
   // 2. Perform conversion inside ONE atomic DB transaction
@@ -92,7 +94,6 @@ export async function approveApplicantAndCreateEmployee({
     }
 
     // 2b. Bank details and security deposit are collected at approval time
-    const formData = (applicant.formData as Record<string, any>) || {};
     const bankAccountNo = String(accountNo || formData.accountNo || "").trim();
     const bankIfsc = String(ifsc || formData.ifsc || "").trim();
     const bankBranch = String(branchName || formData.branchName || "").trim();

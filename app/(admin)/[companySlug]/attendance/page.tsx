@@ -4,7 +4,6 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import HrmHeader from "@/components/admin/HrmHeader";
 import {
-  assignStaffSite,
   fillAttendanceMonth,
   loadAttendanceBook,
   lockAttendanceMonth,
@@ -87,7 +86,6 @@ export default function AttendancePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState("");
-  const sites = data?.sites || [];
 
   const rows = data?.rows || [];
   const days = Array.from({ length: data?.daysInMonth || 0 }, (_, i) => i + 1);
@@ -121,7 +119,7 @@ export default function AttendancePage() {
   async function cycleDay(row: any, day: number) {
     if (data?.locked) return;
     if (!row.siteId) {
-      setError(`Set a duty site for ${row.fullName} before marking days.`);
+      setError(`${row.fullName} has no duty site from shortlist.`);
       return;
     }
     const date = `${monthKey}-${String(day).padStart(2, "0")}`;
@@ -147,20 +145,6 @@ export default function AttendancePage() {
     } catch (err: any) {
       setError(friendlyPublicError(err.message || "Attendance could not be saved."));
       loadBook();
-    } finally {
-      setBusy("");
-    }
-  }
-
-  async function assignSite(employeeId: string, siteId: string) {
-    if (!siteId) return;
-    setBusy(`site-${employeeId}`);
-    try {
-      await assignStaffSite(companySlug, employeeId, siteId);
-      setError("");
-      loadBook();
-    } catch (err: any) {
-      setError(friendlyPublicError(err.message || "Site could not be saved."));
     } finally {
       setBusy("");
     }
@@ -330,23 +314,7 @@ export default function AttendancePage() {
                     <td className="p-2 sticky left-0 bg-white z-10 min-w-48">
                       <div className="font-semibold text-slate-900">{row.fullName}</div>
                       <div className="font-mono text-[10px] text-slate-500">{row.employeeCode}</div>
-                      {row.siteId ? (
-                        <div className="text-[10px] text-slate-500">{row.siteName}</div>
-                      ) : (
-                        <select
-                          value=""
-                          disabled={Boolean(busy)}
-                          onChange={(e) => assignSite(row.employeeId, e.target.value)}
-                          className="mt-1 w-full px-1.5 py-1 border border-amber-300 bg-amber-50 rounded text-[10px] font-bold text-amber-800"
-                        >
-                          <option value="">Set duty site first</option>
-                          {sites.map((site: any) => (
-                            <option key={site.id} value={site.id}>
-                              {site.name}
-                            </option>
-                          ))}
-                        </select>
-                      )}
+                      <div className="text-[10px] text-slate-500">{row.siteName || "No site"}</div>
                     </td>
                     {days.map((day) => {
                       const status = row.marks?.[String(day)];

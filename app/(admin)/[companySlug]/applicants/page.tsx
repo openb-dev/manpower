@@ -57,7 +57,6 @@ export default function ApplicantBookPage() {
   const [pendingStatus, setPendingStatus] = useState<"SHORTLISTED" | "REJECTED" | null>(null);
   const [statusRemark, setStatusRemark] = useState("");
   const [sites, setSites] = useState<any[]>([]);
-  const [siteId, setSiteId] = useState("");
   const [shortlistSiteId, setShortlistSiteId] = useState("");
   const [otherSiteName, setOtherSiteName] = useState("");
   const [temporaryId, setTemporaryId] = useState("");
@@ -215,12 +214,10 @@ export default function ApplicantBookPage() {
       setActionError("Approval remark is required.");
       return;
     }
-    if (!siteChoiceReady(siteId, otherSiteName)) {
-      setActionError(
-        siteId === OTHER_SITE_VALUE
-          ? "Enter the site name before making an employee."
-          : "Select the duty site before making an employee.",
-      );
+    const shortlistSite =
+      String(selectedApplicant.formData?.shortlistSiteId || selectedApplicant.shortlistSiteId || "").trim();
+    if (!shortlistSite) {
+      setActionError("This person has no duty site from shortlist.");
       return;
     }
     if (!joinBankName.trim() || !joinAccountNo.trim() || !joinIfsc.trim() || !joinBranchName.trim()) {
@@ -247,8 +244,7 @@ export default function ApplicantBookPage() {
           applicantId: selectedApplicant.id,
           basicRate: Number(basicRate),
           divisorDays: Number(divisorDays),
-          siteId,
-          otherSiteName: siteId === OTHER_SITE_VALUE ? otherSiteName.trim() : undefined,
+          siteId: shortlistSite,
           bankName: joinBankName.trim(),
           accountNo: joinAccountNo.trim(),
           ifsc: joinIfsc.trim().toUpperCase(),
@@ -1276,8 +1272,6 @@ export default function ApplicantBookPage() {
                       setJoinIfsc(fd.ifsc || "");
                       setJoinBranchName(fd.branchName || "");
                       setJoinSecurityMoney(fd.securityMoney || "");
-                      setSiteId(String(fd.shortlistSiteId || selectedApplicant.shortlistSiteId || ""));
-                      setOtherSiteName("");
                       setActionError("");
                       setShowApproveModal(true);
                     }}
@@ -1356,19 +1350,12 @@ export default function ApplicantBookPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Duty site <span className="text-red-600">*</span>
-                </label>
-                <DutySiteSelect
-                  required
-                  sites={sites}
-                  value={siteId}
-                  otherName={otherSiteName}
-                  onValueChange={setSiteId}
-                  onOtherNameChange={setOtherSiteName}
-                  emptyLabel="Select site"
-                  selectClassName="w-full px-3 py-1.5 border rounded text-slate-900"
-                />
+                <span className="block text-xs font-semibold text-slate-700 mb-1">Duty site</span>
+                <p className="px-3 py-1.5 border border-slate-200 rounded bg-slate-50 text-slate-900">
+                  {selectedApplicant.formData?.shortlistSiteName ||
+                    selectedApplicant.shortlistSiteName ||
+                    "—"}
+                </p>
               </div>
 
               <div className="pt-1 border-t border-slate-200">

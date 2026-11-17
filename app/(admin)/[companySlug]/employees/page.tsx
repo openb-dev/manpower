@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import HrmHeader from "@/components/admin/HrmHeader";
 import { statusLabel } from "@/components/admin/SimpleGuide";
-import { assignStaffSite, loadEmployeeBook, loadReportPerson } from "../actions";
+import { loadEmployeeBook, loadReportPerson } from "../actions";
 import { friendlyPublicError, readApiJson } from "@/lib/publicErrors";
 import AttachedDocuments from "@/components/admin/AttachedDocuments";
 import { printPaperFormPdf } from "@/lib/downloadPaperFormPdf";
@@ -25,8 +25,6 @@ export default function EmployeeBookPage() {
   const [search, setSearch] = useState("");
   const [selectedEmployee, setSelectedEmployee] = useState<any | null>(null);
   const [listError, setListError] = useState("");
-  const [sites, setSites] = useState<any[]>([]);
-  const [savingSite, setSavingSite] = useState("");
   const [printingForm, setPrintingForm] = useState(false);
 
   function loadEmployees() {
@@ -35,7 +33,6 @@ export default function EmployeeBookPage() {
       .then((data) => {
         setEmployees(data.items || []);
         setTotal(data.total || 0);
-        setSites(data.sites || []);
         setListError("");
       })
       .catch((e: any) => {
@@ -49,26 +46,6 @@ export default function EmployeeBookPage() {
   useEffect(() => {
     loadEmployees();
   }, [companySlug]);
-
-  async function handleAssignSite(empId: string, siteId: string) {
-    if (!siteId) return;
-    setSavingSite(empId);
-    try {
-      const result = await assignStaffSite(companySlug, empId, siteId);
-      setEmployees((rows) =>
-        rows.map((row) =>
-          row.id === empId ? { ...row, siteId, site: { name: result.siteName } } : row
-        )
-      );
-      setSelectedEmployee((current) =>
-        current && current.id === empId ? { ...current, siteId, site: { name: result.siteName } } : current
-      );
-    } catch (e: any) {
-      alert(e.message || "Site could not be saved.");
-    } finally {
-      setSavingSite("");
-    }
-  }
 
   async function handleSoftDelete(empId: string) {
     const reason = prompt("Why is this person leaving? Write a short reason.");
@@ -171,19 +148,7 @@ export default function EmployeeBookPage() {
                       <span className="block text-xs text-slate-400">{emp.roleCategory?.name}</span>
                     </td>
                     <td className="p-4 text-xs font-medium text-slate-700">
-                      <select
-                        value={emp.siteId || ""}
-                        disabled={savingSite === emp.id}
-                        onChange={(e) => handleAssignSite(emp.id, e.target.value)}
-                        className="max-w-40 px-2 py-1 border border-slate-300 rounded bg-white text-xs"
-                      >
-                        <option value="">No site</option>
-                        {sites.map((site) => (
-                          <option key={site.id} value={site.id}>
-                            {site.name}
-                          </option>
-                        ))}
-                      </select>
+                      {emp.site?.name || "—"}
                     </td>
                     <td className="p-4 font-mono">
                       ₹{Number(emp.basicRate || 0).toLocaleString()}
@@ -302,22 +267,9 @@ export default function EmployeeBookPage() {
               </div>
               <div className="col-span-2">
                 <span className="text-xs text-slate-400 block">Duty site</span>
-                <select
-                  value={selectedEmployee.siteId || ""}
-                  disabled={savingSite === selectedEmployee.id}
-                  onChange={(e) => handleAssignSite(selectedEmployee.id, e.target.value)}
-                  className="mt-1 w-full px-2 py-1.5 border border-slate-300 rounded bg-white text-sm"
-                >
-                  <option value="">Select duty site</option>
-                  {sites.map((site) => (
-                    <option key={site.id} value={site.id}>
-                      {site.name}
-                    </option>
-                  ))}
-                </select>
-                <p className="text-[11px] text-slate-500 mt-1">
-                  Set the site first. Then you can mark attendance.
-                </p>
+                <span className="font-semibold text-slate-800">
+                  {selectedEmployee.site?.name || selectedEmployee.formData?.shortlistSiteName || "—"}
+                </span>
               </div>
             </div>
 

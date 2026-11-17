@@ -8,6 +8,8 @@ import {
   openAttachedFile,
   type AttachedDocument,
 } from "@/lib/applicantFormFields";
+import { downloadAttachedDocumentsPdf } from "@/lib/downloadAttachedDocumentsPdf";
+import { friendlyPublicError } from "@/lib/publicErrors";
 
 function isImage(doc: AttachedDocument) {
   return (
@@ -29,6 +31,19 @@ export default function AttachedDocuments({
 }) {
   const documents = useMemo(() => documentsForDownload(person), [person]);
   const [viewing, setViewing] = useState<AttachedDocument | null>(null);
+  const [packing, setPacking] = useState(false);
+
+  async function downloadAll() {
+    if (packing) return;
+    setPacking(true);
+    try {
+      await downloadAttachedDocumentsPdf(person, documents);
+    } catch (err: any) {
+      alert(friendlyPublicError(err?.message || "The documents could not be packed into one PDF."));
+    } finally {
+      setPacking(false);
+    }
+  }
 
   if (!documents.length) {
     return (
@@ -45,14 +60,11 @@ export default function AttachedDocuments({
         <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">{title}</h3>
         <button
           type="button"
-          onClick={() => {
-            documents.forEach((doc, index) => {
-              window.setTimeout(() => downloadAttachedFile(doc.src, doc.downloadName || doc.fileName), index * 400);
-            });
-          }}
-          className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold rounded-lg"
+          disabled={packing}
+          onClick={downloadAll}
+          className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-[11px] font-bold rounded-lg"
         >
-          Download all
+          {packing ? "Making PDF..." : "Download all"}
         </button>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

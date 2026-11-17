@@ -1,5 +1,6 @@
 import { prisma, getTenantPrisma } from "../../lib/db/index.ts";
 import { aadhaarDisplayOf, ensurePeople } from "../../lib/personIdentity.ts";
+import { findOrCreateDutySite } from "../../lib/nkSites.ts";
 import { ApplicantStatus, EmployeeStatus, Prisma } from "@prisma/client";
 
 export async function approveApplicantAndCreateEmployee({
@@ -7,6 +8,7 @@ export async function approveApplicantAndCreateEmployee({
   userId,
   applicantId,
   siteId,
+  otherSiteName,
   basicRate,
   divisorDays = 26,
   uan,
@@ -23,6 +25,7 @@ export async function approveApplicantAndCreateEmployee({
   userId: string;
   applicantId: string;
   siteId?: string;
+  otherSiteName?: string;
   basicRate: number;
   divisorDays?: number;
   uan?: string;
@@ -54,6 +57,12 @@ export async function approveApplicantAndCreateEmployee({
   if (applicant.status !== ApplicantStatus.SHORTLISTED) {
     throw new Error("Shortlist this person first. Then you can make them an employee.");
   }
+
+  const site = await findOrCreateDutySite({
+    companyId,
+    siteId,
+    otherName: otherSiteName,
+  });
 
   // 2. Perform conversion inside ONE atomic DB transaction
   const result = await prisma.$transaction(async (tx) => {
@@ -104,7 +113,7 @@ export async function approveApplicantAndCreateEmployee({
         applicantId: applicant.id,
         jobRoleId: applicant.jobRoleId,
         roleCategoryId: applicant.roleCategoryId,
-        siteId: siteId || null,
+        siteId: site.id,
         fullName: applicant.fullName,
         mobile: applicant.mobile,
         email: applicant.email,
@@ -181,7 +190,7 @@ export async function approveApplicantAndCreateEmployee({
         entityId: employee.id,
         action: "APPROVE_AND_CONVERT",
         oldValue: { applicantId: applicant.id, status: applicant.status },
-        newValue: { employeeId: employee.id, employeeCode, siteId, basicRate },
+        newValue: { employeeId: employee.id, employeeCode, siteId: site.id, basicRate },
       },
     });
 

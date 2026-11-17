@@ -170,6 +170,7 @@ export async function POST(
         remark: body.remark,
         siteId: body.siteId,
         temporaryId: body.temporaryId,
+        otherSiteName: body.otherSiteName,
       });
       return NextResponse.json(data);
     }
@@ -180,6 +181,7 @@ export async function POST(
         userId: user.id,
         applicantId: body.applicantId,
         siteId: body.siteId,
+        otherSiteName: body.otherSiteName,
         basicRate: Number(body.basicRate),
         divisorDays: Number(body.divisorDays) || 26,
         uan: body.uan,

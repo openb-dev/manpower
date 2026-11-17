@@ -10,6 +10,7 @@ import { downloadPaperFormPdf, paperFormFileName, printPaperFormPdf } from "@/li
 import { friendlyPublicError, readApiJson } from "@/lib/publicErrors";
 import { applicantPhotoUrl, applicationDisplayId, filledByAdminInfo, filledByAdminLine, indianAddressLine } from "@/lib/applicantFormFields";
 import AttachedDocuments from "@/components/admin/AttachedDocuments";
+import { DutySiteSelect, OTHER_SITE_VALUE, siteChoiceReady } from "@/components/admin/DutySiteSelect";
 
 const ApplicantPaperForm = dynamic(
   () => import("@/components/admin/ApplicantPaperForm").then((mod) => mod.ApplicantPaperForm),
@@ -58,6 +59,7 @@ export default function ApplicantBookPage() {
   const [sites, setSites] = useState<any[]>([]);
   const [siteId, setSiteId] = useState("");
   const [shortlistSiteId, setShortlistSiteId] = useState("");
+  const [otherSiteName, setOtherSiteName] = useState("");
   const [temporaryId, setTemporaryId] = useState("");
   const [joinBankName, setJoinBankName] = useState("");
   const [joinAccountNo, setJoinAccountNo] = useState("");
@@ -136,8 +138,8 @@ export default function ApplicantBookPage() {
 
   async function handleStatusChange(applicantId: string, newStatus: string, remark: string) {
     if (newStatus === "SHORTLISTED") {
-      if (!shortlistSiteId) {
-        alert("Please select the duty site.");
+      if (!siteChoiceReady(shortlistSiteId, otherSiteName)) {
+        alert(shortlistSiteId === OTHER_SITE_VALUE ? "Please enter the site name." : "Please select the duty site.");
         return;
       }
       if (!temporaryId.trim()) {
@@ -156,7 +158,11 @@ export default function ApplicantBookPage() {
           newStatus,
           remark: remark || `Status marked as ${newStatus}`,
           ...(newStatus === "SHORTLISTED"
-            ? { siteId: shortlistSiteId, temporaryId: temporaryId.trim() }
+            ? {
+                siteId: shortlistSiteId,
+                temporaryId: temporaryId.trim(),
+                otherSiteName: shortlistSiteId === OTHER_SITE_VALUE ? otherSiteName.trim() : undefined,
+              }
             : {}),
         }),
       });
@@ -170,10 +176,12 @@ export default function ApplicantBookPage() {
       if (newStatus === "SHORTLISTED") {
         setTemporaryId("");
         setShortlistSiteId("");
+        setOtherSiteName("");
       }
       const refreshed = await loadApplicantBook(companySlug, { search, status: statusFilter });
       setApplicants(refreshed.items || []);
       setTotal(refreshed.total || 0);
+      setSites(refreshed.sites || []);
       try {
         const detail = await loadApplicantDetail(companySlug, applicantId);
         setSelectedApplicant(detail);
@@ -207,8 +215,12 @@ export default function ApplicantBookPage() {
       setActionError("Approval remark is required.");
       return;
     }
-    if (!siteId) {
-      setActionError("Select the duty site before making an employee.");
+    if (!siteChoiceReady(siteId, otherSiteName)) {
+      setActionError(
+        siteId === OTHER_SITE_VALUE
+          ? "Enter the site name before making an employee."
+          : "Select the duty site before making an employee.",
+      );
       return;
     }
     if (!joinBankName.trim() || !joinAccountNo.trim() || !joinIfsc.trim() || !joinBranchName.trim()) {
@@ -236,6 +248,7 @@ export default function ApplicantBookPage() {
           basicRate: Number(basicRate),
           divisorDays: Number(divisorDays),
           siteId,
+          otherSiteName: siteId === OTHER_SITE_VALUE ? otherSiteName.trim() : undefined,
           bankName: joinBankName.trim(),
           accountNo: joinAccountNo.trim(),
           ifsc: joinIfsc.trim().toUpperCase(),
@@ -1124,29 +1137,20 @@ export default function ApplicantBookPage() {
               <div className="space-y-3">
                 {pendingStatus === "SHORTLISTED" ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    <label>
+                    <div>
                       <span className="block text-xs font-semibold text-slate-700 mb-1">
                         Site allocation <span className="text-red-600">*</span>
                       </span>
-                      <select
+                      <DutySiteSelect
                         required
+                        sites={sites}
                         value={shortlistSiteId}
-                        onChange={(e) => setShortlistSiteId(e.target.value)}
-                        className="w-full text-xs px-3 py-2 border border-slate-300 rounded-lg bg-white"
-                      >
-                        <option value="">Select duty site</option>
-                        {sites.map((site) => (
-                          <option key={site.id} value={site.id}>
-                            {site.name}
-                          </option>
-                        ))}
-                      </select>
-                      {sites.length === 0 ? (
-                        <span className="block text-[10px] text-amber-700 mt-1">
-                          Add a site in Work & sites first.
-                        </span>
-                      ) : null}
-                    </label>
+                        otherName={otherSiteName}
+                        onValueChange={setShortlistSiteId}
+                        onOtherNameChange={setOtherSiteName}
+                        selectClassName="w-full text-xs px-3 py-2 border border-slate-300 rounded-lg bg-white"
+                      />
+                    </div>
                     <label>
                       <span className="block text-xs font-semibold text-slate-700 mb-1">
                         Temporary ID (tID) <span className="text-red-600">*</span>
@@ -1154,7 +1158,7 @@ export default function ApplicantBookPage() {
                       <input
                         type="text"
                         required
-                        autoFocus
+                        autoFocus={shortlistSiteId !== OTHER_SITE_VALUE}
                         value={temporaryId}
                         onChange={(e) => setTemporaryId(e.target.value)}
                         placeholder="e.g. T-0012"
@@ -1190,6 +1194,7 @@ export default function ApplicantBookPage() {
                         setPendingStatus(null);
                         setTemporaryId("");
                         setShortlistSiteId("");
+                        setOtherSiteName("");
                       }}
                       className="px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-white rounded-lg border border-slate-200"
                     >
@@ -1198,8 +1203,12 @@ export default function ApplicantBookPage() {
                     <button
                       type="button"
                       onClick={() => {
-                        if (pendingStatus === "SHORTLISTED" && !shortlistSiteId) {
-                          alert("Please select the duty site.");
+                        if (pendingStatus === "SHORTLISTED" && !siteChoiceReady(shortlistSiteId, otherSiteName)) {
+                          alert(
+                            shortlistSiteId === OTHER_SITE_VALUE
+                              ? "Please enter the site name."
+                              : "Please select the duty site.",
+                          );
                           return;
                         }
                         if (pendingStatus === "SHORTLISTED" && !temporaryId.trim()) {
@@ -1235,6 +1244,7 @@ export default function ApplicantBookPage() {
                         setStatusRemark("");
                         setTemporaryId(String(fd.temporaryId || selectedApplicant.temporaryId || ""));
                         setShortlistSiteId(String(fd.shortlistSiteId || selectedApplicant.shortlistSiteId || ""));
+                        setOtherSiteName("");
                         setPendingStatus("SHORTLISTED");
                       }}
                       className="px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-bold rounded-lg"
@@ -1267,6 +1277,7 @@ export default function ApplicantBookPage() {
                       setJoinBranchName(fd.branchName || "");
                       setJoinSecurityMoney(fd.securityMoney || "");
                       setSiteId(String(fd.shortlistSiteId || selectedApplicant.shortlistSiteId || ""));
+                      setOtherSiteName("");
                       setActionError("");
                       setShowApproveModal(true);
                     }}
@@ -1348,19 +1359,16 @@ export default function ApplicantBookPage() {
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
                   Duty site <span className="text-red-600">*</span>
                 </label>
-                <select
+                <DutySiteSelect
                   required
+                  sites={sites}
                   value={siteId}
-                  onChange={(e) => setSiteId(e.target.value)}
-                  className="w-full px-3 py-1.5 border rounded text-slate-900"
-                >
-                  <option value="">Select site</option>
-                  {sites.map((site) => (
-                    <option key={site.id} value={site.id}>
-                      {site.name}
-                    </option>
-                  ))}
-                </select>
+                  otherName={otherSiteName}
+                  onValueChange={setSiteId}
+                  onOtherNameChange={setOtherSiteName}
+                  emptyLabel="Select site"
+                  selectClassName="w-full px-3 py-1.5 border rounded text-slate-900"
+                />
               </div>
 
               <div className="pt-1 border-t border-slate-200">

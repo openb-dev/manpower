@@ -9,6 +9,7 @@ import type { OfficeAdmin } from "../../lib/officeAdmin.ts";
 import { formPrefillFromApplicant } from "../candidates/services.ts";
 import { allocateApplicationNo, ensureApplicantNumbers } from "../../lib/applicationNumbers.ts";
 import { aadhaarDisplayOf, ensurePeople, findOrCreatePerson } from "../../lib/personIdentity.ts";
+import { findOrCreateDutySite } from "../../lib/nkSites.ts";
 
 export { ensureApplicantNumbers };
 
@@ -434,6 +435,7 @@ export async function updateApplicantStatus({
   remark,
   siteId,
   temporaryId,
+  otherSiteName,
 }: {
   companyId: string;
   userId: string;
@@ -442,6 +444,7 @@ export async function updateApplicantStatus({
   remark: string;
   siteId?: string;
   temporaryId?: string;
+  otherSiteName?: string;
 }) {
   const tenantDb = getTenantPrisma(companyId);
 
@@ -458,15 +461,12 @@ export async function updateApplicantStatus({
   let nextForm = existingForm;
   if (newStatus === ApplicantStatus.SHORTLISTED) {
     const tid = String(temporaryId || "").trim();
-    const chosenSiteId = String(siteId || "").trim();
-    if (!chosenSiteId) throw new Error("Please select the duty site.");
     if (!tid) throw new Error("Please enter the temporary ID (tID).");
-
-    const site = await prisma.site.findFirst({
-      where: { id: chosenSiteId, companyId, active: true },
-      select: { id: true, name: true },
+    const site = await findOrCreateDutySite({
+      companyId,
+      siteId,
+      otherName: otherSiteName,
     });
-    if (!site) throw new Error("Please select a valid duty site.");
 
     const taken = await prisma.applicant.findFirst({
       where: {

@@ -6,6 +6,7 @@ import { aadhaarDisplayOf, ensurePeople } from "@/lib/personIdentity";
 import { ApplicantStatus, AttendanceStatus, Role } from "@prisma/client";
 import { listApplicants } from "@/modules/applicants/services";
 import { ensureApplicantNumbers } from "@/lib/applicationNumbers";
+import { ensureNkDutySites, sortDutySites } from "@/lib/nkSites";
 import { assignEmployeeSite, listEmployees } from "@/modules/employees/services";
 import {
   fillWorkingDays,
@@ -51,6 +52,17 @@ function toClientJson<T>(value: T): T {
   return JSON.parse(JSON.stringify(convertForClient(value))) as T;
 }
 
+async function loadDutySites(companyId: string) {
+  await ensureNkDutySites(companyId);
+  return sortDutySites(
+    await prisma.site.findMany({
+      where: { companyId, active: true },
+      select: { id: true, name: true, code: true },
+      orderBy: { name: "asc" },
+    }),
+  );
+}
+
 export async function loadApplicantBook(
   companySlug: string,
   opts: { search?: string; status?: string } = {},
@@ -65,11 +77,7 @@ export async function loadApplicantBook(
       status,
       limit: 50,
     });
-    const sites = await prisma.site.findMany({
-      where: { companyId: company.id, active: true },
-      select: { id: true, name: true, code: true },
-      orderBy: { name: "asc" },
-    });
+    const sites = await loadDutySites(company.id);
     return toClientJson({ ...data, sites, error: "" });
   } catch (error) {
     console.error("[loadApplicantBook]", error);
@@ -124,11 +132,7 @@ export async function loadEmployeeBook(
     search: opts.search?.trim() || undefined,
     limit: 50,
   });
-  const sites = await prisma.site.findMany({
-    where: { companyId: company.id, active: true },
-    select: { id: true, name: true, code: true },
-    orderBy: { name: "asc" },
-  });
+  const sites = await loadDutySites(company.id);
   return toClientJson({ ...data, sites });
 }
 
@@ -219,11 +223,7 @@ export async function loadAttendanceBook(companySlug: string, monthKey: string) 
       companyId: company.id,
       monthKey,
     }),
-    prisma.site.findMany({
-      where: { companyId: company.id, active: true },
-      select: { id: true, name: true, code: true },
-      orderBy: { name: "asc" },
-    }),
+    loadDutySites(company.id),
   ]);
   return toClientJson({ ...data, sites });
 }
@@ -274,10 +274,7 @@ export async function loadCrmBook(companySlug: string) {
     include: { _count: { select: { invoices: true, purchases: true } } },
     orderBy: { createdAt: "desc" },
   });
-  const sites = await prisma.site.findMany({
-    where: { companyId: company.id, active: true },
-    orderBy: { name: "asc" },
-  });
+  const sites = await loadDutySites(company.id);
   return toClientJson({
     company: { legalName: company.legalName, shortName: company.shortName, slug: company.slug },
     contracts,

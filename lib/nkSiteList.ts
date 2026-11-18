@@ -17,3 +17,14 @@ export const NK_DUTY_SITES = [
   { name: "RPAO NSG", code: "RPAO-NSG" },
   { name: "Textile Kolkata", code: "TEXTILE-KOL" },
 ] as const;
+
+export const NK_DUTY_SITE_OPTIONS = NK_DUTY_SITES.map((site) => ({
+  id: site.code,
+  name: site.name,
+}));
+
+export function dutySiteNameFromChoice(code: string, otherName?: string) {
+  const typed = String(otherName || "").trim();
+  if (!code || code === OTHER_SITE_VALUE) return typed;
+  return NK_DUTY_SITES.find((site) => site.code === code)?.name || typed;
+}

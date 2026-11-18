@@ -949,8 +949,22 @@ export default function ApplicantBookPage() {
                     <span className="font-semibold font-mono text-emerald-800">{selectedApplicant.mobile}</span>
                   </div>
                   <div>
+                    <span className="text-slate-400 block font-semibold text-[10px] uppercase">Email ID</span>
+                    <span className="font-semibold text-slate-800 break-all">
+                      {selectedApplicant.email || selectedApplicant.formData?.email || "—"}
+                    </span>
+                  </div>
+                  <div>
                     <span className="text-slate-400 block font-semibold text-[10px] uppercase">Emergency contact</span>
                     <span className="font-semibold font-mono text-slate-800">{selectedApplicant.formData?.emergencyContact || "—"}</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block font-semibold text-[10px] uppercase">Preferred site</span>
+                    <span className="font-semibold text-slate-800">
+                      {selectedApplicant.formData?.preferredSiteName ||
+                        selectedApplicant.formData?.preferredSiteOther ||
+                        "—"}
+                    </span>
                   </div>
                   <div>
                     <span className="text-slate-400 block font-semibold text-[10px] uppercase">Aadhaar Number</span>

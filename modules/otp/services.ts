@@ -22,14 +22,13 @@ export async function requestApplicantOtp({ companySlug, identifier, channel, ip
   });
   if (!company) throw new Error("Company not found.");
 
-  const chosenChannel = channel || (identifier.includes("@") ? "EMAIL" : "WHATSAPP");
+  if (channel && channel !== "EMAIL") {
+    throw new Error("WhatsApp OTP is not used. The code is sent by email only.");
+  }
+  const chosenChannel = "EMAIL" as const;
   const cleanId = normalizeOtpIdentifier(identifier, chosenChannel);
-  if (!cleanId || (chosenChannel === "EMAIL" ? !cleanId.includes("@") : cleanId.length !== 10)) {
-    throw new Error(
-      chosenChannel === "EMAIL"
-        ? "Please enter a valid email address."
-        : "Please enter a valid 10-digit mobile number."
-    );
+  if (!cleanId || !cleanId.includes("@")) {
+    throw new Error("Please enter a valid email address.");
   }
 
   // Rate-limiting: max 3 requests in the last 10 minutes from same identifier or IP

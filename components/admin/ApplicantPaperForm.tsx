@@ -464,7 +464,16 @@ export function ApplicantPaperForm({
               <DashBits
                 items={[
                   { label: "Mobile", value: person?.mobile || fd.mobile, min: "5.4rem" },
+                  { label: "Email ID", value: person?.email || fd.email, min: "7rem" },
+                ]}
+              />
+            </li>
+            <li className="flex gap-2">
+              <span className="w-4 shrink-0"></span>
+              <DashBits
+                items={[
                   { label: "Emergency contact", value: fd.emergencyContact, min: "5.4rem" },
+                  { label: "Preferred site", value: fd.preferredSiteName || fd.preferredSiteOther, min: "7rem" },
                 ]}
               />
             </li>

@@ -555,11 +555,18 @@ export class RealIntegratedOtpProvider implements OtpProvider {
     identifier: string,
     code: string,
     companyName: string,
-    channel: "EMAIL" | "WHATSAPP" = "WHATSAPP",
+    channel: "EMAIL" | "WHATSAPP" = "EMAIL",
     purpose: OtpPurpose = "VERIFY"
   ): Promise<OtpSendResult> {
     const isEmail = channel === "EMAIL" || identifier.includes("@");
     const failures: string[] = [];
+    if (!isEmail) {
+      return {
+        success: false,
+        delivered: false,
+        error: "WhatsApp OTP is not used. The code is sent by email only.",
+      };
+    }
 
     if (isEmail) {
       if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
@@ -682,7 +689,7 @@ export class ConsoleOtpProvider implements OtpProvider {
     identifier: string,
     code: string,
     companyName: string,
-    channel: "EMAIL" | "WHATSAPP" = "WHATSAPP",
+    channel: "EMAIL" | "WHATSAPP" = "EMAIL",
     _purpose: OtpPurpose = "VERIFY"
   ): Promise<OtpSendResult> {
     console.log(

@@ -144,10 +144,10 @@ export async function POST(
       const res = await requestApplicantOtp({
         companySlug,
         identifier: body.identifier,
-        channel: body.channel,
+        channel: "EMAIL",
         ipAddress: request.headers.get("x-forwarded-for") || undefined,
       });
-      // In production, strip trialCode so real OTP delivered to WhatsApp/Email is strictly required.
+      // In production, strip trialCode so the real email OTP is required.
       // In development mode (where SMS gateways aren't configured), pass trialCode for seamless local testing.
       const isProduction = process.env.NODE_ENV === "production";
       const clientSafe = isProduction ? { ...res, trialCode: undefined } : res;
@@ -177,7 +177,7 @@ export async function POST(
         email: body.email,
         whatsappNo: body.whatsappNo,
         password: body.password,
-        otpChannel: body.otpChannel || "WHATSAPP",
+        otpChannel: "EMAIL",
         otpCode: body.otpCode,
       });
       return withCandidateCookie(

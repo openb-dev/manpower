@@ -21,7 +21,6 @@ export async function registerCandidate({
   email,
   whatsappNo,
   password,
-  otpChannel,
   otpCode,
 }: RegisterCandidateParams) {
   const company = await prisma.company.findUnique({
@@ -36,7 +35,7 @@ export async function registerCandidate({
     throw new Error("Please enter a valid email address.");
   }
   if (!cleanPhone || cleanPhone.length !== 10) {
-    throw new Error("Please enter a valid 10-digit WhatsApp / mobile number.");
+    throw new Error("Please enter a valid 10-digit mobile number.");
   }
   if (!password || password.length < 6) {
     throw new Error("Password must be at least 6 characters.");
@@ -56,11 +55,9 @@ export async function registerCandidate({
     throw new Error("An account with this email already exists for this company. Please sign in.");
   }
 
-  // Verify OTP for the chosen channel
-  const identifier = otpChannel === "EMAIL" ? cleanEmail : cleanPhone;
   await verifyApplicantOtp({
     companySlug,
-    identifier,
+    identifier: cleanEmail,
     code: otpCode,
   });
 
@@ -74,7 +71,7 @@ export async function registerCandidate({
       email: cleanEmail,
       whatsappNo: cleanPhone,
       passwordHash,
-      otpVerifiedVia: otpChannel,
+      otpVerifiedVia: "EMAIL",
       isVerified: true,
     },
     select: {
@@ -424,6 +421,9 @@ export function formPrefillFromApplicant(row: {
     gunNo: fd.gunNo || "NA",
     mobile: row.mobile || fd.mobile || "",
     email: row.email || fd.email || "",
+    preferredSiteCode: fd.preferredSiteCode || "",
+    preferredSiteOther: fd.preferredSiteOther || "",
+    preferredSiteName: fd.preferredSiteName || "",
     presentAddress: fd.presentAddress || fd.localAddress || "",
     presentPO: fd.presentPO || fd.localPO || "",
     presentPS: fd.presentPS || fd.localPS || "",

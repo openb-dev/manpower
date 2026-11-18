@@ -426,7 +426,15 @@ export async function buildPaperFormPdf(
   y = rowFields(
     [
       { label: "3. Mobile", value: text(person?.mobile || fd.mobile) },
+      { label: "Email ID", value: text(person?.email || fd.email) },
+    ],
+    y,
+    9.5,
+  );
+  y = rowFields(
+    [
       { label: "Emergency contact", value: text(fd.emergencyContact) },
+      { label: "Preferred site", value: text(fd.preferredSiteName || fd.preferredSiteOther) },
     ],
     y,
     9.5,

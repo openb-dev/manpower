@@ -25,6 +25,8 @@ import { PasswordInput } from "@/components/PasswordInput";
 import ImageCropDialog from "@/components/ImageCropDialog";
 import NkLogo from "@/components/NkLogo";
 import { isNkCompany } from "@/lib/nkLogo";
+import { NK_DUTY_SITE_OPTIONS, OTHER_SITE_VALUE, dutySiteNameFromChoice } from "@/lib/nkSiteList";
+import { DutySiteSelect } from "@/components/admin/DutySiteSelect";
 
 interface JobRole {
   id: string;
@@ -250,6 +252,9 @@ function initialForm() {
     gunNo: "NA",
     mobile: "",
     email: "",
+    preferredSiteCode: "",
+    preferredSiteOther: "",
+    preferredSiteName: "",
     presentAddress: "",
     presentPO: "",
     presentPS: "",
@@ -310,7 +315,12 @@ function personPrefillFrom(source: Record<string, any>, account?: CandidateSessi
     Array.isArray(next.family) && next.family.length ? next.family.map(familyMemberFrom) : blankFamily();
   next.name = String(next.name || account?.fullName || "");
   next.mobile = String(next.mobile || account?.whatsappNo || "");
-  next.email = String(next.email || account?.email || "");
+  next.email = String(account?.email || next.email || "");
+  next.preferredSiteCode = String(next.preferredSiteCode || "");
+  next.preferredSiteOther = String(next.preferredSiteOther || "");
+  next.preferredSiteName = String(
+    next.preferredSiteName || dutySiteNameFromChoice(next.preferredSiteCode, next.preferredSiteOther),
+  );
   return next;
 }
 
@@ -559,7 +569,6 @@ function ApplyPageInner() {
   const [regWhatsapp, setRegWhatsapp] = useState("");
   const [regPassword, setRegPassword] = useState("");
   const [regConfirmPassword, setRegConfirmPassword] = useState("");
-  const [otpChannel, setOtpChannel] = useState<"WHATSAPP" | "EMAIL">("EMAIL");
   const [regOtpCode, setRegOtpCode] = useState("");
   const [otpSent, setOtpSent] = useState(false);
   const [otpCountdown, setOtpCountdown] = useState(0);
@@ -842,7 +851,7 @@ function ApplyPageInner() {
           ...prev,
           name: prev.name || candidate.fullName || "",
           mobile: prev.mobile || candidate.whatsappNo || "",
-          email: prev.email || candidate.email || "",
+          email: candidate.email || prev.email || "",
         }));
     }
   }, [candidate]);
@@ -857,18 +866,10 @@ function ApplyPageInner() {
     setError("");
     setSuccessMsg("");
 
-    const targetIdentifier = otpChannel === "EMAIL" ? regEmail.trim() : regWhatsapp.trim().replace(/\D/g, "");
-
-    if (otpChannel === "EMAIL") {
-      if (!regEmail || !regEmail.includes("@")) {
-        setError("Please enter a valid email address first.");
-        return;
-      }
-    } else {
-      if (!targetIdentifier || targetIdentifier.length !== 10) {
-        setError("Please enter a valid 10-digit WhatsApp / mobile number.");
-        return;
-      }
+    const targetIdentifier = regEmail.trim();
+    if (!targetIdentifier || !targetIdentifier.includes("@")) {
+      setError("Please enter a valid email address first.");
+      return;
     }
 
     setAuthLoading(true);
@@ -880,7 +881,7 @@ function ApplyPageInner() {
         body: JSON.stringify({
           companySlug,
           identifier: targetIdentifier,
-          channel: otpChannel,
+          channel: "EMAIL",
         }),
       });
 
@@ -896,7 +897,7 @@ function ApplyPageInner() {
         );
       } else if (data.delivered) {
         setSuccessMsg(
-          `Code sent to ${otpChannel === "EMAIL" ? regEmail : `+91 ${regWhatsapp}`}. Enter it below.`
+          `Code sent to ${regEmail}. Enter it below.`
         );
       } else {
         setSuccessMsg("Enter the 6-digit code you received.");
@@ -924,7 +925,7 @@ function ApplyPageInner() {
     }
     const cleanPhone = regWhatsapp.replace(/\D/g, "").slice(-10);
     if (!cleanPhone || cleanPhone.length !== 10) {
-      setError("Please enter a valid 10-digit WhatsApp number.");
+      setError("Please enter a valid 10-digit mobile number.");
       return;
     }
     if (regPassword.length < 6) {
@@ -952,7 +953,7 @@ function ApplyPageInner() {
           email: regEmail,
           whatsappNo: cleanPhone,
           password: regPassword,
-          otpChannel,
+          otpChannel: "EMAIL",
           otpCode: regOtpCode,
         }),
       });
@@ -966,6 +967,7 @@ function ApplyPageInner() {
         ...prev,
         name: newSession.fullName,
         mobile: newSession.whatsappNo,
+        email: newSession.email,
       }));
       setSuccessMsg("Registration and OTP verification successful! You can now complete your application.");
     } catch (err: any) {
@@ -1366,8 +1368,9 @@ function ApplyPageInner() {
     if (cleanMobile.length !== 10) return setError("Please enter a valid 10-digit mobile number.");
     const cleanEmergency = form.emergencyContact.replace(/\D/g, "").slice(-10);
     if (cleanEmergency.length !== 10) return setError("Please enter a valid 10-digit emergency contact number.");
-    const applicantEmail = String(form.email || candidate?.email || "").trim().toLowerCase();
+    const applicantEmail = String(candidate?.email || form.email || "").trim().toLowerCase();
     if (!applicantEmail.includes("@")) return setError("Please enter the applicant email address.");
+    const preferredSiteName = dutySiteNameFromChoice(form.preferredSiteCode, form.preferredSiteOther);
 
     if (!form.presentAddress.trim()) return setError("Please enter Vill. / Locality for present address.");
     if (!form.presentPO.trim()) return setError("Please enter present P.O.");
@@ -1566,6 +1569,9 @@ function ApplyPageInner() {
           workHistory: form.experienceType === "EXPERIENCED" ? filledJobs : [],
           previousEmployer,
           emergencyContact: cleanEmergency,
+          preferredSiteCode: form.preferredSiteCode,
+          preferredSiteOther: form.preferredSiteCode === OTHER_SITE_VALUE ? form.preferredSiteOther.trim() : "",
+          preferredSiteName,
           uan: form.uan.trim(),
           esiIp: form.esiIp.trim(),
           preferredDispensary: form.preferredDispensary.trim(),
@@ -1803,7 +1809,7 @@ function ApplyPageInner() {
                 <div>
                   <h2 className="text-lg font-bold text-slate-900">Create Candidate Account</h2>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    Register with your WhatsApp number or Email to verify OTP and submit your application.
+                    Register with your email. The verification code is sent to email only.
                   </p>
                 </div>
 
@@ -1839,7 +1845,7 @@ function ApplyPageInner() {
 
                     <div>
                       <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                        WhatsApp / Mobile Number *
+                        Mobile Number *
                       </label>
                       <div className="flex">
                         <span className="inline-flex items-center px-3 rounded-l-lg border border-r-0 border-slate-300 bg-slate-50 text-slate-500 text-xs font-mono font-bold">
@@ -1888,75 +1894,15 @@ function ApplyPageInner() {
                   </div>
                 </div>
 
-                {/* OTP Channel Choice */}
-                <div className="space-y-2 pt-1">
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
-                    Receive Verification Code Via: <span className="text-red-600">*</span>
-                  </label>
-                  <div className="grid grid-cols-2 gap-3">
-                    <label
-                      className={`flex items-center gap-2 p-3 rounded-xl border cursor-pointer transition ${
-                        otpChannel === "WHATSAPP"
-                          ? "border-emerald-600 bg-emerald-50/60 text-emerald-950 font-bold shadow-xs"
-                          : "border-slate-300 hover:bg-slate-50 text-slate-600"
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="otpChannel"
-                        value="WHATSAPP"
-                        checked={otpChannel === "WHATSAPP"}
-                        onChange={() => setOtpChannel("WHATSAPP")}
-                        className="text-emerald-600 focus:ring-emerald-500"
-                      />
-                      <div className="text-xs">
-                        <div className="flex items-center gap-1.5 font-bold">
-                          <span>💬</span>
-                          <span>WhatsApp / SMS</span>
-                        </div>
-                        <div className="text-[11px] text-slate-500 truncate">
-                          To {regWhatsapp ? `+91 ${regWhatsapp}` : "your mobile"}
-                        </div>
-                      </div>
-                    </label>
-
-                    <label
-                      className={`flex items-center gap-2 p-3 rounded-xl border cursor-pointer transition ${
-                        otpChannel === "EMAIL"
-                          ? "border-blue-600 bg-blue-50/60 text-blue-950 font-bold shadow-xs"
-                          : "border-slate-300 hover:bg-slate-50 text-slate-600"
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="otpChannel"
-                        value="EMAIL"
-                        checked={otpChannel === "EMAIL"}
-                        onChange={() => setOtpChannel("EMAIL")}
-                        className="text-blue-600 focus:ring-blue-500"
-                      />
-                      <div className="text-xs">
-                        <div className="flex items-center gap-1.5 font-bold">
-                          <span>✉️</span>
-                          <span>Email Address</span>
-                        </div>
-                        <div className="text-[11px] text-slate-500 truncate">
-                          To {regEmail ? regEmail : "your email"}
-                        </div>
-                      </div>
-                    </label>
-                  </div>
-                </div>
-
                 {/* Send / Enter OTP Section */}
                 <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <div>
-                      <div className="text-xs font-bold text-slate-800">2-Factor OTP Authentication</div>
+                      <div className="text-xs font-bold text-slate-800">Email verification code</div>
                       <div className="text-[11px] text-slate-500">
                         {otpSent
-                          ? `Verification code dispatched to ${otpChannel === "EMAIL" ? regEmail : `+91 ${regWhatsapp}`}`
-                          : `Click Send OTP to receive your 6-digit code via ${otpChannel === "EMAIL" ? "Email" : "WhatsApp"}`}
+                          ? `Verification code sent to ${regEmail}`
+                          : "Click Send OTP to receive your 6-digit code by email."}
                       </div>
                     </div>
                     <button
@@ -1977,12 +1923,10 @@ function ApplyPageInner() {
 
                   {otpSent && (
                     <div className="p-2.5 bg-blue-50 border border-blue-200 rounded-lg text-blue-900 text-xs flex items-center gap-2">
-                      <span className="text-sm">📲</span>
+                      <span className="text-sm">✉️</span>
                       <span>
                         A 6-digit verification code was sent to{" "}
-                        <strong className="font-mono">
-                          {otpChannel === "EMAIL" ? regEmail : `+91 ${regWhatsapp}`}
-                        </strong>
+                        <strong className="font-mono">{regEmail}</strong>
                         . Please enter it below.
                       </span>
                     </div>
@@ -2630,7 +2574,7 @@ function ApplyPageInner() {
                       <span className="font-medium text-slate-900">{candidate?.email}</span>
                     </div>
                     <div>
-                      <span className="text-slate-400 block uppercase font-bold text-[10px]">Verified Mobile</span>
+                      <span className="text-slate-400 block uppercase font-bold text-[10px]">Mobile number</span>
                       <span className="font-mono font-semibold text-emerald-700">+91 {candidate?.whatsappNo} ✓</span>
                     </div>
                   </div>
@@ -3426,6 +3370,26 @@ function ApplyPageInner() {
 
                     <div>
                       <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Email ID <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        required
+                        type="email"
+                        value={candidate?.email || form.email}
+                        readOnly={Boolean(candidate?.email)}
+                        onChange={(e) => setForm({ ...form, email: e.target.value })}
+                        className={`w-full px-3.5 py-2 border border-slate-300 rounded-lg text-sm bg-white ${
+                          candidate?.email ? "bg-slate-50 text-slate-700" : ""
+                        }`}
+                        placeholder="applicant@email.com"
+                      />
+                      {candidate?.email ? (
+                        <span className="block text-[10px] text-slate-500 mt-1">Filled from your login / registration.</span>
+                      ) : null}
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
                         Emergency contact no. <span className="text-red-500">*</span>
                       </label>
                       <input
@@ -3441,15 +3405,32 @@ function ApplyPageInner() {
 
                     <div>
                       <label className="block text-xs font-bold text-slate-700 mb-1">
-                        Applicant email <span className="text-red-500">*</span>
+                        Preferred site location
                       </label>
-                      <input
-                        required
-                        type="email"
-                        value={form.email}
-                        onChange={(e) => setForm({ ...form, email: e.target.value })}
-                        className="w-full px-3.5 py-2 border border-slate-300 rounded-lg text-sm bg-white"
-                        placeholder="applicant@email.com"
+                      <DutySiteSelect
+                        sites={NK_DUTY_SITE_OPTIONS}
+                        value={form.preferredSiteCode}
+                        otherName={form.preferredSiteOther}
+                        onValueChange={(code) =>
+                          setForm((prev) => ({
+                            ...prev,
+                            preferredSiteCode: code,
+                            preferredSiteOther: code === OTHER_SITE_VALUE ? prev.preferredSiteOther : "",
+                            preferredSiteName: dutySiteNameFromChoice(
+                              code,
+                              code === OTHER_SITE_VALUE ? prev.preferredSiteOther : "",
+                            ),
+                          }))
+                        }
+                        onOtherNameChange={(name) =>
+                          setForm((prev) => ({
+                            ...prev,
+                            preferredSiteOther: name,
+                            preferredSiteName: dutySiteNameFromChoice(prev.preferredSiteCode, name),
+                          }))
+                        }
+                        emptyLabel="Select preferred site"
+                        selectClassName="w-full px-3.5 py-2 border border-slate-300 rounded-lg text-sm bg-white"
                       />
                     </div>
 

@@ -162,7 +162,7 @@ export async function submitApplicant(
     });
 
     if (!verifiedOtp) {
-      throw new Error("OTP verification (via WhatsApp or Email) is required before submitting the application.");
+      throw new Error("OTP verification by email is required before submitting the application.");
     }
   }
 

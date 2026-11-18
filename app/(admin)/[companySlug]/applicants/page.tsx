@@ -142,7 +142,7 @@ export default function ApplicantBookPage() {
         return;
       }
       if (!temporaryId.trim()) {
-        alert("Please enter the temporary ID (tID).");
+        alert("Please enter the tID No.");
         return;
       }
     }
@@ -513,7 +513,7 @@ export default function ApplicantBookPage() {
                   <th className="p-3 whitespace-nowrap">App. ID</th>
                   <th className="p-3">Job category / Job</th>
                   <th className="p-3">Site location</th>
-                  <th className="p-3 whitespace-nowrap">tID</th>
+                  <th className="p-3 whitespace-nowrap">tID No.</th>
                   <th className="p-3 whitespace-nowrap">Mobile No.</th>
                   <th className="p-3 whitespace-nowrap">Aadhaar No.</th>
                   <th className="p-3">Stage</th>
@@ -644,7 +644,7 @@ export default function ApplicantBookPage() {
                   <div className="flex flex-wrap items-center gap-2 mt-1 text-xs">
                     {selectedApplicant.formData?.temporaryId || selectedApplicant.temporaryId ? (
                       <span className="font-mono bg-amber-50 text-amber-800 px-2 py-0.5 rounded font-semibold">
-                        tID: {selectedApplicant.formData?.temporaryId || selectedApplicant.temporaryId}
+                        tID No.: {selectedApplicant.formData?.temporaryId || selectedApplicant.temporaryId}
                       </span>
                     ) : null}
                     {selectedApplicant.formData?.shortlistSiteName || selectedApplicant.shortlistSiteName ? (
@@ -1171,7 +1171,7 @@ export default function ApplicantBookPage() {
                     </div>
                     <label>
                       <span className="block text-xs font-semibold text-slate-700 mb-1">
-                        Temporary ID (tID) <span className="text-red-600">*</span>
+                        tID No. <span className="text-red-600">*</span>
                       </span>
                       <input
                         type="text"
@@ -1230,7 +1230,7 @@ export default function ApplicantBookPage() {
                           return;
                         }
                         if (pendingStatus === "SHORTLISTED" && !temporaryId.trim()) {
-                          alert("Please enter the temporary ID (tID).");
+                          alert("Please enter the tID No.");
                           return;
                         }
                         if (!statusRemark.trim()) {

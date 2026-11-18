@@ -462,7 +462,7 @@ export async function updateApplicantStatus({
   let nextForm = existingForm;
   if (newStatus === ApplicantStatus.SHORTLISTED) {
     const tid = String(temporaryId || "").trim();
-    if (!tid) throw new Error("Please enter the temporary ID (tID).");
+    if (!tid) throw new Error("Please enter the tID No.");
     const site = await findOrCreateDutySite({
       companyId,
       siteId,
@@ -478,7 +478,7 @@ export async function updateApplicantStatus({
       },
       select: { id: true, fullName: true },
     });
-    if (taken) throw new Error("This temporary ID (tID) is already used. Please type a different one.");
+    if (taken) throw new Error("This tID No. is already used. Please type a different one.");
 
     nextForm = {
       ...existingForm,

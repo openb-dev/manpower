@@ -75,7 +75,7 @@ export async function loadApplicantBook(
       companyId: company.id,
       search: opts.search?.trim() || undefined,
       status,
-      limit: 50,
+      limit: 500,
     });
     const sites = await loadDutySites(company.id);
     return toClientJson({ ...data, sites, error: "" });

@@ -262,6 +262,11 @@ export function applicationDisplayId(person: any) {
   return code;
 }
 
+export function applicationSerialNo(person: any) {
+  const match = applicationDisplayId(person).match(/-(\d+)$/);
+  return match ? Number(match[1]) : 0;
+}
+
 export function safeDownloadPart(value: unknown, fallback = "file") {
   const safe = String(value || "")
     .normalize("NFKD")

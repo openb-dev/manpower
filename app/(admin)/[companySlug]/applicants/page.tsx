@@ -8,7 +8,7 @@ import { statusLabel } from "@/components/admin/SimpleGuide";
 import { loadApplicantBook, loadApplicantDetail } from "../actions";
 import { downloadPaperFormPdf, paperFormFileName, printPaperFormPdf } from "@/lib/downloadPaperFormPdf";
 import { friendlyPublicError, readApiJson } from "@/lib/publicErrors";
-import { applicantPhotoUrl, applicationDisplayId, filledByAdminInfo, filledByAdminLine, indianAddressLine } from "@/lib/applicantFormFields";
+import { applicantPhotoUrl, applicationDisplayId, applicationSerialNo, filledByAdminInfo, filledByAdminLine, indianAddressLine } from "@/lib/applicantFormFields";
 import AttachedDocuments from "@/components/admin/AttachedDocuments";
 import { DutySiteSelect, OTHER_SITE_VALUE, siteChoiceReady } from "@/components/admin/DutySiteSelect";
 
@@ -495,7 +495,7 @@ export default function ApplicantBookPage() {
             <table className="w-full text-left text-sm text-slate-600">
               <thead className="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200 text-xs uppercase tracking-wider">
                 <tr>
-                  <th className="p-4 w-12">
+                  <th className="p-3 w-10">
                     <label className="sr-only" htmlFor="select-all-applicants">
                       Select all applicants
                     </label>
@@ -508,20 +508,23 @@ export default function ApplicantBookPage() {
                       className="h-4 w-4 rounded-full border-slate-400 text-blue-600 accent-blue-600"
                     />
                   </th>
-                  <th className="p-4">Name</th>
-                  <th className="p-4">Application ID</th>
-                  <th className="p-4">Job</th>
-                  <th className="p-4">Mobile</th>
-                  <th className="p-4">Aadhaar</th>
-                  <th className="p-4">Stage</th>
-                  <th className="p-4">Date</th>
-                  <th className="p-4 text-right">Actions</th>
+                  <th className="p-3 whitespace-nowrap">Sl. No.</th>
+                  <th className="p-3">Name of Applicant</th>
+                  <th className="p-3 whitespace-nowrap">App. ID</th>
+                  <th className="p-3">Job category / Job</th>
+                  <th className="p-3">Site location</th>
+                  <th className="p-3 whitespace-nowrap">tID</th>
+                  <th className="p-3 whitespace-nowrap">Mobile No.</th>
+                  <th className="p-3 whitespace-nowrap">Aadhaar No.</th>
+                  <th className="p-3">Stage</th>
+                  <th className="p-3 whitespace-nowrap">Date of Application</th>
+                  <th className="p-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {applicants.map((a) => (
+                {applicants.map((a, index) => (
                   <tr key={a.id} className="hover:bg-slate-50/80 transition">
-                    <td className="p-4">
+                    <td className="p-3">
                       <label className="sr-only" htmlFor={`select-applicant-${a.id}`}>
                         Select {a.fullName}
                       </label>
@@ -534,7 +537,10 @@ export default function ApplicantBookPage() {
                         className="h-4 w-4 rounded-full border-slate-400 text-blue-600 accent-blue-600"
                       />
                     </td>
-                    <td className="p-4 font-semibold text-slate-900">
+                    <td className="p-3 text-xs font-mono text-slate-500">
+                      {applicationSerialNo(a) || index + 1}
+                    </td>
+                    <td className="p-3 font-semibold text-slate-900">
                       {a.fullName}
                       {filledByAdminInfo(a) ? (
                         <span className="block text-[10px] font-bold uppercase tracking-wide text-indigo-700 mt-0.5">
@@ -542,14 +548,22 @@ export default function ApplicantBookPage() {
                         </span>
                       ) : null}
                     </td>
-                    <td className="p-4 font-mono text-[11px] text-slate-700">{applicationDisplayId(a) || a.id}</td>
-                    <td className="p-4">
+                    <td className="p-3 font-mono text-[11px] text-slate-700 whitespace-nowrap">
+                      {applicationDisplayId(a) || a.id}
+                    </td>
+                    <td className="p-3">
                       <span className="font-medium text-slate-800">{a.jobRole?.name}</span>
                       <span className="block text-xs text-slate-400">{a.jobExtra || a.roleCategory?.name}</span>
                     </td>
-                    <td className="p-4 font-mono">{a.mobile}</td>
-                    <td className="p-4 font-mono text-xs">{a.aadhaarDisplay}</td>
-                    <td className="p-4">
+                    <td className="p-3 text-xs text-slate-800">
+                      {a.shortlistSiteName || a.preferredSiteName || "—"}
+                    </td>
+                    <td className="p-3 font-mono text-xs text-slate-700 whitespace-nowrap">
+                      {a.temporaryId || "—"}
+                    </td>
+                    <td className="p-3 font-mono text-xs whitespace-nowrap">{a.mobile}</td>
+                    <td className="p-3 font-mono text-xs whitespace-nowrap">{a.aadhaarDisplay || "—"}</td>
+                    <td className="p-3">
                       <span
                         className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-bold ${
                           a.status === "APPROVED"
@@ -563,17 +577,11 @@ export default function ApplicantBookPage() {
                       >
                         {statusLabel(a.status)}
                       </span>
-                      {a.temporaryId ? (
-                        <span className="block text-[10px] font-mono text-slate-500 mt-1">tID {a.temporaryId}</span>
-                      ) : null}
-                      {a.shortlistSiteName ? (
-                        <span className="block text-[10px] text-slate-500">{a.shortlistSiteName}</span>
-                      ) : null}
                     </td>
-                    <td className="p-4 text-xs text-slate-400">
+                    <td className="p-3 text-xs text-slate-600 whitespace-nowrap">
                       {new Date(a.createdAt).toLocaleDateString()}
                     </td>
-                    <td className="p-4 text-right">
+                    <td className="p-3 text-right">
                       <div className="inline-flex flex-wrap justify-end gap-1">
                         <button
                           onClick={async () => {

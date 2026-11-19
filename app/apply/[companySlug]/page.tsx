@@ -72,6 +72,7 @@ type CandidateApplication = {
 
 function candidateStatusLabel(status?: string) {
   const map: Record<string, string> = {
+    DRAFT: "Draft",
     NEW: "Under review",
     SHORTLISTED: "Shortlisted",
     APPROVED: "Selected",
@@ -84,6 +85,7 @@ function candidateStatusClass(status?: string) {
   if (status === "APPROVED") return "bg-emerald-100 text-emerald-800";
   if (status === "SHORTLISTED") return "bg-blue-100 text-blue-800";
   if (status === "REJECTED") return "bg-red-100 text-red-800";
+  if (status === "DRAFT") return "bg-slate-200 text-slate-800";
   return "bg-amber-100 text-amber-800";
 }
 
@@ -98,7 +100,13 @@ function formatApplyDate(value?: string) {
   return d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 }
 
-function CandidateApplicationsPanel({ items }: { items: CandidateApplication[] }) {
+function CandidateApplicationsPanel({
+  items,
+  onContinueDraft,
+}: {
+  items: CandidateApplication[];
+  onContinueDraft?: (app: CandidateApplication) => void;
+}) {
   if (!items.length) return null;
   return (
     <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-left">
@@ -112,6 +120,7 @@ function CandidateApplicationsPanel({ items }: { items: CandidateApplication[] }
               <th className="pb-2 pr-3 font-semibold">Category</th>
               <th className="pb-2 pr-3 font-semibold">Status</th>
               <th className="pb-2 font-semibold">Date</th>
+              <th className="pb-2 font-semibold"> </th>
             </tr>
           </thead>
           <tbody>
@@ -142,6 +151,17 @@ function CandidateApplicationsPanel({ items }: { items: CandidateApplication[] }
                   ) : null}
                 </td>
                 <td className="py-2 text-slate-700 whitespace-nowrap">{formatApplyDate(app.createdAt)}</td>
+                <td className="py-2">
+                  {app.status === "DRAFT" && onContinueDraft ? (
+                    <button
+                      type="button"
+                      onClick={() => onContinueDraft(app)}
+                      className="text-[11px] font-bold text-blue-700 hover:underline"
+                    >
+                      Continue
+                    </button>
+                  ) : null}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -331,6 +351,19 @@ function personEditFrom(source: Record<string, any>) {
     Array.isArray(next.family) && next.family.length ? next.family.map(familyMemberFrom) : blankFamily();
   next.declarationAccepted = true;
   next.termsAccepted = true;
+  return next;
+}
+
+function personResumeFrom(source: Record<string, any>, account?: CandidateSession | null) {
+  const next: any = { ...initialForm(), ...source };
+  next.workHistory = jobList(next.workHistory);
+  next.family =
+    Array.isArray(next.family) && next.family.length ? next.family.map(familyMemberFrom) : blankFamily();
+  next.declarationAccepted = Boolean(source.declarationAccepted);
+  next.termsAccepted = Boolean(source.termsAccepted);
+  next.name = String(next.name || account?.fullName || "");
+  next.mobile = String(next.mobile || account?.whatsappNo || "");
+  next.email = String(account?.email || next.email || "");
   return next;
 }
 
@@ -632,6 +665,7 @@ function ApplyPageInner() {
   const [compressingLabel, setCompressingLabel] = useState("");
   const [imageCrop, setImageCrop] = useState<{
     src: string;
+    file: File;
     dataKey:
       | "photo"
       | "aadhaarFile"
@@ -650,7 +684,10 @@ function ApplyPageInner() {
       | "policeFileName";
     title: string;
     aspect: number;
+    fit: "cover" | "contain";
   } | null>(null);
+  const [savedDraftId, setSavedDraftId] = useState("");
+  const [savingDraft, setSavingDraft] = useState(false);
   const [myApplications, setMyApplications] = useState<CandidateApplication[]>([]);
   const prefillRef = useRef<ReturnType<typeof initialForm> | null>(null);
 
@@ -802,7 +839,12 @@ function ApplyPageInner() {
         const category = role?.categories?.find((item) => item.id === application.roleCategoryId) || null;
         setSelectedRole(role);
         setSelectedCategory(category);
-        setForm(personEditFrom(application.prefill || {}));
+        setForm(
+          application.status === "DRAFT"
+            ? personResumeFrom(application.prefill || {})
+            : personEditFrom(application.prefill || {}),
+        );
+        setSavedDraftId(application.status === "DRAFT" ? application.id : "");
         setEditingNo(application.applicationNo || "");
         setStep("FORM");
       })
@@ -1219,10 +1261,12 @@ function ApplyPageInner() {
         if (prev?.src) URL.revokeObjectURL(prev.src);
         return {
           src,
+          file,
           dataKey,
           nameKey,
-          title: dataKey === "photo" ? "Crop passport photo" : "Crop picture",
-          aspect: dataKey === "photo" ? 3 / 4 : 4 / 3,
+          title: dataKey === "photo" ? "Crop passport photo" : "Adjust picture",
+          aspect: dataKey === "photo" ? 3 / 4 : 0,
+          fit: dataKey === "photo" ? "cover" : "contain",
         };
       });
       input.value = "";
@@ -1265,6 +1309,26 @@ function ApplyPageInner() {
       })
       .catch((err: any) => {
         setError(err.message || "Could not save the cropped picture.");
+      })
+      .finally(() => setCompressingLabel(""));
+  }
+
+  function useFullCropImage() {
+    if (!imageCrop) return;
+    const { dataKey, nameKey, src, file } = imageCrop;
+    setImageCrop(null);
+    URL.revokeObjectURL(src);
+    setCompressingLabel(file.name);
+    fileToCompressedUpload(file, dataKey === "photo" ? "photo" : "document")
+      .then(({ dataUrl, fileName }) => {
+        setForm((prev) => ({
+          ...prev,
+          [dataKey]: dataUrl,
+          [nameKey]: fileName || file.name,
+        }));
+      })
+      .catch((err: any) => {
+        setError(err.message || "Could not save that picture.");
       })
       .finally(() => setCompressingLabel(""));
   }
@@ -1635,8 +1699,8 @@ function ApplyPageInner() {
       submitBody.append(
         "payload",
         JSON.stringify({
-          action: editApplicantId ? "UPDATE_APPLICATION" : "SUBMIT_APPLICATION",
-          applicantId: editApplicantId || undefined,
+          action: editApplicantId && !savedDraftId ? "UPDATE_APPLICATION" : "SUBMIT_APPLICATION",
+          applicantId: editApplicantId || savedDraftId || undefined,
           data: payload,
           fillByAdmin: Boolean(officeAdmin),
           adminFillerName: officeAdmin ? adminFiller.name.trim() : undefined,
@@ -1667,6 +1731,150 @@ function ApplyPageInner() {
       setError(err.message || "The application could not be submitted. Please check the form and try again.");
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  function draftDocuments() {
+    return [
+      ...(form.photoName ? [{ docType: "PHOTO", fileName: form.photoName, fileData: form.photo }] : []),
+      ...(form.aadhaarFileName ? [{ docType: "AADHAAR", fileName: form.aadhaarFileName, fileData: form.aadhaarFile }] : []),
+      ...(form.panFileName ? [{ docType: "PAN", fileName: form.panFileName, fileData: form.panFile }] : []),
+      ...(form.passbookFileName
+        ? [{ docType: "PASSBOOK", fileName: form.passbookFileName, fileData: form.passbookFile }]
+        : []),
+      ...(form.educationFileName
+        ? [{ docType: "EDUCATION", fileName: form.educationFileName, fileData: form.educationFile }]
+        : []),
+      ...(form.otherQualFileName
+        ? [{ docType: "OTHER_QUALIFICATION", fileName: form.otherQualFileName, fileData: form.otherQualFile }]
+        : []),
+      ...(form.policeFileName
+        ? [{ docType: "POLICE_VERIFICATION", fileName: form.policeFileName, fileData: form.policeFile }]
+        : []),
+    ];
+  }
+
+  async function handleSaveDraft() {
+    if (savingDraft || submitting) return;
+    setError("");
+    if (compressingLabel) return setError("Please wait for the file to finish compressing.");
+    if (!officeAdmin && !candidate) {
+      return setError("Please sign in or register before saving a draft.");
+    }
+    if (!selectedRole?.id) return setError("Please select a trade first.");
+    if (!selectedCategory?.id) return setError("Please select a job category first.");
+    if (officeAdmin) {
+      const fillerName = adminFiller.name.trim();
+      const fillerPhone = adminFiller.phone.replace(/\D/g, "").slice(-10);
+      if (!fillerName) return setError("Please enter the filling admin name first.");
+      if (fillerPhone.length !== 10) return setError("Please enter the filling admin 10-digit phone number first.");
+    }
+
+    setSavingDraft(true);
+    try {
+      const documentsPayload = draftDocuments();
+      const preferredSiteName = dutySiteNameFromChoice(form.preferredSiteCode, form.preferredSiteOther);
+      const payload = {
+        companySlug,
+        jobRoleId: selectedRole.id,
+        roleCategoryId: selectedCategory.id,
+        fullName: form.name.trim(),
+        mobile: form.mobile.replace(/\D/g, "").slice(-10),
+        email: String(candidate?.email || form.email || "").trim().toLowerCase(),
+        fatherOrHusband: form.fatherOrHusband.trim(),
+        dateOfBirth: form.dateOfBirth,
+        gender: form.gender || "",
+        presentAddress: form.presentAddress.trim(),
+        permanentAddress: form.permanentAddress.trim(),
+        aadhaarNumber: form.aadhaar.replace(/\D/g, ""),
+        panNumber: form.pan.trim().toUpperCase(),
+        exServiceNo: form.exServiceNo.trim(),
+        armsLicenseNo: form.gunLicence.trim(),
+        formData: {
+          ...formDataWithoutFiles(form),
+          preferredSiteCode: form.preferredSiteCode,
+          preferredSiteOther: form.preferredSiteCode === OTHER_SITE_VALUE ? form.preferredSiteOther.trim() : "",
+          preferredSiteName,
+          skillCategory: form.skillCategory,
+          gemProfile: form.gemProfile,
+          gemExperience: form.gemExperience,
+          otherCategory: form.otherCategory.trim(),
+        },
+        documents: documentsPayload.map(({ docType, fileName }) => ({ docType, fileName })),
+      };
+      const body = new FormData();
+      body.append(
+        "payload",
+        JSON.stringify({
+          action: "SAVE_DRAFT",
+          applicantId: editApplicantId || savedDraftId || undefined,
+          data: payload,
+          fillByAdmin: Boolean(officeAdmin),
+          adminFillerName: officeAdmin ? adminFiller.name.trim() : undefined,
+          adminFillerPhone: officeAdmin ? adminFiller.phone.replace(/\D/g, "").slice(-10) : undefined,
+        }),
+      );
+      for (const doc of documentsPayload) {
+        if (!doc.fileData) continue;
+        body.append(`file:${doc.docType}`, dataUrlToBlob(doc.fileData), doc.fileName);
+      }
+      const res = await fetch(`/api/apply/${companySlug}`, {
+        method: "POST",
+        credentials: "include",
+        body,
+      });
+      const data = await readApiJson(res);
+      if (!res.ok) throw new Error(data.error || "The draft could not be saved.");
+      setSavedDraftId(data.id);
+      setSuccessMsg("Draft saved. You can continue this form later.");
+      if (!officeAdmin) {
+        setMyApplications((prev) => {
+          const rest = prev.filter((app) => app.id !== data.id);
+          return [
+            {
+              id: data.id,
+              applicationNo: data.applicationNo || "",
+              status: "DRAFT",
+              createdAt: new Date().toISOString(),
+              jobRoleId: selectedRole.id,
+              roleCategoryId: selectedCategory.id,
+              role: selectedRole.name,
+              category: selectedCategory.name,
+              extra: form.otherCategory || form.gemProfile || "",
+            },
+            ...rest,
+          ];
+        });
+      }
+    } catch (err: any) {
+      setError(err.message || "The draft could not be saved.");
+    } finally {
+      setSavingDraft(false);
+    }
+  }
+
+  async function resumeOwnApplication(app: CandidateApplication) {
+    if (!company) return;
+    setError("");
+    try {
+      const res = await fetch(`/api/apply/${companySlug}`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "GET_OWN_APPLICATION", applicantId: app.id }),
+      });
+      const data = await readApiJson(res);
+      if (!res.ok) throw new Error(data.error || "This draft could not be opened.");
+      const application = data.application;
+      const role = (company.jobRoles || []).find((item: JobRole) => item.id === application.jobRoleId) || null;
+      const category = role?.categories?.find((item) => item.id === application.roleCategoryId) || null;
+      setSelectedRole(role);
+      setSelectedCategory(category);
+      setForm(personResumeFrom(application.prefill || {}, candidate));
+      setSavedDraftId(application.id);
+      setStep("FORM");
+    } catch (err: any) {
+      setError(err.message || "This draft could not be opened.");
     }
   }
 
@@ -1718,13 +1926,16 @@ function ApplyPageInner() {
           src={imageCrop.src}
           title={imageCrop.title}
           aspect={imageCrop.aspect}
+          fit={imageCrop.fit}
+          allowUseFull={imageCrop.dataKey !== "photo"}
           hint={
             imageCrop.dataKey === "photo"
               ? "Pinch to zoom. Drag to move. Fit the face in the box, then tap Crop & use."
-              : "Pinch to zoom. Drag to move. Fit the document in the box, then tap Crop & use."
+              : "The full document is shown. Pinch to zoom only if you need to. Use full picture to keep everything."
           }
           onCancel={closeImageCrop}
           onCrop={saveCroppedImage}
+          onUseFull={useFullCropImage}
         />
       ) : null}
       {/* Brand & Auth Header */}
@@ -2328,7 +2539,11 @@ function ApplyPageInner() {
                       Candidate: {candidate?.fullName}
                     </span>
                   )}
-                  {!officeAdmin ? <div className="mt-3"><CandidateApplicationsPanel items={myApplications} /></div> : null}
+                  {!officeAdmin ? (
+                    <div className="mt-3">
+                      <CandidateApplicationsPanel items={myApplications} onContinueDraft={resumeOwnApplication} />
+                    </div>
+                  ) : null}
                 </div>
 
                 <div className="grid gap-4 sm:grid-cols-2">
@@ -3867,17 +4082,27 @@ function ApplyPageInner() {
                   </div>
                 </FormSection>
 
-                <div className="sticky bottom-3 z-20 rounded-2xl border border-slate-200 bg-white/95 backdrop-blur shadow-[0_12px_30px_-12px_rgba(15,23,42,0.45)] p-3 sm:p-4">
+                <div className="sticky bottom-3 z-20 rounded-2xl border border-slate-200 bg-white/95 backdrop-blur shadow-[0_12px_30px_-12px_rgba(15,23,42,0.45)] p-3 sm:p-4 space-y-2">
+                  {!editApplicantId || savedDraftId ? (
+                    <button
+                      type="button"
+                      disabled={savingDraft || submitting || Boolean(compressingLabel)}
+                      onClick={handleSaveDraft}
+                      className="w-full bg-white hover:bg-slate-50 disabled:opacity-50 text-slate-800 font-bold py-3 rounded-xl border border-slate-300 transition text-sm"
+                    >
+                      {savingDraft ? "Saving draft..." : savedDraftId ? "Save draft again" : "Save as draft"}
+                    </button>
+                  ) : null}
                   <button
                     type="submit"
-                    disabled={submitting || Boolean(compressingLabel)}
+                    disabled={submitting || savingDraft || Boolean(compressingLabel)}
                     className="w-full bg-blue-700 hover:bg-blue-800 disabled:opacity-50 text-white font-black py-3.5 rounded-xl shadow-md transition text-sm tracking-wide"
                   >
                     {submitting
-                      ? editApplicantId
+                      ? editApplicantId && !savedDraftId
                         ? "Saving changes..."
                         : "Submitting application..."
-                      : editApplicantId
+                      : editApplicantId && !savedDraftId
                         ? "Save changes"
                         : "Submit application"}
                   </button>

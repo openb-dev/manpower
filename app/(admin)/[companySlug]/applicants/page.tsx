@@ -142,7 +142,7 @@ export default function ApplicantBookPage() {
         return;
       }
       if (!temporaryId.trim()) {
-        alert("Please enter the tID No.");
+        alert("Please enter the Temporary ID (TID).");
         return;
       }
     }
@@ -441,7 +441,7 @@ export default function ApplicantBookPage() {
 
       {/* Filter Tabs */}
       <div className="flex gap-2 border-b border-slate-200 pb-2">
-        {["ALL", "NEW", "SHORTLISTED", "APPROVED", "REJECTED"].map((st) => (
+        {["ALL", "NEW", "DRAFT", "SHORTLISTED", "APPROVED", "REJECTED"].map((st) => (
           <button
             key={st}
             onClick={() => setStatusFilter(st)}
@@ -509,16 +509,17 @@ export default function ApplicantBookPage() {
                     />
                   </th>
                   <th className="p-3 whitespace-nowrap">Sl. No.</th>
-                  <th className="p-3">Name of Applicant</th>
-                  <th className="p-3 whitespace-nowrap">App. ID</th>
-                  <th className="p-3">Job category / Job</th>
-                  <th className="p-3">Site location</th>
-                  <th className="p-3 whitespace-nowrap">tID No.</th>
-                  <th className="p-3 whitespace-nowrap">Mobile No.</th>
-                  <th className="p-3 whitespace-nowrap">Aadhaar No.</th>
-                  <th className="p-3">Stage</th>
+                  <th className="p-3">Applicant Name</th>
+                  <th className="p-3 whitespace-nowrap">Application ID</th>
+                  <th className="p-3">Job Category / Position Applied For</th>
+                  <th className="p-3">Site Location</th>
+                  <th className="p-3 whitespace-nowrap">Temporary ID (TID)</th>
+                  <th className="p-3 whitespace-nowrap">Mobile Number</th>
+                  <th className="p-3">Email</th>
+                  <th className="p-3 whitespace-nowrap">Aadhaar Number</th>
+                  <th className="p-3">Application Status</th>
                   <th className="p-3 whitespace-nowrap">Date of Application</th>
-                  <th className="p-3 text-right">Actions</th>
+                  <th className="p-3 text-right">Action / Remarks</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -562,6 +563,7 @@ export default function ApplicantBookPage() {
                       {a.temporaryId || "—"}
                     </td>
                     <td className="p-3 font-mono text-xs whitespace-nowrap">{a.mobile}</td>
+                    <td className="p-3 text-xs text-slate-700 break-all">{a.email || "—"}</td>
                     <td className="p-3 font-mono text-xs whitespace-nowrap">{a.aadhaarDisplay || "—"}</td>
                     <td className="p-3">
                       <span
@@ -606,7 +608,7 @@ export default function ApplicantBookPage() {
                           href={`/apply/${companySlug}?fill=admin&edit=${a.id}`}
                           className="px-3 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 text-xs font-semibold rounded-md transition"
                         >
-                          Edit
+                          {a.status === "DRAFT" ? "Continue" : "Edit"}
                         </a>
                         <button
                           type="button"
@@ -644,7 +646,7 @@ export default function ApplicantBookPage() {
                   <div className="flex flex-wrap items-center gap-2 mt-1 text-xs">
                     {selectedApplicant.formData?.temporaryId || selectedApplicant.temporaryId ? (
                       <span className="font-mono bg-amber-50 text-amber-800 px-2 py-0.5 rounded font-semibold">
-                        tID No.: {selectedApplicant.formData?.temporaryId || selectedApplicant.temporaryId}
+                        TID: {selectedApplicant.formData?.temporaryId || selectedApplicant.temporaryId}
                       </span>
                     ) : null}
                     {selectedApplicant.formData?.shortlistSiteName || selectedApplicant.shortlistSiteName ? (
@@ -711,7 +713,7 @@ export default function ApplicantBookPage() {
                   href={`/apply/${companySlug}?fill=admin&edit=${selectedApplicant.id}`}
                   className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 text-xs font-bold rounded-lg"
                 >
-                  Edit form
+                  {selectedApplicant.status === "DRAFT" ? "Continue draft" : "Edit form"}
                 </a>
                 <button
                   type="button"
@@ -1171,7 +1173,7 @@ export default function ApplicantBookPage() {
                     </div>
                     <label>
                       <span className="block text-xs font-semibold text-slate-700 mb-1">
-                        tID No. <span className="text-red-600">*</span>
+                        Temporary ID (TID) <span className="text-red-600">*</span>
                       </span>
                       <input
                         type="text"
@@ -1230,7 +1232,7 @@ export default function ApplicantBookPage() {
                           return;
                         }
                         if (pendingStatus === "SHORTLISTED" && !temporaryId.trim()) {
-                          alert("Please enter the tID No.");
+                          alert("Please enter the Temporary ID (TID).");
                           return;
                         }
                         if (!statusRemark.trim()) {
@@ -1252,9 +1254,11 @@ export default function ApplicantBookPage() {
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-semibold text-slate-500">
-                    Stage: <strong className="text-slate-800">{statusLabel(selectedApplicant.status)}</strong>
+                    Application status: <strong className="text-slate-800">{statusLabel(selectedApplicant.status)}</strong>
                   </span>
-                  {selectedApplicant.status !== "APPROVED" && selectedApplicant.status !== "SHORTLISTED" && (
+                  {selectedApplicant.status !== "APPROVED" &&
+                    selectedApplicant.status !== "SHORTLISTED" &&
+                    selectedApplicant.status !== "DRAFT" && (
                     <button
                       type="button"
                       onClick={() => {
@@ -1270,7 +1274,9 @@ export default function ApplicantBookPage() {
                       Shortlist
                     </button>
                   )}
-                  {selectedApplicant.status !== "APPROVED" && selectedApplicant.status !== "REJECTED" && (
+                  {selectedApplicant.status !== "APPROVED" &&
+                    selectedApplicant.status !== "REJECTED" &&
+                    selectedApplicant.status !== "DRAFT" && (
                     <button
                       type="button"
                       onClick={() => {

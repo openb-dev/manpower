@@ -1,5 +1,6 @@
 export function statusLabel(status?: string | null) {
   const map: Record<string, string> = {
+    DRAFT: "Draft",
     NEW: "New",
     SHORTLISTED: "Shortlisted",
     APPROVED: "Approved",

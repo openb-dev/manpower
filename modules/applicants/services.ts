@@ -2,7 +2,7 @@ import { prisma, getTenantPrisma } from "../../lib/db/index.ts";
 import { maskAadhaar } from "../../lib/crypto/index.ts";
 import { ApplicantStatus, VerificationStatus } from "@prisma/client";
 import { z } from "zod";
-import { ApplicantSubmitSchema } from "./schema.ts";
+import { ApplicantDraftSchema, ApplicantSubmitSchema } from "./schema.ts";
 import { formDataWithoutFiles } from "../../lib/applicantFormFields.ts";
 import { firstZodMessage } from "../../lib/publicErrors.ts";
 import type { OfficeAdmin } from "../../lib/officeAdmin.ts";
@@ -96,7 +96,7 @@ function applicantWriteFields(input: z.infer<typeof ApplicantSubmitSchema>, form
     fatherOrHusband: input.fatherOrHusband?.trim() || null,
     dateOfBirth: input.dateOfBirth ? new Date(input.dateOfBirth) : null,
     gender: input.gender || null,
-    presentAddress: input.presentAddress.trim(),
+    presentAddress: input.presentAddress?.trim() || null,
     permanentAddress: input.permanentAddress?.trim() || null,
     pan: input.panNumber ? input.panNumber.trim().toUpperCase() : null,
     armsLicenseNo: input.armsLicenseNo?.trim() || null,
@@ -111,6 +111,7 @@ function applicantWriteFields(input: z.infer<typeof ApplicantSubmitSchema>, form
 export async function submitApplicant(
   rawInput: z.infer<typeof ApplicantSubmitSchema>,
   officeAdmin?: OfficeAdmin | null,
+  existingId?: string,
 ) {
   const parsed = ApplicantSubmitSchema.safeParse(rawInput);
   if (!parsed.success) throw new Error(firstZodMessage(parsed.error));
@@ -255,6 +256,71 @@ export async function submitApplicant(
     return { id: applicant.id, applicationNo: applicant.applicationNo, status: applicant.status };
   }
 
+  let draftRow =
+    existingId
+      ? await prisma.applicant.findFirst({
+          where: { id: existingId, companyId: company.id, deletedAt: null, status: ApplicantStatus.DRAFT },
+        })
+      : null;
+  if (!draftRow && input.candidateAccountId) {
+    draftRow = await prisma.applicant.findFirst({
+      where: {
+        companyId: company.id,
+        candidateAccountId: input.candidateAccountId,
+        jobRoleId: input.jobRoleId,
+        roleCategoryId: input.roleCategoryId,
+        status: ApplicantStatus.DRAFT,
+        deletedAt: null,
+      },
+    });
+  }
+  if (draftRow && (existingId || extraPostKey(draftRow.formData) === incomingExtra)) {
+    const applicationNo = draftRow.applicationNo || (await allocateApplicationNo(company));
+    const existingForm = (draftRow.formData || {}) as Record<string, any>;
+    const applicant = await prisma.applicant.update({
+      where: { id: draftRow.id },
+      data: {
+        ...applicantWriteFields(
+          input,
+          {
+            ...savedForm,
+            filledByAdmin: filledByAdmin || existingForm.filledByAdmin || undefined,
+            applicationNo,
+            officeApplicantId: existingForm.officeApplicantId || undefined,
+            temporaryId: existingForm.temporaryId || undefined,
+            shortlistSiteId: existingForm.shortlistSiteId || undefined,
+            shortlistSiteName: existingForm.shortlistSiteName || undefined,
+          },
+          pvcStatus,
+        ),
+        personId: person.id,
+        candidateAccountId: input.candidateAccountId || draftRow.candidateAccountId,
+        applicationNo,
+        status: ApplicantStatus.NEW,
+        aadhaarEncrypted: null,
+        aadhaarHash: null,
+        aadhaarLast4: null,
+        documents: mergeApplicantDocuments(draftRow.documents, input.documents),
+      },
+    });
+    await prisma.auditLog.create({
+      data: {
+        companyId: company.id,
+        userId: filledByAdmin?.userId || null,
+        entityType: "APPLICANT",
+        entityId: applicant.id,
+        action: filledByAdmin ? "SUBMIT_DRAFT_BY_ADMIN" : "SUBMIT_DRAFT",
+        newValue: {
+          fullName: applicant.fullName,
+          status: applicant.status,
+          applicationNo: applicant.applicationNo,
+          ...(filledByAdmin ? { filledByAdmin } : {}),
+        },
+      },
+    });
+    return { id: applicant.id, applicationNo, status: applicant.status };
+  }
+
   const applicationNo = await allocateApplicationNo(company);
 
   const applicant = await prisma.applicant.create({
@@ -306,6 +372,135 @@ export async function submitApplicant(
   return { id: applicant.id, applicationNo, status: applicant.status };
 }
 
+function draftMobile(value?: string) {
+  const digits = String(value || "").replace(/\D/g, "").slice(-10);
+  return digits.length === 10 ? digits : "";
+}
+
+export async function saveApplicantDraft(
+  rawInput: z.infer<typeof ApplicantDraftSchema>,
+  officeAdmin?: OfficeAdmin | null,
+  existingId?: string,
+) {
+  const parsed = ApplicantDraftSchema.safeParse(rawInput);
+  if (!parsed.success) throw new Error(firstZodMessage(parsed.error));
+  const input = parsed.data;
+
+  const company = await prisma.company.findUnique({
+    where: { slug: input.companySlug },
+  });
+  if (!company) throw new Error("Company not found.");
+  if (!officeAdmin && !input.candidateAccountId) {
+    throw new Error("Please sign in before saving a draft.");
+  }
+
+  const fillerName = String(officeAdmin?.name || "").trim();
+  const fillerPhone = String(officeAdmin?.phone || "").replace(/\D/g, "").slice(-10);
+  const filledByAdmin = officeAdmin
+    ? {
+        userId: officeAdmin.id,
+        name: fillerName || officeAdmin.name,
+        phone: fillerPhone,
+        email: officeAdmin.email,
+        filledAt: new Date().toISOString(),
+      }
+    : null;
+
+  const aadhaar = String(input.aadhaarNumber || "").replace(/\D/g, "");
+  let personId: string | null = null;
+  if (aadhaar.length === 12) {
+    await ensurePeople(company.id);
+    const person = await findOrCreatePerson(company.id, aadhaar);
+    personId = person.id;
+  }
+
+  const incomingExtra = extraPostKey(input.formData);
+  let existing =
+    existingId
+      ? await prisma.applicant.findFirst({
+          where: { id: existingId, companyId: company.id, deletedAt: null },
+        })
+      : null;
+  if (existing && existing.status !== ApplicantStatus.DRAFT) {
+    throw new Error("This form is already submitted. Use Save changes.");
+  }
+  if (!existing && input.candidateAccountId) {
+    const drafts = await prisma.applicant.findMany({
+      where: {
+        companyId: company.id,
+        candidateAccountId: input.candidateAccountId,
+        jobRoleId: input.jobRoleId,
+        roleCategoryId: input.roleCategoryId,
+        status: ApplicantStatus.DRAFT,
+        deletedAt: null,
+      },
+    });
+    existing = drafts.find((row) => extraPostKey(row.formData) === incomingExtra) || null;
+  }
+
+  const existingForm = ((existing?.formData || {}) as Record<string, any>) || {};
+  const savedForm = {
+    ...scrubFormDataPii(formDataWithoutFiles(input.formData || {})),
+    ...(filledByAdmin ? { filledByAdmin: { ...filledByAdmin, filledAt: existingForm.filledByAdmin?.filledAt || filledByAdmin.filledAt } } : {}),
+    draftSavedAt: new Date().toISOString(),
+    applicationNo: existing?.applicationNo || undefined,
+    officeApplicantId: existingForm.officeApplicantId || undefined,
+    temporaryId: existingForm.temporaryId || undefined,
+    shortlistSiteId: existingForm.shortlistSiteId || undefined,
+    shortlistSiteName: existingForm.shortlistSiteName || undefined,
+  };
+
+  const dob = input.dateOfBirth && /^\d{4}-\d{2}-\d{2}/.test(input.dateOfBirth) ? new Date(input.dateOfBirth) : null;
+  const write = {
+    jobRoleId: input.jobRoleId,
+    roleCategoryId: input.roleCategoryId,
+    fullName: String(input.fullName || "").trim() || "Draft",
+    mobile: draftMobile(input.mobile),
+    email: input.email ? String(input.email).trim().toLowerCase() : null,
+    fatherOrHusband: input.fatherOrHusband?.trim() || null,
+    dateOfBirth: dob && !Number.isNaN(dob.getTime()) ? dob : null,
+    gender: input.gender || null,
+    presentAddress: input.presentAddress?.trim() || null,
+    permanentAddress: input.permanentAddress?.trim() || null,
+    pan: input.panNumber ? String(input.panNumber).trim().toUpperCase() : null,
+    armsLicenseNo: input.armsLicenseNo?.trim() || null,
+    exServiceNo: input.exServiceNo?.trim() || null,
+    personId,
+    formData: savedForm,
+    documents: mergeApplicantDocuments(existing?.documents, input.documents),
+    status: ApplicantStatus.DRAFT,
+  };
+
+  const applicant = existing
+    ? await prisma.applicant.update({
+        where: { id: existing.id },
+        data: {
+          ...write,
+          candidateAccountId: input.candidateAccountId || existing.candidateAccountId,
+        },
+      })
+    : await prisma.applicant.create({
+        data: {
+          companyId: company.id,
+          candidateAccountId: input.candidateAccountId || null,
+          ...write,
+        },
+      });
+
+  await prisma.auditLog.create({
+    data: {
+      companyId: company.id,
+      userId: filledByAdmin?.userId || null,
+      entityType: "APPLICANT",
+      entityId: applicant.id,
+      action: filledByAdmin ? "SAVE_DRAFT_BY_ADMIN" : "SAVE_DRAFT",
+      newValue: { fullName: applicant.fullName, status: applicant.status },
+    },
+  });
+
+  return { id: applicant.id, applicationNo: applicant.applicationNo, status: applicant.status };
+}
+
 export async function listApplicants({
   companyId,
   roleId,
@@ -332,6 +527,7 @@ export async function listApplicants({
 
   if (roleId) where.jobRoleId = roleId;
   if (status) where.status = status;
+  else where.status = { not: ApplicantStatus.DRAFT };
   if (search) {
     where.OR = [
       { fullName: { contains: search, mode: "insensitive" } },
@@ -457,12 +653,15 @@ export async function updateApplicantStatus({
   if (applicant.status === ApplicantStatus.APPROVED) {
     throw new Error("Cannot change status of an already approved applicant.");
   }
+  if (applicant.status === ApplicantStatus.DRAFT) {
+    throw new Error("This is a draft. Please complete and submit the form first.");
+  }
 
   const existingForm = (applicant.formData || {}) as Record<string, any>;
   let nextForm = existingForm;
   if (newStatus === ApplicantStatus.SHORTLISTED) {
     const tid = String(temporaryId || "").trim();
-    if (!tid) throw new Error("Please enter the tID No.");
+    if (!tid) throw new Error("Please enter the Temporary ID (TID).");
     const site = await findOrCreateDutySite({
       companyId,
       siteId,
@@ -478,7 +677,7 @@ export async function updateApplicantStatus({
       },
       select: { id: true, fullName: true },
     });
-    if (taken) throw new Error("This tID No. is already used. Please type a different one.");
+    if (taken) throw new Error("This Temporary ID (TID) is already used. Please type a different one.");
 
     nextForm = {
       ...existingForm,
@@ -577,6 +776,60 @@ export async function saveOfficeApplicantId({
   }
 
   return { officeApplicantId: employeeIdNo, employeeCode: employeeIdNo };
+}
+
+export async function getApplicantForOwnEdit({
+  companyId,
+  applicantId,
+  candidateId,
+}: {
+  companyId: string;
+  applicantId: string;
+  candidateId: string;
+}) {
+  if (!applicantId || !/^[0-9a-f-]{36}$/i.test(applicantId)) {
+    throw new Error("Application not found.");
+  }
+  const row = await prisma.applicant.findFirst({
+    where: {
+      id: applicantId,
+      companyId,
+      candidateAccountId: candidateId,
+      deletedAt: null,
+    },
+    select: {
+      id: true,
+      applicationNo: true,
+      status: true,
+      jobRoleId: true,
+      roleCategoryId: true,
+      fullName: true,
+      mobile: true,
+      email: true,
+      fatherOrHusband: true,
+      dateOfBirth: true,
+      gender: true,
+      pan: true,
+      aadhaarEncrypted: true,
+      exServiceNo: true,
+      armsLicenseNo: true,
+      formData: true,
+      documents: true,
+      person: { select: { aadhaarEncrypted: true } },
+    },
+  });
+  if (!row) throw new Error("Application not found.");
+  return {
+    id: row.id,
+    applicationNo: row.applicationNo,
+    status: row.status,
+    jobRoleId: row.jobRoleId,
+    roleCategoryId: row.roleCategoryId,
+    prefill: formPrefillFromApplicant({
+      ...row,
+      aadhaarEncrypted: row.person?.aadhaarEncrypted || row.aadhaarEncrypted,
+    }),
+  };
 }
 
 export async function getApplicantForAdminEdit({
@@ -690,6 +943,8 @@ export async function updateApplicant(
     lastEditedAt: new Date().toISOString(),
   };
 
+  const wasDraft = existing.status === ApplicantStatus.DRAFT;
+  const applicationNo = existing.applicationNo || (wasDraft ? await allocateApplicationNo(company) : existing.applicationNo);
   const applicant = await prisma.applicant.update({
     where: { id: applicantId },
     data: {
@@ -698,7 +953,7 @@ export async function updateApplicant(
         {
           ...scrubFormDataPii(formDataWithoutFiles(input.formData || {})),
           filledByAdmin,
-          applicationNo: existing.applicationNo,
+          applicationNo,
           officeApplicantId: existingForm.officeApplicantId || undefined,
           temporaryId: existingForm.temporaryId || undefined,
           shortlistSiteId: existingForm.shortlistSiteId || undefined,
@@ -707,6 +962,8 @@ export async function updateApplicant(
         pvcStatus,
       ),
       personId: person.id,
+      applicationNo,
+      status: wasDraft ? ApplicantStatus.NEW : existing.status,
       aadhaarEncrypted: null,
       aadhaarHash: null,
       aadhaarLast4: null,

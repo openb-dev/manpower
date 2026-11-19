@@ -1,5 +1,27 @@
 import { z } from "zod";
 
+export const ApplicantDraftSchema = z.object({
+  companySlug: z.string().min(1, "Company is required."),
+  candidateAccountId: z.string().uuid().optional(),
+  jobRoleId: z.string().uuid("Please select a trade."),
+  roleCategoryId: z.string().uuid("Please select a job category."),
+  fullName: z.string().optional(),
+  mobile: z.string().optional(),
+  email: z.string().optional(),
+  fatherOrHusband: z.string().optional(),
+  dateOfBirth: z.string().optional(),
+  gender: z.string().optional(),
+  presentAddress: z.string().optional(),
+  permanentAddress: z.string().optional(),
+  aadhaarNumber: z.string().optional(),
+  panNumber: z.string().optional(),
+  armsLicenseNo: z.string().optional(),
+  armsExpiryDate: z.string().optional(),
+  exServiceNo: z.string().optional(),
+  formData: z.record(z.string(), z.any()).default({}),
+  documents: z.any().optional().default([]),
+});
+
 export const ApplicantSubmitSchema = z.object({
   companySlug: z.string().min(1, "Company is required."),
   candidateAccountId: z.string().uuid().optional(),

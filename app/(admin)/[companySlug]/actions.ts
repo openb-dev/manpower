@@ -437,7 +437,8 @@ export async function loadCompanyReports(companySlug: string) {
 
   const n = (v: unknown) => Number(v || 0);
   const applicantCounts = {
-    total: applicants.length,
+    total: applicants.filter((a) => a.status !== "DRAFT").length,
+    DRAFT: applicants.filter((a) => a.status === "DRAFT").length,
     NEW: applicants.filter((a) => a.status === "NEW").length,
     SHORTLISTED: applicants.filter((a) => a.status === "SHORTLISTED").length,
     APPROVED: applicants.filter((a) => a.status === "APPROVED").length,

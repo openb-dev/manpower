@@ -13,6 +13,7 @@ enum Role {
 }
 
 enum ApplicantStatus {
+  DRAFT
   NEW
   SHORTLISTED
   APPROVED

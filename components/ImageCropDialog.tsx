@@ -8,9 +8,12 @@ type ImageCropDialogProps = {
   src: string;
   title?: string;
   hint?: string;
-  aspect: number;
+  aspect?: number;
+  fit?: "cover" | "contain";
+  allowUseFull?: boolean;
   onCancel: () => void;
   onCrop: (file: File) => void;
+  onUseFull?: () => void;
 };
 
 function clamp(n: number, min: number, max: number) {
@@ -24,9 +27,13 @@ function distance(a: Point, b: Point) {
 function clampPan(pan: Point, scale: number, nw: number, nh: number, cropW: number, cropH: number) {
   const w = nw * scale;
   const h = nh * scale;
+  const minX = Math.min(0, cropW - w);
+  const maxX = Math.max(0, cropW - w);
+  const minY = Math.min(0, cropH - h);
+  const maxY = Math.max(0, cropH - h);
   return {
-    x: clamp(pan.x, Math.min(0, cropW - w), 0),
-    y: clamp(pan.y, Math.min(0, cropH - h), 0),
+    x: clamp(pan.x, minX, maxX),
+    y: clamp(pan.y, minY, maxY),
   };
 }
 
@@ -34,9 +41,12 @@ export default function ImageCropDialog({
   src,
   title = "Crop photo",
   hint = "Pinch to zoom. Drag to move. Then tap Crop & use.",
-  aspect,
+  aspect = 0,
+  fit = "contain",
+  allowUseFull = false,
   onCancel,
   onCrop,
+  onUseFull,
 }: ImageCropDialogProps) {
   const frameRef = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
@@ -49,6 +59,7 @@ export default function ImageCropDialog({
   const [scale, setScale] = useState(1);
   const [pan, setPan] = useState<Point>({ x: 0, y: 0 });
   const [minScale, setMinScale] = useState(1);
+  const [boxAspect, setBoxAspect] = useState(aspect > 0 ? aspect : 3 / 4);
   const [saving, setSaving] = useState(false);
   const [loadError, setLoadError] = useState("");
 
@@ -59,6 +70,15 @@ export default function ImageCropDialog({
       document.body.style.overflow = prev;
     };
   }, []);
+
+  useEffect(() => {
+    if (aspect > 0) {
+      setBoxAspect(aspect);
+      return;
+    }
+    if (!natural) return;
+    setBoxAspect(clamp(natural.x / natural.y, 0.58, 1.78));
+  }, [aspect, natural]);
 
   useEffect(() => {
     const box = frameRef.current;
@@ -72,24 +92,26 @@ export default function ImageCropDialog({
     const observer = new ResizeObserver(measure);
     observer.observe(box);
     return () => observer.disconnect();
-  }, [aspect]);
+  }, [boxAspect]);
 
   useEffect(() => {
     if (!natural) return;
+    const contain = Math.min(frame.w / natural.x, frame.h / natural.y);
     const cover = Math.max(frame.w / natural.x, frame.h / natural.y);
-    setMinScale(cover);
-    setScale(cover);
+    const start = fit === "cover" ? cover : contain;
+    setMinScale(contain);
+    setScale(start);
     setPan(
       clampPan(
-        { x: (frame.w - natural.x * cover) / 2, y: (frame.h - natural.y * cover) / 2 },
-        cover,
+        { x: (frame.w - natural.x * start) / 2, y: (frame.h - natural.y * start) / 2 },
+        start,
         natural.x,
         natural.y,
         frame.w,
         frame.h,
       ),
     );
-  }, [natural, frame.w, frame.h]);
+  }, [natural, frame.w, frame.h, fit]);
 
   function onImageLoad() {
     const img = imgRef.current;
@@ -129,7 +151,7 @@ export default function ImageCropDialog({
       const [a, b] = [...pointers.current.values()];
       const dist = distance(a, b);
       if (pinch.current.dist < 8) return;
-      const nextScale = clamp(pinch.current.scale * (dist / pinch.current.dist), minScale, minScale * 5);
+      const nextScale = clamp(pinch.current.scale * (dist / pinch.current.dist), minScale, minScale * 6);
       const origin = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
       const ratio = nextScale / pinch.current.scale;
       const nextPan = clampPan(
@@ -178,7 +200,7 @@ export default function ImageCropDialog({
     event.preventDefault();
     const rect = frameRef.current?.getBoundingClientRect();
     const origin = { x: event.clientX - (rect?.left || 0), y: event.clientY - (rect?.top || 0) };
-    const nextScale = clamp(scale * (event.deltaY > 0 ? 0.92 : 1.08), minScale, minScale * 5);
+    const nextScale = clamp(scale * (event.deltaY > 0 ? 0.92 : 1.08), minScale, minScale * 6);
     const ratio = nextScale / scale;
     setScale(nextScale);
     setPan(
@@ -205,8 +227,11 @@ export default function ImageCropDialog({
       const sy = clamp(-pan.y / scale, 0, natural.y);
       const sw = Math.min(natural.x - sx, frame.w / scale);
       const sh = Math.min(natural.y - sy, frame.h / scale);
-      const outW = aspect < 1 ? 600 : 1200;
-      const outH = Math.round(outW / aspect);
+      const longEdge = fit === "cover" ? (boxAspect < 1 ? 800 : 1200) : 1600;
+      const srcLong = Math.max(sw, sh);
+      const outScale = Math.min(1, longEdge / Math.max(srcLong, 1));
+      const outW = Math.max(1, Math.round(sw * outScale));
+      const outH = Math.max(1, Math.round(sh * outScale));
       const canvas = document.createElement("canvas");
       canvas.width = outW;
       canvas.height = outH;
@@ -219,7 +244,7 @@ export default function ImageCropDialog({
         canvas.toBlob(
           (next) => (next ? resolve(next) : reject(new Error("Could not crop the picture."))),
           "image/jpeg",
-          0.9,
+          0.92,
         );
       });
       onCrop(new File([blob], "cropped-photo.jpg", { type: "image/jpeg" }));
@@ -229,7 +254,7 @@ export default function ImageCropDialog({
     }
   }
 
-  const frameMaxW = "min(86vw, 22rem)";
+  const frameMaxW = fit === "cover" ? "min(86vw, 22rem)" : "min(92vw, 26rem)";
 
   return (
     <div className="fixed inset-0 z-[80] bg-black/90 text-white flex flex-col">
@@ -239,8 +264,8 @@ export default function ImageCropDialog({
       </div>
       <div className="flex-1 flex items-center justify-center px-4 min-h-0">
         <div
-          className="relative bg-black overflow-hidden touch-none select-none shadow-[0_0_0_9999px_rgba(0,0,0,0.55)]"
-          style={{ width: frameMaxW, aspectRatio: String(aspect) }}
+          className="relative bg-white overflow-hidden touch-none select-none shadow-[0_0_0_9999px_rgba(0,0,0,0.55)]"
+          style={{ width: frameMaxW, aspectRatio: String(boxAspect), maxHeight: "70vh" }}
           ref={frameRef}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
@@ -266,7 +291,7 @@ export default function ImageCropDialog({
         </div>
       </div>
       {loadError ? <p className="px-4 text-xs text-red-200 font-semibold">{loadError}</p> : null}
-      <div className="grid grid-cols-2 gap-3 p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+      <div className={`grid gap-3 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] ${allowUseFull && onUseFull ? "grid-cols-3" : "grid-cols-2"}`}>
         <button
           type="button"
           onClick={onCancel}
@@ -274,6 +299,16 @@ export default function ImageCropDialog({
         >
           Cancel
         </button>
+        {allowUseFull && onUseFull ? (
+          <button
+            type="button"
+            disabled={saving}
+            onClick={onUseFull}
+            className="min-h-12 rounded-xl border border-white/40 bg-white/10 text-sm font-bold disabled:opacity-50"
+          >
+            Use full picture
+          </button>
+        ) : null}
         <button
           type="button"
           disabled={saving || !natural || Boolean(loadError)}

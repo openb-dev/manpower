@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requestApplicantOtp, verifyApplicantOtp } from "@/modules/otp/services";
-import { getApplicantForAdminEdit, submitApplicant, updateApplicant } from "@/modules/applicants/services";
+import {
+  getApplicantForAdminEdit,
+  getApplicantForOwnEdit,
+  saveApplicantDraft,
+  submitApplicant,
+  updateApplicant,
+} from "@/modules/applicants/services";
 import {
   registerCandidate,
   loginCandidate,
@@ -269,6 +275,47 @@ export async function POST(
       return NextResponse.json({ prefill });
     }
 
+    if (body.action === "GET_OWN_APPLICATION") {
+      const candidate = await currentCandidate(request, companySlug);
+      if (!candidate) {
+        return NextResponse.json({ error: "Please sign in to continue this form." }, { status: 401 });
+      }
+      const company = await prisma.company.findUnique({
+        where: { slug: companySlug },
+        select: { id: true },
+      });
+      if (!company) throw new Error("Company not found.");
+      const application = await getApplicantForOwnEdit({
+        companyId: company.id,
+        applicantId: String(body.applicantId || ""),
+        candidateId: candidate.id,
+      });
+      return NextResponse.json({ application });
+    }
+
+    if (body.action === "SAVE_DRAFT") {
+      const officeAdmin = body.fillByAdmin ? await currentOfficeAdmin(companySlug) : null;
+      const candidate = officeAdmin ? null : await currentCandidate(request, companySlug);
+      if (!officeAdmin && !candidate) {
+        return NextResponse.json({ error: "Please sign in before saving a draft." }, { status: 401 });
+      }
+      const fillerName = String(body.adminFillerName || officeAdmin?.name || "").trim();
+      const fillerPhone = String(body.adminFillerPhone || "").replace(/\D/g, "").slice(-10);
+      const admin = officeAdmin
+        ? { ...officeAdmin, name: fillerName || officeAdmin.name, phone: fillerPhone }
+        : null;
+      const res = await saveApplicantDraft(
+        {
+          ...body.data,
+          companySlug,
+          candidateAccountId: officeAdmin ? undefined : candidate?.id,
+        },
+        admin,
+        String(body.applicantId || "") || undefined,
+      );
+      return NextResponse.json(res);
+    }
+
     if (body.action === "GET_ADMIN_APPLICATION") {
       const officeAdmin = await currentOfficeAdmin(companySlug);
       if (!officeAdmin) {
@@ -318,6 +365,7 @@ export async function POST(
           candidateAccountId: officeAdmin ? undefined : candidate?.id,
         },
         admin,
+        String(body.applicantId || "") || undefined,
       );
       return NextResponse.json(res);
     }

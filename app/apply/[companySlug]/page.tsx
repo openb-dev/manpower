@@ -386,7 +386,40 @@ function missingPlace(label: string, pin: string, district: string, state: strin
 }
 
 
-const fieldCls = "w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white disabled:bg-slate-100 disabled:text-slate-600";
+const fieldCls =
+  "w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-sm bg-white disabled:bg-slate-100 disabled:text-slate-600";
+
+function FormSection({
+  no,
+  title,
+  note,
+  children,
+  tone = "blue",
+}: {
+  no: string;
+  title: string;
+  note?: string;
+  children: React.ReactNode;
+  tone?: "blue" | "amber";
+}) {
+  const badge = tone === "amber" ? "bg-amber-600" : "bg-blue-700";
+  return (
+    <section className="rounded-2xl border border-slate-200/90 bg-white shadow-[0_8px_24px_-18px_rgba(15,23,42,0.35)] overflow-hidden">
+      <div className="flex items-start gap-3 px-4 sm:px-6 py-3.5 border-b border-slate-100 bg-gradient-to-r from-slate-50 via-white to-blue-50/40">
+        <span
+          className={`mt-0.5 w-8 h-8 rounded-full ${badge} text-white text-sm font-black flex items-center justify-center shadow-sm shrink-0`}
+        >
+          {no}
+        </span>
+        <div className="min-w-0">
+          <h3 className="text-[13px] font-black tracking-wide text-slate-900 uppercase">{title}</h3>
+          {note ? <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">{note}</p> : null}
+        </div>
+      </div>
+      <div className="p-4 sm:p-6 space-y-4">{children}</div>
+    </section>
+  );
+}
 
 function PlaceFields({
   pin,
@@ -477,7 +510,7 @@ function YesNoRadios({
       <p className="block text-xs font-bold text-slate-700 mb-2">
         {label} <span className="text-red-500">*</span>
       </p>
-      <div className="flex gap-8">
+      <div className="apply-yesno flex flex-wrap gap-2">
         {(["YES", "NO"] as const).map((opt) => (
           <label key={opt} className="flex items-center gap-2 text-sm font-medium text-slate-800 cursor-pointer">
             <input
@@ -1656,6 +1689,22 @@ function ApplyPageInner() {
   const canFillForm = Boolean(officeAdmin || candidate);
   const isGunRole = isGunmanCategory(selectedRole, selectedCategory);
   const isExServiceCategory = isExServicemanCategory(selectedRole, selectedCategory);
+  const showGunSection = isGunRole || form.gunLicence !== "NA";
+  const sectionNos = (() => {
+    let n = 1;
+    return {
+      personal: String(n++),
+      ex: isExServiceCategory ? String(n++) : "",
+      gun: showGunSection ? String(n++) : "",
+      exp: String(n++),
+      contact: String(n++),
+      family: String(n++),
+      bank: String(n++),
+      police: String(n++),
+      docs: String(n++),
+      legal: String(n++),
+    };
+  })();
   const guardRole = company?.jobRoles.find((role) => isSecurityGuardRole(role)) || null;
   const manpowerRole = company?.jobRoles.find((role) => isManpowerRole(role)) || null;
   const manpowerCategories = manpowerRole?.categories || [];
@@ -1663,7 +1712,7 @@ function ApplyPageInner() {
     manpowerCategories.find((cat) => String(cat.code).toUpperCase() === "OTHERS") || manpowerCategories[0] || null;
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] text-slate-800 flex flex-col">
+    <div className="apply-shell min-h-screen text-slate-800 flex flex-col">
       {imageCrop ? (
         <ImageCropDialog
           src={imageCrop.src}
@@ -1679,8 +1728,8 @@ function ApplyPageInner() {
         />
       ) : null}
       {/* Brand & Auth Header */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-xs">
-        <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between">
+      <header className="bg-white/95 backdrop-blur border-b border-slate-200/80 sticky top-0 z-30 shadow-sm">
+        <div className="max-w-5xl mx-auto px-4 h-[4.25rem] flex items-center justify-between">
           <div className="flex items-center gap-3">
             {isNkCompany(companySlug || company?.slug) ? (
               <NkLogo className="h-11 w-11 rounded-md object-contain bg-black shadow-xs shrink-0" />
@@ -2242,10 +2291,20 @@ function ApplyPageInner() {
         )}
 
         {canFillForm && (!officeAdmin || adminFiller.confirmed) && (
-          <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-visible">
+          <div className={`overflow-visible ${step === "FORM" ? "" : "bg-white border border-slate-200 rounded-2xl shadow-sm"}`}>
             {/* Step 1: Role Selection */}
             {step === "ROLE" && (
-              <div className="p-6 sm:p-8 space-y-6">
+              <div className="overflow-hidden">
+                <div className="bg-gradient-to-r from-slate-900 via-blue-950 to-blue-800 px-5 sm:px-8 py-5 text-white">
+                  <p className="text-[11px] uppercase tracking-[0.18em] text-blue-200 font-bold">
+                    Step 1 of 2
+                  </p>
+                  <h2 className="text-xl sm:text-2xl font-black mt-1 leading-tight">Select trade / category</h2>
+                  <p className="text-xs text-blue-100/90 mt-1.5">
+                    Choose Security Guard or Manpower, then pick the category.
+                  </p>
+                </div>
+                <div className="p-6 sm:p-8 space-y-6">
                 <div>
                   {officeAdmin ? (
                     <div className="rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 mb-3 text-indigo-950">
@@ -2270,12 +2329,6 @@ function ApplyPageInner() {
                     </span>
                   )}
                   {!officeAdmin ? <div className="mt-3"><CandidateApplicationsPanel items={myApplications} /></div> : null}
-                  <div className="mt-2">
-                    <h2 className="text-lg font-bold text-slate-900">Step 1: Select trade / category</h2>
-                    <p className="text-xs text-slate-500">
-                      Choose Security Guard or Manpower, then pick the category.
-                    </p>
-                  </div>
                 </div>
 
                 <div className="grid gap-4 sm:grid-cols-2">
@@ -2492,51 +2545,58 @@ function ApplyPageInner() {
                     setError("");
                     setStep("FORM");
                   }}
-                  className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl shadow-md transition text-sm flex items-center justify-center gap-2"
+                  className="w-full bg-blue-700 hover:bg-blue-800 text-white font-black py-3.5 rounded-xl shadow-md transition text-sm tracking-wide"
                 >
-                  <span>Continue to Complete Application Form</span>
-                  <span>→</span>
+                  Continue to application form →
                 </button>
+                </div>
               </div>
             )}
 
             {/* Step 2: The Complete Application Form with ALL Details */}
             {step === "FORM" && (
-              <form onSubmit={handleSubmitApplication} className="p-6 sm:p-8 space-y-8">
-                {editApplicantId ? (
-                  <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-950">
-                    <div className="text-[10px] font-bold uppercase tracking-wide">Editing saved application</div>
-                    <div className="text-sm font-semibold mt-0.5 font-mono">
-                      Application ID: {editingNo || editApplicantId}
+              <form onSubmit={handleSubmitApplication} className="apply-form space-y-5">
+                <div className="rounded-2xl border border-slate-200 bg-white shadow-[0_12px_30px_-18px_rgba(15,23,42,0.45)] overflow-hidden">
+                  <div className="bg-gradient-to-r from-slate-900 via-blue-950 to-blue-800 px-5 sm:px-7 py-5 text-white">
+                    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                      <div>
+                        <p className="text-[11px] uppercase tracking-[0.18em] text-blue-200 font-bold">
+                          Step 2 of 2 · Official application
+                        </p>
+                        <h2 className="text-xl sm:text-2xl font-black mt-1 leading-tight">Job application form</h2>
+                        <p className="text-xs text-blue-100/90 mt-1.5 max-w-xl">
+                          Fill each box carefully. Fields with <span className="text-red-300 font-bold">*</span> must be filled.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setStep("ROLE")}
+                        className="self-start text-xs font-bold px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 border border-white/20"
+                      >
+                        ← Change trade / category
+                      </button>
                     </div>
-                    <p className="text-xs mt-1">
-                      Save changes to update this same form. The Application ID will stay the same.
-                    </p>
+                    <div className="mt-4 inline-flex max-w-full items-center gap-2 rounded-full bg-white/10 border border-white/15 px-3 py-1.5 text-xs font-semibold">
+                      <span className="text-blue-200">Applying for</span>
+                      <span className="truncate">
+                        {selectedRole?.name}
+                        {isManpowerRole(selectedRole)
+                          ? ` / ${form.gemProfile === "Others" ? form.otherCategory.trim() || "Others" : form.gemProfile || selectedCategory?.name || "Others"}`
+                          : selectedCategory?.name
+                            ? ` (${isOthersChoice(selectedCategory) ? form.otherCategory.trim() || "Others" : selectedCategory.name})`
+                            : ""}
+                      </span>
+                    </div>
                   </div>
-                ) : null}
-                {/* Header banner */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-slate-200 gap-2">
-                  <div>
-                    <span className="text-xs uppercase font-extrabold tracking-wider bg-blue-100 text-blue-800 px-2.5 py-1 rounded">
-                      Applying for: {selectedRole?.name}
-                      {isManpowerRole(selectedRole)
-                        ? ` / ${form.gemProfile === "Others" ? form.otherCategory.trim() || "Others" : form.gemProfile || selectedCategory?.name || "Others"}`
-                        : selectedCategory?.name
-                          ? ` (${isOthersChoice(selectedCategory) ? form.otherCategory.trim() || "Others" : selectedCategory.name})`
-                          : ""}
-                    </span>
-                    <h2 className="text-xl font-bold text-slate-900 mt-2">Official Job Application Form</h2>
-                    <p className="text-xs text-slate-500">
-                      Please fill every section with accurate legal details. Mandatory fields are marked with *.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setStep("ROLE")}
-                    className="text-xs text-blue-600 hover:underline font-semibold"
-                  >
-                    ← Change trade / category
-                  </button>
+                  {editApplicantId ? (
+                    <div className="px-5 sm:px-7 py-3 bg-amber-50 border-b border-amber-200 text-amber-950">
+                      <div className="text-[10px] font-bold uppercase tracking-wide">Editing saved application</div>
+                      <div className="text-sm font-semibold mt-0.5 font-mono">
+                        Application ID: {editingNo || editApplicantId}
+                      </div>
+                      <p className="text-xs mt-1">Save changes to update this same form. The Application ID will stay the same.</p>
+                    </div>
+                  ) : null}
                 </div>
 
                 {officeAdmin ? (
@@ -2564,35 +2624,26 @@ function ApplyPageInner() {
                     </div>
                   </div>
                 ) : (
-                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 grid gap-3 sm:grid-cols-3 text-xs">
+                  <div className="rounded-2xl border border-slate-200 bg-white shadow-[0_8px_24px_-18px_rgba(15,23,42,0.35)] p-4 sm:p-5 grid gap-3 sm:grid-cols-3 text-xs">
                     <div>
-                      <span className="text-slate-400 block uppercase font-bold text-[10px]">Registered Name</span>
+                      <span className="text-slate-500 block uppercase font-bold text-[10px] tracking-wide">Registered name</span>
                       <span className="font-bold text-slate-900">{candidate?.fullName}</span>
                     </div>
                     <div>
-                      <span className="text-slate-400 block uppercase font-bold text-[10px]">Account Email</span>
-                      <span className="font-medium text-slate-900">{candidate?.email}</span>
+                      <span className="text-slate-500 block uppercase font-bold text-[10px] tracking-wide">Account email</span>
+                      <span className="font-medium text-slate-900 break-all">{candidate?.email}</span>
                     </div>
                     <div>
-                      <span className="text-slate-400 block uppercase font-bold text-[10px]">Mobile number</span>
+                      <span className="text-slate-500 block uppercase font-bold text-[10px] tracking-wide">Mobile number</span>
                       <span className="font-mono font-semibold text-emerald-700">+91 {candidate?.whatsappNo} ✓</span>
                     </div>
                   </div>
                 )}
 
-                {/* SECTION 1: APPLICATION / PERSONAL DETAILS */}
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
-                    <span className="w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center">
-                      1
-                    </span>
-                    <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
-                      Application & Personal Details
-                    </h3>
-                  </div>
+                <FormSection no={sectionNos.personal} title="Personal details" note="Name, address, photo and basic particulars.">
 
                   <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="sm:col-span-2 grid gap-3 sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_5.5rem_7rem]">
+                    <div className="sm:col-span-2 grid gap-3 sm:grid-cols-[minmax(0,2.6fr)_minmax(9.2rem,0.72fr)_4.5rem_6.5rem]">
                       <div>
                         <label className="block text-xs font-bold text-slate-700 mb-1">
                           Full Name <span className="text-red-500">*</span>
@@ -2662,9 +2713,9 @@ function ApplyPageInner() {
                       />
                     </div>
 
-                    <div className="sm:col-span-2 rounded-xl border border-slate-200 bg-slate-50/60 p-4 space-y-3">
-                      <div className="text-xs font-bold uppercase tracking-wide text-slate-800">
-                        Present Residential Address <span className="text-red-500">*</span>
+                    <div className="sm:col-span-2 rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
+                      <div className="text-xs font-black uppercase tracking-wide text-slate-800">
+                        Present address <span className="text-red-500">*</span>
                       </div>
                       <AddressInput
                         label="Vill. / Locality"
@@ -2711,9 +2762,9 @@ function ApplyPageInner() {
                       </label>
                     </div>
 
-                    <div className="sm:col-span-2 rounded-xl border border-slate-200 bg-slate-50/60 p-4 space-y-3">
-                      <div className="text-xs font-bold uppercase tracking-wide text-slate-800">
-                        Permanent Residential Address <span className="text-red-500">*</span>
+                    <div className="sm:col-span-2 rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
+                      <div className="text-xs font-black uppercase tracking-wide text-slate-800">
+                        Permanent address <span className="text-red-500">*</span>
                       </div>
                       <AddressInput
                         label="Vill. / Locality"
@@ -3000,17 +3051,16 @@ function ApplyPageInner() {
                       </div>
                     </div>
 
-                    {/* Passport Photo Upload */}
-                    <div className="sm:col-span-2 p-3 bg-slate-50 border border-slate-200 rounded-xl flex flex-col sm:flex-row items-center gap-4">
+                    <div className="sm:col-span-2 p-4 bg-gradient-to-r from-slate-50 to-blue-50/50 border border-slate-200 rounded-xl flex flex-col sm:flex-row items-center gap-4">
                       {form.photo ? (
                         <img
                           src={form.photo}
                           alt="Applicant Passport Preview"
-                          className="w-20 h-24 object-cover rounded border border-slate-300 shadow-xs"
+                          className="w-24 h-28 object-cover rounded-lg border-2 border-white shadow-md ring-1 ring-slate-200"
                         />
                       ) : (
-                        <div className="w-20 h-24 rounded border-2 border-dashed border-slate-300 flex items-center justify-center text-slate-400 text-xs text-center p-1 bg-white">
-                          Passport Photo
+                        <div className="w-24 h-28 rounded-lg border-2 border-dashed border-slate-300 flex items-center justify-center text-slate-400 text-[11px] text-center p-2 bg-white">
+                          Passport photo
                         </div>
                       )}
                       <div className="flex-1 w-full">
@@ -3035,19 +3085,10 @@ function ApplyPageInner() {
                       </div>
                     </div>
                   </div>
-                </div>
+                </FormSection>
 
-                {/* SECTION 2: EX-SERVICEMAN — only for Security Guard / Ex-serviceman */}
                 {isExServiceCategory ? (
-                <div className="space-y-4 pt-2">
-                  <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
-                    <span className="w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center">
-                      2
-                    </span>
-                    <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
-                      Ex-serviceman details
-                    </h3>
-                  </div>
+                <FormSection no={sectionNos.ex} title="Ex-serviceman details" note="Service number, rank and discharge particulars.">
 
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div>
@@ -3102,20 +3143,11 @@ function ApplyPageInner() {
                       />
                     </div>
                   </div>
-                </div>
+                </FormSection>
                 ) : null}
 
-                {/* SECTION 3: GUN LICENCE (ARMED ROLES) */}
-                {(isGunRole || form.gunLicence !== "NA") && (
-                  <div className="space-y-4 pt-2">
-                    <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
-                      <span className="w-6 h-6 rounded-full bg-amber-600 text-white text-xs font-bold flex items-center justify-center">
-                        3
-                      </span>
-                      <h3 className="text-sm font-bold text-amber-900 uppercase tracking-wider">
-                        Gun Licence & Arms Information
-                      </h3>
-                    </div>
+                {showGunSection && (
+                  <FormSection no={sectionNos.gun} title="Gun licence & arms" note="Licence and weapon serial number." tone="amber">
 
                     <div className="grid gap-4 sm:grid-cols-2 p-4 bg-amber-50/50 border border-amber-200 rounded-xl">
                       <div>
@@ -3145,26 +3177,17 @@ function ApplyPageInner() {
                         />
                       </div>
                     </div>
-                  </div>
+                  </FormSection>
                 )}
 
-                {/* SECTION 3: EXPERIENCE / PF / ESI */}
-                <div className="space-y-4 pt-2">
-                  <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
-                    <span className="w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center">
-                      3
-                    </span>
-                    <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
-                      Experience, PF & ESI
-                    </h3>
-                  </div>
+                <FormSection no={sectionNos.exp} title="Experience, PF & ESI" note="Work history and statutory numbers. Use NA if not allotted.">
 
-                  <div className="rounded-xl border border-blue-200 bg-blue-50/40 p-4 space-y-4">
+                  <div className="rounded-xl border border-blue-100 bg-blue-50/50 p-4 space-y-4">
                     <div>
                       <p className="block text-xs font-bold text-slate-700 mb-2">
                         Experience, if any <span className="text-red-500">*</span>
                       </p>
-                      <div className="flex flex-wrap gap-8">
+                      <div className="apply-yesno flex flex-wrap gap-2">
                         {(["FRESHER", "EXPERIENCED"] as const).map((opt) => (
                           <label key={opt} className="flex items-center gap-2 text-sm font-medium text-slate-800 cursor-pointer">
                             <input
@@ -3339,18 +3362,9 @@ function ApplyPageInner() {
                       </div>
                     </div>
                   </div>
-                </div>
+                </FormSection>
 
-                {/* SECTION 4: DECLARATION & STATUTORY DETAILS */}
-                <div className="space-y-4 pt-2">
-                  <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
-                    <span className="w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center">
-                      4
-                    </span>
-                    <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
-                      Statutory Identification
-                    </h3>
-                  </div>
+                <FormSection no={sectionNos.contact} title="Contact, IDs & site" note="Mobile, email, emergency number, Aadhaar, PAN and preferred site.">
 
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div>
@@ -3465,30 +3479,9 @@ function ApplyPageInner() {
                     </div>
 
                   </div>
-                </div>
+                </FormSection>
 
-                {/* SECTION 5: FAMILY MEMBERS */}
-                <div className="space-y-4 pt-2">
-                  <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-                    <div className="flex items-center gap-2">
-                      <span className="w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center">
-                        5
-                      </span>
-                      <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
-                        Family Member Details
-                      </h3>
-                    </div>
-                    {form.includeFamily === "YES" ? (
-                      <button
-                        type="button"
-                        onClick={addFamilyMember}
-                        disabled={form.family.length >= 5}
-                        className="text-xs font-bold text-blue-600 hover:text-blue-800 disabled:opacity-40"
-                      >
-                        + Add Member
-                      </button>
-                    ) : null}
-                  </div>
+                <FormSection no={sectionNos.family} title="Family members" note="Optional. Add family only if you want them on the form.">
 
                   <YesNoRadios
                     name="includeFamily"
@@ -3591,18 +3584,21 @@ function ApplyPageInner() {
                       ))}
                     </div>
                   ) : null}
-                </div>
+                  {form.includeFamily === "YES" ? (
+                    <div className="flex justify-end">
+                      <button
+                        type="button"
+                        onClick={addFamilyMember}
+                        disabled={form.family.length >= 5}
+                        className="inline-flex items-center px-3 py-1.5 rounded-lg border border-blue-200 bg-blue-50 text-xs font-bold text-blue-800 hover:bg-blue-100 disabled:opacity-40"
+                      >
+                        + Add member
+                      </button>
+                    </div>
+                  ) : null}
+                </FormSection>
 
-                {/* SECTION 6: BANK DETAILS — optional now, required after selection */}
-                <div className="space-y-4 pt-2">
-                  <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
-                    <span className="w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center">
-                      6
-                    </span>
-                    <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
-                      Bank Account Details (For Wage Credit)
-                    </h3>
-                  </div>
+                <FormSection no={sectionNos.bank} title="Bank account" note="You may fill this now, or after you are selected.">
                   <YesNoRadios
                     name="uploadBankDetails"
                     label="Willing to upload bank details now?"
@@ -3704,18 +3700,9 @@ function ApplyPageInner() {
                       Bank details will be taken after you are selected and made an employee.
                     </div>
                   ) : null}
-                </div>
+                </FormSection>
 
-                {/* SECTION 7: VERIFICATION & DEPOSIT */}
-                <div className="space-y-4 pt-2">
-                  <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
-                    <span className="w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center">
-                      7
-                    </span>
-                    <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
-                      Police Verification & Security Deposit
-                    </h3>
-                  </div>
+                <FormSection no={sectionNos.police} title="Police verification" note="Security deposit is taken only after selection.">
 
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div>
@@ -3766,18 +3753,9 @@ function ApplyPageInner() {
                       </div>
                     </div>
                   </div>
-                </div>
+                </FormSection>
 
-                {/* SECTION 8: DOCUMENTS UPLOAD */}
-                <div className="space-y-4 pt-2">
-                  <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
-                    <span className="w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center">
-                      8
-                    </span>
-                    <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
-                      Required Document Uploads
-                    </h3>
-                  </div>
+                <FormSection no={sectionNos.docs} title="Document uploads" note="Aadhaar and PAN copies. Photo or PDF.">
 
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
@@ -3816,18 +3794,9 @@ function ApplyPageInner() {
                       )}
                     </div>
                   </div>
-                </div>
+                </FormSection>
 
-                {/* SECTION 9: LEGAL DECLARATIONS & TERMS ACCEPTANCE */}
-                <div className="space-y-6 pt-2">
-                  <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
-                    <span className="w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center">
-                      9
-                    </span>
-                    <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
-                      Legal Undertaking & Joining Terms
-                    </h3>
-                  </div>
+                <FormSection no={sectionNos.legal} title="Declaration & terms" note="Read both boxes, then tick to accept.">
 
                   {/* Declaration Box */}
                   <div className="border border-slate-200 rounded-xl p-4 bg-slate-50/50 space-y-3">
@@ -3849,13 +3818,13 @@ function ApplyPageInner() {
                         ))}
                       </ol>
                     </div>
-                    <label className="flex items-center gap-2.5 pt-1 cursor-pointer">
+                    <label className="flex items-start gap-3 p-3 rounded-xl border border-slate-200 bg-white cursor-pointer hover:border-blue-300">
                       <input
                         type="checkbox"
                         required
                         checked={form.declarationAccepted}
                         onChange={(e) => setForm({ ...form, declarationAccepted: e.target.checked })}
-                        className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300"
+                        className="mt-0.5 w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300"
                       />
                       <span className="text-xs font-bold text-slate-800">
                         I have read the declaration and I accept it <span className="text-red-500">*</span>
@@ -3883,38 +3852,34 @@ function ApplyPageInner() {
                         ))}
                       </ol>
                     </div>
-                    <label className="flex items-center gap-2.5 pt-1 cursor-pointer">
+                    <label className="flex items-start gap-3 p-3 rounded-xl border border-slate-200 bg-white cursor-pointer hover:border-blue-300">
                       <input
                         type="checkbox"
                         required
                         checked={form.termsAccepted}
                         onChange={(e) => setForm({ ...form, termsAccepted: e.target.checked })}
-                        className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300"
+                        className="mt-0.5 w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300"
                       />
                       <span className="text-xs font-bold text-slate-800">
                         I have read the terms and conditions and I accept them <span className="text-red-500">*</span>
                       </span>
                     </label>
                   </div>
-                </div>
+                </FormSection>
 
-                {/* Submission Actions */}
-                <div className="pt-4 border-t border-slate-200">
+                <div className="sticky bottom-3 z-20 rounded-2xl border border-slate-200 bg-white/95 backdrop-blur shadow-[0_12px_30px_-12px_rgba(15,23,42,0.45)] p-3 sm:p-4">
                   <button
                     type="submit"
                     disabled={submitting || Boolean(compressingLabel)}
-                    className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold py-3.5 rounded-xl shadow-md transition text-sm flex items-center justify-center gap-2"
+                    className="w-full bg-blue-700 hover:bg-blue-800 disabled:opacity-50 text-white font-black py-3.5 rounded-xl shadow-md transition text-sm tracking-wide"
                   >
-                    <span>
-                      {submitting
-                        ? editApplicantId
-                          ? "Saving changes..."
-                          : "Submitting Official Application..."
-                        : editApplicantId
-                          ? "Save changes"
-                          : "Submit Official Application"}
-                    </span>
-                    <span>✓</span>
+                    {submitting
+                      ? editApplicantId
+                        ? "Saving changes..."
+                        : "Submitting application..."
+                      : editApplicantId
+                        ? "Save changes"
+                        : "Submit application"}
                   </button>
                 </div>
               </form>
@@ -3922,7 +3887,7 @@ function ApplyPageInner() {
 
             {/* Step 3: Success Confirmation */}
             {step === "SUCCESS" && (
-              <div className="p-8 text-center space-y-4">
+              <div className="p-8 text-center space-y-4 bg-white">
                 <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto text-3xl font-black shadow-inner">
                   ✓
                 </div>

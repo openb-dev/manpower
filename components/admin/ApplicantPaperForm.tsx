@@ -252,17 +252,26 @@ function BankFields({
 
 function DashBits({
   items,
+  nowrap = false,
 }: {
-  items: { label: string; value?: unknown; min?: string; grow?: boolean }[];
+  items: { label: string; value?: unknown; min?: string; max?: string; grow?: boolean }[];
+  nowrap?: boolean;
 }) {
   return (
-    <span className="flex flex-wrap items-end gap-x-2 gap-y-0.5 min-w-0 flex-1">
+    <span className={`flex ${nowrap ? "flex-nowrap" : "flex-wrap"} items-end gap-x-2 gap-y-0.5 min-w-0 flex-1`}>
       {items.map((item) => (
-        <span key={item.label} className={`inline-flex items-end gap-1 min-w-0 ${item.grow ? "flex-1" : ""}`}>
+        <span
+          key={item.label}
+          className={`inline-flex items-end gap-1 min-w-0 ${item.grow ? "flex-[3] basis-[11rem]" : "shrink-0"}`}
+        >
           <span className="shrink-0 whitespace-nowrap">{item.label} :</span>
           <span
-            className={`${item.grow ? "flex-1 min-w-[2.8rem]" : "inline-block"} border-b border-dotted border-black px-0.5 font-semibold leading-tight break-words`}
-            style={item.grow ? undefined : { minWidth: item.min || "3.2rem" }}
+            className={`${item.grow ? "flex-1 min-w-0" : "inline-block"} border-b border-dotted border-black px-0.5 font-semibold leading-tight ${item.grow ? "break-words" : "whitespace-nowrap"}`}
+            style={
+              item.grow
+                ? undefined
+                : { minWidth: item.min || "3.2rem", maxWidth: item.max || item.min || undefined }
+            }
           >
             {text(item.value) || "\u00a0"}
           </span>
@@ -448,10 +457,11 @@ export function ApplicantPaperForm({
             <li className="flex gap-2">
               <span className="w-4 shrink-0">1.</span>
               <DashBits
+                nowrap
                 items={[
                   { label: "Name in full", value: name, grow: true },
-                  { label: "D.O.B.", value: dob, min: "4.8rem" },
-                  { label: "Age", value: age, min: "2.2rem" },
+                  { label: "D.O.B.", value: dob, min: "4.4rem", max: "5rem" },
+                  { label: "Age", value: age, min: "1.5rem", max: "2rem" },
                 ]}
               />
             </li>

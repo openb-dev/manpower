@@ -259,13 +259,19 @@ export async function buildPaperFormPdf(
     return y + used + 2;
   };
 
-  const rowFields = (items: { label: string; value: string }[], y: number, size = 9.5) => {
+  const rowFields = (
+    items: { label: string; value: string; weight?: number }[],
+    y: number,
+    size = 9.5,
+  ) => {
     const n = Math.max(items.length, 1);
     const gap = 3;
-    const colW = (width - gap * (n - 1)) / n;
+    const totalWeight = items.reduce((sum, item) => sum + (item.weight ?? 1), 0) || 1;
+    const inner = width - gap * (n - 1);
     pdf.setFontSize(size);
-    items.forEach((item, i) => {
-      const x = left + i * (colW + gap);
+    let x = left;
+    items.forEach((item) => {
+      const colW = inner * ((item.weight ?? 1) / totalWeight);
       const tag = `${item.label} : `;
       pdf.setFont("times", "normal");
       const lw = pdf.getTextWidth(tag);
@@ -275,6 +281,7 @@ export async function buildPaperFormPdf(
       const shown = pdf.splitTextToSize(item.value || "", maxVal)[0] || "";
       pdf.text(shown, x + lw, y);
       dashLine(x + lw, y + 1, x + colW);
+      x += colW + gap;
     });
     return y + 5.6;
   };
@@ -415,9 +422,9 @@ export async function buildPaperFormPdf(
   if (postApplied) y = lineFill("Post applied :", postApplied, y, 9.5);
   y = rowFields(
     [
-      { label: "1. Name in full", value: name },
-      { label: "D.O.B.", value: dob },
-      { label: "Age", value: age },
+      { label: "1. Name in full", value: name, weight: 3.2 },
+      { label: "D.O.B.", value: dob, weight: 1.15 },
+      { label: "Age", value: age, weight: 0.55 },
     ],
     y,
     9.5,

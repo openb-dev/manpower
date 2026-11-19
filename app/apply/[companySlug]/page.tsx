@@ -10,6 +10,7 @@ import {
   INDIAN_STATES,
   QUALIFICATION_OPTIONS,
   formDataWithoutFiles,
+  formatDateDmy,
   indianAddressLine,
 } from "@/lib/applicantFormFields";
 import { friendlyPublicError, readApiJson } from "@/lib/publicErrors";
@@ -94,10 +95,7 @@ function blocksSameRole(status?: string) {
 }
 
 function formatApplyDate(value?: string) {
-  if (!value) return "—";
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+  return formatDateDmy(value);
 }
 
 function CandidateApplicationsPanel({

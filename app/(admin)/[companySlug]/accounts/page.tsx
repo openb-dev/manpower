@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { createClientInvoice, loadAccountsBook } from "../actions";
 import { friendlyPublicError } from "@/lib/publicErrors";
+import { formatDateDmy } from "@/lib/applicantFormFields";
 import { TaxInvoiceView } from "@/components/admin/TaxInvoiceView";
 import {
   BILL_DEFAULTS,
@@ -226,8 +227,7 @@ export default function AccountsPage() {
                       <div className="text-xs text-slate-400">{inv.contract?.agreementNo || inv.orderNo || "—"}</div>
                     </td>
                     <td className="p-4 text-xs font-mono">
-                      {inv.periodFrom ? new Date(inv.periodFrom).toLocaleDateString("en-IN") : "—"} to{" "}
-                      {inv.periodTo ? new Date(inv.periodTo).toLocaleDateString("en-IN") : "—"}
+                      {formatDateDmy(inv.periodFrom)} to {formatDateDmy(inv.periodTo)}
                     </td>
                     <td className="p-4 text-right font-mono text-xs">₹{money(Number(inv.grossAmount))}</td>
                     <td className="p-4 text-right font-mono text-xs">

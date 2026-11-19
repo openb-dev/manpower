@@ -8,7 +8,7 @@ import { statusLabel } from "@/components/admin/SimpleGuide";
 import { loadApplicantBook, loadApplicantDetail } from "../actions";
 import { downloadPaperFormPdf, paperFormFileName, printPaperFormPdf } from "@/lib/downloadPaperFormPdf";
 import { friendlyPublicError, readApiJson } from "@/lib/publicErrors";
-import { applicantPhotoUrl, applicationDisplayId, applicationSerialNo, filledByAdminInfo, filledByAdminLine, indianAddressLine } from "@/lib/applicantFormFields";
+import { applicantPhotoUrl, applicationDisplayId, applicationSerialNo, filledByAdminInfo, filledByAdminLine, formatDateDmy, indianAddressLine } from "@/lib/applicantFormFields";
 import AttachedDocuments from "@/components/admin/AttachedDocuments";
 import { DutySiteSelect, OTHER_SITE_VALUE, siteChoiceReady } from "@/components/admin/DutySiteSelect";
 
@@ -581,7 +581,7 @@ export default function ApplicantBookPage() {
                       </span>
                     </td>
                     <td className="p-3 text-xs text-slate-600 whitespace-nowrap">
-                      {new Date(a.createdAt).toLocaleDateString()}
+                      {formatDateDmy(a.createdAt)}
                     </td>
                     <td className="p-3 text-right">
                       <div className="inline-flex flex-wrap justify-end gap-1">
@@ -772,9 +772,7 @@ export default function ApplicantBookPage() {
                   <div>
                     <span className="text-slate-400 block font-semibold text-[10px] uppercase">Date of Birth</span>
                     <span className="font-semibold text-slate-800">
-                      {selectedApplicant.dateOfBirth
-                        ? new Date(selectedApplicant.dateOfBirth).toLocaleDateString()
-                        : selectedApplicant.formData?.dateOfBirth || "—"}
+                      {formatDateDmy(selectedApplicant.dateOfBirth || selectedApplicant.formData?.dateOfBirth)}
                     </span>
                   </div>
                   <div>
@@ -1121,7 +1119,7 @@ export default function ApplicantBookPage() {
                     <span className="font-semibold text-slate-800">{r.user?.name}: </span>
                     <span className="text-slate-600">{r.remark}</span>
                     <span className="text-[10px] text-slate-400 block mt-0.5">
-                      {new Date(r.createdAt).toLocaleString()}
+                      {formatDateDmy(r.createdAt)}
                     </span>
                   </div>
                 ))}

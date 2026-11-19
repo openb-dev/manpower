@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { loadFinanceBook } from "../actions";
 import { friendlyPublicError, readApiJson } from "@/lib/publicErrors";
+import { formatDateDmy } from "@/lib/applicantFormFields";
 
 export default function FinancePage() {
   const params = useParams();
@@ -175,7 +176,7 @@ export default function FinancePage() {
                 {entries.map((e) => (
                   <tr key={e.id} className="hover:bg-slate-50/80 transition">
                     <td className="p-4 font-mono text-xs text-slate-600">
-                      {new Date(e.entryDate).toLocaleDateString("en-IN")}
+                      {formatDateDmy(e.entryDate)}
                     </td>
                     <td className="p-4 font-mono text-xs font-bold text-violet-700">
                       {e.voucherNumber || "—"}

@@ -9,6 +9,7 @@ import { loadEmployeeBook, loadReportPerson } from "../actions";
 import { friendlyPublicError, readApiJson } from "@/lib/publicErrors";
 import AttachedDocuments from "@/components/admin/AttachedDocuments";
 import { printPaperFormPdf } from "@/lib/downloadPaperFormPdf";
+import { formatDateDmy } from "@/lib/applicantFormFields";
 
 const ApplicantPaperForm = dynamic(
   () => import("@/components/admin/ApplicantPaperForm").then((mod) => mod.ApplicantPaperForm),
@@ -262,7 +263,7 @@ export default function EmployeeBookPage() {
               <div>
                 <span className="text-xs text-slate-400 block">Joining Date</span>
                 <span className="font-semibold text-slate-800">
-                  {new Date(selectedEmployee.joiningDate).toLocaleDateString()}
+                  {formatDateDmy(selectedEmployee.joiningDate)}
                 </span>
               </div>
               <div className="col-span-2">

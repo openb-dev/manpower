@@ -4,6 +4,7 @@ import React, { useEffect, useState, useMemo } from "react";
 import { useParams } from "next/navigation";
 import { loadCrmBook } from "../actions";
 import { friendlyPublicError, readApiJson } from "@/lib/publicErrors";
+import { formatDateDmy } from "@/lib/applicantFormFields";
 import {
   FileSpreadsheet,
   Landmark,
@@ -967,7 +968,7 @@ export default function CrmPage() {
                           {c.netAmount ? `₹${Number(c.netAmount).toLocaleString("en-IN")}` : "—"}
                           {c.bankReceivedDate && (
                             <div className="text-[9px] text-slate-400 font-sans">
-                              Paid {new Date(c.bankReceivedDate).toLocaleDateString("en-IN")}
+                              Paid {formatDateDmy(c.bankReceivedDate)}
                             </div>
                           )}
                         </td>
@@ -1051,7 +1052,7 @@ export default function CrmPage() {
                           <div className="font-bold text-slate-900 text-xs">{c.tenderNo || "—"}</div>
                           {c.tenderOpening && (
                             <div className="text-[10px] text-slate-500 font-sans">
-                              Opens: {new Date(c.tenderOpening).toLocaleDateString("en-IN")}
+                              Opens: {formatDateDmy(c.tenderOpening)}
                             </div>
                           )}
                         </td>
@@ -1098,7 +1099,7 @@ export default function CrmPage() {
                           <div className="text-slate-800 font-medium text-[11px]">{c.emdBankName || "—"}</div>
                           {c.emdDate && (
                             <div className="text-[10px] text-slate-400">
-                              {new Date(c.emdDate).toLocaleDateString("en-IN")}
+                              {formatDateDmy(c.emdDate)}
                             </div>
                           )}
                         </td>
@@ -1111,7 +1112,7 @@ export default function CrmPage() {
                           {c.emdRefundDate ? (
                             <div>
                               <span className="font-semibold text-emerald-700">
-                                {new Date(c.emdRefundDate).toLocaleDateString("en-IN")}
+                                {formatDateDmy(c.emdRefundDate)}
                               </span>
                               {c.emdRefundRef && (
                                 <div className="text-[10px] text-slate-400 font-mono">{c.emdRefundRef}</div>
@@ -1215,7 +1216,7 @@ export default function CrmPage() {
                           <div className="text-slate-800 font-medium text-[11px]">{c.pgBankName || "—"}</div>
                           {c.pgDate && (
                             <div className="text-[10px] text-slate-400">
-                              Issued: {new Date(c.pgDate).toLocaleDateString("en-IN")}
+                              Issued: {formatDateDmy(c.pgDate)}
                             </div>
                           )}
                         </td>
@@ -1224,11 +1225,11 @@ export default function CrmPage() {
                           {c.pgExpiryDate ? (
                             <div>
                               <span className="font-semibold text-slate-800">
-                                {new Date(c.pgExpiryDate).toLocaleDateString("en-IN")}
+                                {formatDateDmy(c.pgExpiryDate)}
                               </span>
                               {c.pgClaimDate && (
                                 <div className="text-[10px] text-slate-400">
-                                  Claim: {new Date(c.pgClaimDate).toLocaleDateString("en-IN")}
+                                  Claim: {formatDateDmy(c.pgClaimDate)}
                                 </div>
                               )}
                             </div>
@@ -1245,7 +1246,7 @@ export default function CrmPage() {
                           {c.pgReleaseDate ? (
                             <div>
                               <span className="font-semibold text-emerald-700">
-                                {new Date(c.pgReleaseDate).toLocaleDateString("en-IN")}
+                                {formatDateDmy(c.pgReleaseDate)}
                               </span>
                               {c.pgReleaseRef && (
                                 <div className="text-[10px] text-slate-400 font-mono">{c.pgReleaseRef}</div>
@@ -2356,7 +2357,7 @@ export default function CrmPage() {
                     <div>
                       <span className="text-slate-500 block">Opening Date:</span>
                       <span className="font-medium text-slate-800">
-                        {viewingContract.tenderOpening ? new Date(viewingContract.tenderOpening).toLocaleDateString("en-IN") : "—"}
+                        {formatDateDmy(viewingContract.tenderOpening)}
                       </span>
                     </div>
                     <div>
@@ -2380,7 +2381,7 @@ export default function CrmPage() {
                     </div>
                     {viewingContract.emdRefundDate && (
                       <div className="col-span-2 pt-1 border-t border-amber-200/60 text-emerald-800">
-                        Refunded: {new Date(viewingContract.emdRefundDate).toLocaleDateString("en-IN")} ({viewingContract.emdRefundRef})
+                        Refunded: {formatDateDmy(viewingContract.emdRefundDate)} ({viewingContract.emdRefundRef})
                       </div>
                     )}
                   </div>
@@ -2414,7 +2415,7 @@ export default function CrmPage() {
                     <div>
                       <span className="text-slate-500 block">Validity Expiry:</span>
                       <span className="font-semibold text-slate-800">
-                        {viewingContract.pgExpiryDate ? new Date(viewingContract.pgExpiryDate).toLocaleDateString("en-IN") : "—"}
+                        {formatDateDmy(viewingContract.pgExpiryDate)}
                       </span>
                     </div>
                     <div className="col-span-2">
@@ -2424,18 +2425,18 @@ export default function CrmPage() {
                     <div>
                       <span className="text-slate-500 block">Issue Date:</span>
                       <span className="text-slate-800">
-                        {viewingContract.pgDate ? new Date(viewingContract.pgDate).toLocaleDateString("en-IN") : "—"}
+                        {formatDateDmy(viewingContract.pgDate)}
                       </span>
                     </div>
                     <div>
                       <span className="text-slate-500 block">Claim Expiry:</span>
                       <span className="text-slate-800">
-                        {viewingContract.pgClaimDate ? new Date(viewingContract.pgClaimDate).toLocaleDateString("en-IN") : "—"}
+                        {formatDateDmy(viewingContract.pgClaimDate)}
                       </span>
                     </div>
                     {viewingContract.pgReleaseDate && (
                       <div className="col-span-2 pt-1 border-t border-purple-200/60 text-emerald-800">
-                        Released: {new Date(viewingContract.pgReleaseDate).toLocaleDateString("en-IN")} ({viewingContract.pgReleaseRef})
+                        Released: {formatDateDmy(viewingContract.pgReleaseDate)} ({viewingContract.pgReleaseRef})
                       </div>
                     )}
                   </div>
@@ -2459,13 +2460,13 @@ export default function CrmPage() {
                   <div>
                     <span className="text-slate-500 block">Stipulated Start:</span>
                     <span className="font-medium text-slate-800">
-                      {viewingContract.startAgreement ? new Date(viewingContract.startAgreement).toLocaleDateString("en-IN") : "—"}
+                      {formatDateDmy(viewingContract.startAgreement)}
                     </span>
                   </div>
                   <div>
                     <span className="text-slate-500 block">Stipulated Completion:</span>
                     <span className="font-medium text-slate-800">
-                      {viewingContract.completionAgreement ? new Date(viewingContract.completionAgreement).toLocaleDateString("en-IN") : "—"}
+                      {formatDateDmy(viewingContract.completionAgreement)}
                     </span>
                   </div>
                 </div>
@@ -2498,7 +2499,7 @@ export default function CrmPage() {
                         <td className="p-2 border-r border-slate-300 font-mono text-[11px]">
                           <div className="font-bold text-slate-900">{viewingContract.billNumber || "RA Bill"}</div>
                           <div className="text-[10px] text-slate-400">
-                            {viewingContract.billDate ? new Date(viewingContract.billDate).toLocaleDateString("en-IN") : "—"}
+                            {formatDateDmy(viewingContract.billDate)}
                           </div>
                         </td>
 
@@ -2538,7 +2539,7 @@ export default function CrmPage() {
                           <div className="font-mono font-bold text-slate-800">{viewingContract.voucherNumber || "—"}</div>
                           {viewingContract.bankReceivedDate && (
                             <div className="text-[10px] text-emerald-700 font-semibold">
-                              Recd: {new Date(viewingContract.bankReceivedDate).toLocaleDateString("en-IN")}
+                              Recd: {formatDateDmy(viewingContract.bankReceivedDate)}
                             </div>
                           )}
                         </td>

@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { loadProcurementBook } from "../actions";
 import { friendlyPublicError, readApiJson } from "@/lib/publicErrors";
+import { formatDateDmy } from "@/lib/applicantFormFields";
 
 export default function ProcurementPage() {
   const params = useParams();
@@ -166,7 +167,7 @@ export default function ProcurementPage() {
                       {p.contract?.clientName || "General Stock"}
                     </td>
                     <td className="p-4 text-xs font-mono text-slate-600">
-                      {new Date(p.purchaseDate).toLocaleDateString()}
+                      {formatDateDmy(p.purchaseDate)}
                     </td>
                     <td className="p-4 text-right font-mono font-bold text-slate-900">
                       ₹{Number(p.amount).toLocaleString("en-IN")}

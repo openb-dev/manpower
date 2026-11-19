@@ -45,6 +45,19 @@ export const INDIAN_STATES = [
 export const DEFAULT_STATE = "West Bengal";
 export const DEFAULT_COUNTRY = "India";
 
+export function formatDateDmy(value: unknown, empty = "—") {
+  if (value == null || value === "") return empty;
+  const raw = String(value).trim();
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(raw)) return raw;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw) || /^\d{4}-\d{2}-\d{2}T00:00:00/.test(raw)) {
+    const [y, m, d] = raw.slice(0, 10).split("-");
+    return `${d}/${m}/${y}`;
+  }
+  const d = value instanceof Date ? value : new Date(raw);
+  if (Number.isNaN(d.getTime())) return empty;
+  return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
+}
+
 export const FILE_DATA_KEYS = [
   "photo",
   "aadhaarFile",

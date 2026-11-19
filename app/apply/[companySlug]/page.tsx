@@ -799,10 +799,6 @@ function ApplyPageInner() {
             email: "",
           }));
         }
-        setAdminFiller((prev) => ({
-          ...prev,
-          name: prev.name || adminName,
-        }));
       })
       .catch(() => {})
       .finally(() => setOfficeAdminChecked(true));
@@ -2578,7 +2574,7 @@ function ApplyPageInner() {
             >
               <div className="rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-indigo-950">
                 <div className="text-[10px] font-bold uppercase tracking-wide">
-                  Form fill up by admin — {adminFiller.name || officeAdmin.name}
+                  Form fill up by admin{adminFiller.name ? ` — ${adminFiller.name}` : ""}
                 </div>
                 <div className="text-xs mt-1">Logged in as {officeAdmin.email || officeAdmin.name}</div>
               </div>

@@ -3,7 +3,7 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { aadhaarDisplayOf, ensurePeople } from "@/lib/personIdentity";
-import { ApplicantStatus, AttendanceStatus, Role } from "@prisma/client";
+import { ApplicantStatus, AttendanceStatus, EmployeeKind, Role } from "@prisma/client";
 import { listApplicants } from "@/modules/applicants/services";
 import { ensureApplicantNumbers } from "@/lib/applicationNumbers";
 import { ensureNkDutySites, sortDutySites } from "@/lib/nkSites";
@@ -124,13 +124,16 @@ export async function loadApplicantDetail(companySlug: string, applicantId: stri
 
 export async function loadEmployeeBook(
   companySlug: string,
-  opts: { search?: string } = {},
+  opts: { search?: string; kind?: string } = {},
 ) {
   const { company } = await requireCompany(companySlug);
+  const kind: EmployeeKind | undefined =
+    opts.kind === "EMPLOYEE" || opts.kind === "OLD_EMPLOYEE" ? opts.kind : undefined;
   const data = await listEmployees({
     companyId: company.id,
     search: opts.search?.trim() || undefined,
-    limit: 50,
+    kind,
+    limit: 500,
   });
   const sites = await loadDutySites(company.id);
   return toClientJson({ ...data, sites });
@@ -555,11 +558,12 @@ export async function loadReportPerson(
   });
   if (!employee) throw new Error("Employee not found in this company.");
 
-  const { aadhaarEncrypted, aadhaarHash: _aadhaarHash, person, ...safe } = employee;
+  const { aadhaarEncrypted, aadhaarHash: _aadhaarHash, person, kind: employeeKind, ...safe } = employee;
   const aadhaarDisplay = aadhaarDisplayOf({ person, aadhaarEncrypted, aadhaarLast4: employee.aadhaarLast4 });
   return toClientJson({
-    kind: "employee" as const,
     ...safe,
+    employeeKind,
+    kind: "employee" as const,
     email: employee.email || employee.applicant?.email,
     fatherOrHusband: employee.fatherOrHusband || employee.applicant?.fatherOrHusband,
     dateOfBirth: employee.dateOfBirth || employee.applicant?.dateOfBirth,

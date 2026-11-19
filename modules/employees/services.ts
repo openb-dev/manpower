@@ -1,7 +1,7 @@
 import { prisma, getTenantPrisma } from "../../lib/db/index.ts";
 import { aadhaarDisplayOf, ensurePeople } from "../../lib/personIdentity.ts";
 import { findOrCreateDutySite } from "../../lib/nkSites.ts";
-import { ApplicantStatus, EmployeeStatus, Prisma } from "@prisma/client";
+import { ApplicantStatus, EmployeeKind, EmployeeStatus, Prisma } from "@prisma/client";
 
 export async function approveApplicantAndCreateEmployee({
   companyId,
@@ -19,6 +19,7 @@ export async function approveApplicantAndCreateEmployee({
   securityMoney,
   remark,
   officeApplicantId,
+  employeeKind,
 }: {
   companyId: string;
   userId: string;
@@ -35,6 +36,7 @@ export async function approveApplicantAndCreateEmployee({
   securityMoney?: string;
   remark?: string;
   officeApplicantId?: string;
+  employeeKind?: string;
 }) {
   const tenantDb = getTenantPrisma(companyId);
 
@@ -105,6 +107,15 @@ export async function approveApplicantAndCreateEmployee({
     if (!savedSecurity) {
       throw new Error("Security deposit amount is required when making an employee.");
     }
+    const kind =
+      String(employeeKind || "").toUpperCase() === "OLD_EMPLOYEE"
+        ? EmployeeKind.OLD_EMPLOYEE
+        : String(employeeKind || "").toUpperCase() === "EMPLOYEE"
+          ? EmployeeKind.EMPLOYEE
+          : null;
+    if (!kind) {
+      throw new Error("Please select Employee or Old employee.");
+    }
 
     // 2c. Create Employee record copying applicant data
     const employee = await tx.employee.create({
@@ -133,6 +144,7 @@ export async function approveApplicantAndCreateEmployee({
         personId: applicant.personId || applicant.person?.id || null,
         pan: applicant.pan,
         status: EmployeeStatus.ACTIVE,
+        kind,
       },
     });
 
@@ -191,7 +203,7 @@ export async function approveApplicantAndCreateEmployee({
         entityId: employee.id,
         action: "APPROVE_AND_CONVERT",
         oldValue: { applicantId: applicant.id, status: applicant.status },
-        newValue: { employeeId: employee.id, employeeCode, siteId: site.id, basicRate },
+        newValue: { employeeId: employee.id, employeeCode, siteId: site.id, basicRate, kind },
       },
     });
 
@@ -206,6 +218,7 @@ export async function listEmployees({
   siteId,
   roleId,
   status,
+  kind,
   search,
   page = 1,
   limit = 20,
@@ -214,6 +227,7 @@ export async function listEmployees({
   siteId?: string;
   roleId?: string;
   status?: EmployeeStatus;
+  kind?: EmployeeKind;
   search?: string;
   page?: number;
   limit?: number;
@@ -228,6 +242,7 @@ export async function listEmployees({
   if (siteId) where.siteId = siteId;
   if (roleId) where.jobRoleId = roleId;
   if (status) where.status = status;
+  if (kind) where.kind = kind;
   if (search) {
     where.OR = [
       { fullName: { contains: search, mode: "insensitive" } },
@@ -247,6 +262,7 @@ export async function listEmployees({
         fullName: true,
         mobile: true,
         status: true,
+        kind: true,
         siteId: true,
         basicRate: true,
         divisorDays: true,

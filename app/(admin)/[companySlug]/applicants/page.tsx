@@ -66,6 +66,7 @@ export default function ApplicantBookPage() {
   const [joinBranchName, setJoinBranchName] = useState("");
   const [joinSecurityMoney, setJoinSecurityMoney] = useState("");
   const [officeApplicantId, setOfficeApplicantId] = useState("");
+  const [employeeKind, setEmployeeKind] = useState("");
   const [savingOfficeId, setSavingOfficeId] = useState(false);
 
   // Remark modal state
@@ -232,6 +233,10 @@ export default function ApplicantBookPage() {
       setActionError("Employee ID No. is required when making an employee.");
       return;
     }
+    if (employeeKind !== "EMPLOYEE" && employeeKind !== "OLD_EMPLOYEE") {
+      setActionError("Please select Employee or Old employee.");
+      return;
+    }
 
     setProcessing(true);
     try {
@@ -254,6 +259,7 @@ export default function ApplicantBookPage() {
           uan: selectedApplicant.formData?.uan,
           esicNo: selectedApplicant.formData?.esiIp,
           remark: approvalRemark.trim(),
+          employeeKind,
         }),
       });
       const data = await readApiJson(res);
@@ -1190,17 +1196,24 @@ export default function ApplicantBookPage() {
                     <span className="block text-xs font-semibold text-slate-700 mb-1">
                       {pendingStatus === "SHORTLISTED"
                         ? "Why are you shortlisting this person?"
-                        : "Why are you rejecting this person?"}{" "}
-                      <span className="text-red-600">*</span>
+                        : "Why are you rejecting this person?"}
+                      {pendingStatus === "REJECTED" ? (
+                        <>
+                          {" "}
+                          <span className="text-red-600">*</span>
+                        </>
+                      ) : null}
                     </span>
                     <input
                       type="text"
-                      required
+                      required={pendingStatus === "REJECTED"}
                       autoFocus={pendingStatus !== "SHORTLISTED"}
                       value={statusRemark}
                       onChange={(e) => setStatusRemark(e.target.value)}
                       placeholder={
-                        pendingStatus === "SHORTLISTED" ? "Remark for shortlist" : "Reason for rejection"
+                        pendingStatus === "SHORTLISTED"
+                          ? "Optional remark"
+                          : "Reason for rejection"
                       }
                       className="w-full text-xs px-3 py-2 border border-slate-300 rounded-lg bg-white"
                     />
@@ -1233,8 +1246,8 @@ export default function ApplicantBookPage() {
                           alert("Please enter the Temporary ID (TID).");
                           return;
                         }
-                        if (!statusRemark.trim()) {
-                          alert("Remark is required.");
+                        if (pendingStatus === "REJECTED" && !statusRemark.trim()) {
+                          alert("Please write why you are rejecting this person.");
                           return;
                         }
                         handleStatusChange(selectedApplicant.id, pendingStatus, statusRemark.trim());
@@ -1298,6 +1311,7 @@ export default function ApplicantBookPage() {
                       setJoinIfsc(fd.ifsc || "");
                       setJoinBranchName(fd.branchName || "");
                       setJoinSecurityMoney(fd.securityMoney || "");
+                      setEmployeeKind("");
                       setActionError("");
                       setShowApproveModal(true);
                     }}
@@ -1335,6 +1349,22 @@ export default function ApplicantBookPage() {
             )}
 
             <div className="space-y-3 text-sm">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Employee type <span className="text-red-600">*</span>
+                </label>
+                <select
+                  required
+                  value={employeeKind}
+                  onChange={(e) => setEmployeeKind(e.target.value)}
+                  className="w-full px-3 py-1.5 border rounded text-slate-900 bg-white"
+                >
+                  <option value="">Select type</option>
+                  <option value="OLD_EMPLOYEE">Old employee</option>
+                  <option value="EMPLOYEE">Employee</option>
+                </select>
+              </div>
+
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
                   Employee ID No. <span className="text-red-600">*</span>

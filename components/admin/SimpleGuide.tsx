@@ -5,6 +5,8 @@ export function statusLabel(status?: string | null) {
     SHORTLISTED: "Shortlisted",
     APPROVED: "Approved",
     REJECTED: "Rejected",
+    EMPLOYEE: "Employee",
+    OLD_EMPLOYEE: "Old employee",
     ACTIVE: "Working",
     INACTIVE: "Stopped",
     TERMINATED: "Terminated",

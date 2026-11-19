@@ -192,6 +192,7 @@ export async function POST(
         securityMoney: body.securityMoney,
         remark: body.remark,
         officeApplicantId: body.officeApplicantId,
+        employeeKind: body.employeeKind,
       });
       return NextResponse.json(data);
     }

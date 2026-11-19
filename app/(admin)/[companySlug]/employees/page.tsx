@@ -24,13 +24,14 @@ export default function EmployeeBookPage() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [kindFilter, setKindFilter] = useState("ALL");
   const [selectedEmployee, setSelectedEmployee] = useState<any | null>(null);
   const [listError, setListError] = useState("");
   const [printingForm, setPrintingForm] = useState(false);
 
   function loadEmployees() {
     setLoading(true);
-    loadEmployeeBook(companySlug, { search })
+    loadEmployeeBook(companySlug, { search, kind: kindFilter === "ALL" ? undefined : kindFilter })
       .then((data) => {
         setEmployees(data.items || []);
         setTotal(data.total || 0);
@@ -46,7 +47,7 @@ export default function EmployeeBookPage() {
 
   useEffect(() => {
     loadEmployees();
-  }, [companySlug]);
+  }, [companySlug, kindFilter]);
 
   async function handleSoftDelete(empId: string) {
     const reason = prompt("Why is this person leaving? Write a short reason.");
@@ -78,7 +79,11 @@ export default function EmployeeBookPage() {
     setSelectedEmployee(emp);
     try {
       const detail = await loadReportPerson(companySlug, "employee", emp.id);
-      setSelectedEmployee({ ...emp, ...detail });
+      setSelectedEmployee({
+        ...emp,
+        ...detail,
+        employeeKind: detail.employeeKind || emp.kind,
+      });
     } catch (err: any) {
       alert(friendlyPublicError(err.message || "Could not open this employee form."));
     }
@@ -114,6 +119,27 @@ export default function EmployeeBookPage() {
         </div>
       </div>
 
+      <div className="flex gap-2 border-b border-slate-200 pb-2">
+        {[
+          { id: "ALL", label: "All" },
+          { id: "OLD_EMPLOYEE", label: "Old employee" },
+          { id: "EMPLOYEE", label: "Employee" },
+        ].map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => setKindFilter(tab.id)}
+            className={`px-3 py-1.5 text-xs font-semibold rounded-md transition ${
+              kindFilter === tab.id
+                ? "bg-blue-600 text-white"
+                : "text-slate-600 hover:bg-slate-200"
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
         {loading ? (
           <div className="p-8 text-center text-slate-500 font-medium">Loading employee records...</div>
@@ -128,6 +154,7 @@ export default function EmployeeBookPage() {
                 <tr>
                   <th className="p-4">Employee no.</th>
                   <th className="p-4">Name</th>
+                  <th className="p-4">Type</th>
                   <th className="p-4">Job</th>
                   <th className="p-4">Site</th>
                   <th className="p-4">Salary</th>
@@ -143,6 +170,11 @@ export default function EmployeeBookPage() {
                     <td className="p-4 font-semibold text-slate-900">
                       {emp.fullName}
                       <span className="block text-xs text-slate-400 font-normal">{emp.mobile}</span>
+                    </td>
+                    <td className="p-4">
+                      <span className="inline-block px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-100 text-slate-700">
+                        {statusLabel(emp.kind)}
+                      </span>
                     </td>
                     <td className="p-4">
                       <span className="font-medium text-slate-800">{emp.jobRole?.name}</span>
@@ -232,6 +264,12 @@ export default function EmployeeBookPage() {
             <ApplicantPaperForm person={selectedEmployee} company={{ slug: companySlug }} />
 
             <div className="grid grid-cols-2 gap-3 text-sm mt-6 no-print">
+              <div>
+                <span className="text-xs text-slate-400 block">Type</span>
+                <span className="font-semibold text-slate-800">
+                  {statusLabel(selectedEmployee.employeeKind)}
+                </span>
+              </div>
               <div>
                 <span className="text-xs text-slate-400 block">Mobile</span>
                 <span className="font-semibold text-slate-800">{selectedEmployee.mobile}</span>

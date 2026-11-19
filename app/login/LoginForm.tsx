@@ -4,6 +4,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { signIn } from "next-auth/react";
 import { Mail, Lock } from "lucide-react";
 import NkLogo from "@/components/NkLogo";
+import PwaRegister from "@/components/PwaRegister";
 import { friendlyPublicError, readApiJson } from "@/lib/publicErrors";
 import { PasswordInput } from "@/components/PasswordInput";
 
@@ -280,6 +281,7 @@ export default function LoginForm() {
             >
               {loading ? "Please wait..." : "Start work"}
             </button>
+            <PwaRegister showButton />
           </form>
         ) : (
           <form onSubmit={handleResetPassword} className="space-y-4">

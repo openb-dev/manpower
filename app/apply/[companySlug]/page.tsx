@@ -683,9 +683,14 @@ function ApplyPageInner() {
     title: string;
     aspect: number;
     fit: "cover" | "contain";
+    mode: "photo" | "document";
   } | null>(null);
   const [savedDraftId, setSavedDraftId] = useState("");
   const [savingDraft, setSavingDraft] = useState(false);
+  const [draftStatus, setDraftStatus] = useState<"idle" | "dirty" | "saving" | "saved" | "unsaved">("idle");
+  const handleSaveDraftRef = useRef<(silent?: boolean) => Promise<boolean>>(async () => false);
+  const lastSavedFingerprintRef = useRef("");
+  const pendingAutoSaveRef = useRef(false);
   const [myApplications, setMyApplications] = useState<CandidateApplication[]>([]);
   const prefillRef = useRef<ReturnType<typeof initialForm> | null>(null);
 
@@ -860,6 +865,32 @@ function ApplyPageInner() {
     const timer = setTimeout(() => setSuccessMsg(""), 4000);
     return () => clearTimeout(timer);
   }, [successMsg, step]);
+
+  useEffect(() => {
+    if (step !== "FORM") return;
+    if (editApplicantId && !savedDraftId) return;
+    if (!selectedRole?.id || !selectedCategory?.id) return;
+    setDraftStatus((prev) => (prev === "saving" ? prev : "dirty"));
+    const timer = window.setTimeout(() => {
+      void handleSaveDraftRef.current(true);
+    }, 2500);
+    return () => window.clearTimeout(timer);
+  }, [form, selectedRole?.id, selectedCategory?.id, adminFiller, step, editApplicantId, savedDraftId]);
+
+  useEffect(() => {
+    const saveNow = () => {
+      void handleSaveDraftRef.current(true);
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") saveNow();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("pagehide", saveNow);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("pagehide", saveNow);
+    };
+  }, []);
 
   useEffect(() => {
     if (otpCountdown <= 0) return;
@@ -1262,9 +1293,10 @@ function ApplyPageInner() {
           file,
           dataKey,
           nameKey,
-          title: dataKey === "photo" ? "Crop passport photo" : "Adjust picture",
+          title: dataKey === "photo" ? "Crop passport photo" : "Crop document",
           aspect: dataKey === "photo" ? 3 / 4 : 0,
           fit: dataKey === "photo" ? "cover" : "contain",
+          mode: dataKey === "photo" ? "photo" : "document",
         };
       });
       input.value = "";
@@ -1309,6 +1341,52 @@ function ApplyPageInner() {
         setError(err.message || "Could not save the cropped picture.");
       })
       .finally(() => setCompressingLabel(""));
+  }
+
+  function recropFromDataUrl(
+    dataKey:
+      | "photo"
+      | "aadhaarFile"
+      | "panFile"
+      | "passbookFile"
+      | "educationFile"
+      | "otherQualFile"
+      | "policeFile",
+    nameKey:
+      | "photoName"
+      | "aadhaarFileName"
+      | "panFileName"
+      | "passbookFileName"
+      | "educationFileName"
+      | "otherQualFileName"
+      | "policeFileName",
+    dataUrl: string,
+    fileName: string,
+  ) {
+    if (!dataUrl || !dataUrl.startsWith("data:image")) {
+      setError("Crop works on a photo. PDF cannot be cropped here.");
+      return;
+    }
+    fetch(dataUrl)
+      .then((res) => res.blob())
+      .then((blob) => {
+        const file = new File([blob], fileName || "document.jpg", { type: blob.type || "image/jpeg" });
+        const src = URL.createObjectURL(file);
+        setImageCrop((prev) => {
+          if (prev?.src) URL.revokeObjectURL(prev.src);
+          return {
+            src,
+            file,
+            dataKey,
+            nameKey,
+            title: dataKey === "photo" ? "Crop passport photo" : "Crop document",
+            aspect: dataKey === "photo" ? 3 / 4 : 0,
+            fit: dataKey === "photo" ? "cover" : "contain",
+            mode: dataKey === "photo" ? "photo" : "document",
+          };
+        });
+      })
+      .catch(() => setError("Could not open that picture for crop."));
   }
 
   function useFullCropImage() {
@@ -1752,23 +1830,67 @@ function ApplyPageInner() {
     ];
   }
 
-  async function handleSaveDraft() {
-    if (savingDraft || submitting) return;
-    setError("");
-    if (compressingLabel) return setError("Please wait for the file to finish compressing.");
-    if (!officeAdmin && !candidate) {
-      return setError("Please sign in or register before saving a draft.");
+  async function handleSaveDraft(silent = false) {
+    if (editApplicantId && !savedDraftId) return false;
+    if (step !== "FORM") return false;
+    if (savingDraft || submitting) {
+      if (silent) pendingAutoSaveRef.current = true;
+      return false;
     }
-    if (!selectedRole?.id) return setError("Please select a trade first.");
-    if (!selectedCategory?.id) return setError("Please select a job category first.");
+    if (!silent) setError("");
+    if (compressingLabel) {
+      if (!silent) setError("Please wait for the file to finish compressing.");
+      if (silent) pendingAutoSaveRef.current = true;
+      else setDraftStatus("unsaved");
+      return false;
+    }
+    if (!officeAdmin && !candidate) {
+      if (!silent) setError("Please sign in or register before saving a draft.");
+      setDraftStatus("unsaved");
+      return false;
+    }
+    if (!selectedRole?.id) {
+      if (!silent) setError("Please select a trade first.");
+      return false;
+    }
+    if (!selectedCategory?.id) {
+      if (!silent) setError("Please select a job category first.");
+      return false;
+    }
     if (officeAdmin) {
       const fillerName = adminFiller.name.trim();
       const fillerPhone = adminFiller.phone.replace(/\D/g, "").slice(-10);
-      if (!fillerName) return setError("Please enter the filling admin name first.");
-      if (fillerPhone.length !== 10) return setError("Please enter the filling admin 10-digit phone number first.");
+      if (!fillerName) {
+        if (!silent) setError("Please enter the filling admin name first.");
+        setDraftStatus("unsaved");
+        return false;
+      }
+      if (fillerPhone.length !== 10) {
+        if (!silent) setError("Please enter the filling admin 10-digit phone number first.");
+        setDraftStatus("unsaved");
+        return false;
+      }
+    }
+
+    const fingerprint = JSON.stringify({
+      ...formDataWithoutFiles(form),
+      jobRoleId: selectedRole.id,
+      roleCategoryId: selectedCategory.id,
+      photoName: form.photoName,
+      aadhaarFileName: form.aadhaarFileName,
+      panFileName: form.panFileName,
+      passbookFileName: form.passbookFileName,
+      educationFileName: form.educationFileName,
+      otherQualFileName: form.otherQualFileName,
+      policeFileName: form.policeFileName,
+    });
+    if (silent && fingerprint === lastSavedFingerprintRef.current && savedDraftId) {
+      setDraftStatus("saved");
+      return true;
     }
 
     setSavingDraft(true);
+    setDraftStatus("saving");
     try {
       const documentsPayload = draftDocuments();
       const preferredSiteName = dutySiteNameFromChoice(form.preferredSiteCode, form.preferredSiteOther);
@@ -1819,12 +1941,15 @@ function ApplyPageInner() {
       const res = await fetch(`/api/apply/${companySlug}`, {
         method: "POST",
         credentials: "include",
+        keepalive: silent,
         body,
       });
       const data = await readApiJson(res);
       if (!res.ok) throw new Error(data.error || "The draft could not be saved.");
       setSavedDraftId(data.id);
-      setSuccessMsg("Draft saved. You can continue this form later.");
+      lastSavedFingerprintRef.current = fingerprint;
+      setDraftStatus("saved");
+      if (!silent) setSuccessMsg("Draft saved. You can continue this form later.");
       if (!officeAdmin) {
         setMyApplications((prev) => {
           const rest = prev.filter((app) => app.id !== data.id);
@@ -1845,11 +1970,21 @@ function ApplyPageInner() {
         });
       }
     } catch (err: any) {
-      setError(err.message || "The draft could not be saved.");
+      setDraftStatus("unsaved");
+      if (!silent) setError(err.message || "The draft could not be saved.");
+      return false;
     } finally {
       setSavingDraft(false);
+      if (pendingAutoSaveRef.current) {
+        pendingAutoSaveRef.current = false;
+        window.setTimeout(() => {
+          void handleSaveDraftRef.current(true);
+        }, 400);
+      }
     }
+    return true;
   }
+  handleSaveDraftRef.current = handleSaveDraft;
 
   async function resumeOwnApplication(app: CandidateApplication) {
     if (!company) return;
@@ -1925,11 +2060,12 @@ function ApplyPageInner() {
           title={imageCrop.title}
           aspect={imageCrop.aspect}
           fit={imageCrop.fit}
+          mode={imageCrop.mode}
           allowUseFull={imageCrop.dataKey !== "photo"}
           hint={
             imageCrop.dataKey === "photo"
               ? "Pinch to zoom. Drag to move. Fit the face in the box, then tap Crop & use."
-              : "The full document is shown. Pinch to zoom only if you need to. Use full picture to keep everything."
+              : "Drag the four sides or corners to cut extra edges. Then tap Crop & use."
           }
           onCancel={closeImageCrop}
           onCrop={saveCroppedImage}
@@ -2809,7 +2945,25 @@ function ApplyPageInner() {
                       </div>
                       <p className="text-xs mt-1">Save changes to update this same form. The Application ID will stay the same.</p>
                     </div>
-                  ) : null}
+                  ) : (
+                    <div
+                      className={`px-5 sm:px-7 py-2.5 border-b text-xs font-semibold ${
+                        draftStatus === "unsaved"
+                          ? "bg-red-50 border-red-200 text-red-800"
+                          : draftStatus === "saving" || draftStatus === "dirty"
+                            ? "bg-amber-50 border-amber-200 text-amber-900"
+                            : "bg-emerald-50 border-emerald-200 text-emerald-800"
+                      }`}
+                    >
+                      {draftStatus === "saving"
+                        ? "Saving..."
+                        : draftStatus === "saved"
+                          ? "Saved automatically. You can leave and continue later."
+                          : draftStatus === "unsaved"
+                            ? "Not saved. Check your internet, then wait a moment or tap Save now."
+                            : "This form is saved automatically while you type."}
+                    </div>
+                  )}
                 </div>
 
                 {officeAdmin ? (
@@ -3054,9 +3208,21 @@ function ApplyPageInner() {
                         onChange={(e) => handleFileUpload(e, "educationFile", "educationFileName")}
                         className="w-full text-xs text-slate-600 file:mr-2 file:py-1 file:px-2.5 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-100 file:text-blue-800"
                       />
+                      <p className="text-[11px] text-slate-500 mt-1">Photo: drag four sides to crop. PDF stays as it is.</p>
                       {form.educationFileName ? (
-                        <div className="text-[11px] text-emerald-700 font-semibold mt-1 truncate">
-                          {attachedNote(form.educationFileName, form.educationFile)}
+                        <div className="text-[11px] text-emerald-700 font-semibold mt-1 flex items-center gap-2 flex-wrap">
+                          <span className="truncate">{attachedNote(form.educationFileName, form.educationFile)}</span>
+                          {String(form.educationFile || "").startsWith("data:image") ? (
+                            <button
+                              type="button"
+                              className="text-blue-700 underline font-bold"
+                              onClick={() =>
+                                recropFromDataUrl("educationFile", "educationFileName", form.educationFile, form.educationFileName)
+                              }
+                            >
+                              Crop
+                            </button>
+                          ) : null}
                         </div>
                       ) : null}
                     </div>
@@ -3082,8 +3248,19 @@ function ApplyPageInner() {
                         className="w-full text-xs text-slate-600 file:mr-2 file:py-1 file:px-2.5 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-100 file:text-blue-800"
                       />
                       {form.otherQualFileName ? (
-                        <div className="text-[11px] text-emerald-700 font-semibold mt-1 truncate">
-                          {attachedNote(form.otherQualFileName, form.otherQualFile)}
+                        <div className="text-[11px] text-emerald-700 font-semibold mt-1 flex items-center gap-2 flex-wrap">
+                          <span className="truncate">{attachedNote(form.otherQualFileName, form.otherQualFile)}</span>
+                          {String(form.otherQualFile || "").startsWith("data:image") ? (
+                            <button
+                              type="button"
+                              className="text-blue-700 underline font-bold"
+                              onClick={() =>
+                                recropFromDataUrl("otherQualFile", "otherQualFileName", form.otherQualFile, form.otherQualFileName)
+                              }
+                            >
+                              Crop
+                            </button>
+                          ) : null}
                         </div>
                       ) : null}
                     </div>
@@ -3902,8 +4079,19 @@ function ApplyPageInner() {
                           className="w-full text-xs text-slate-600 file:mr-2 file:py-1 file:px-2.5 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-100 file:text-blue-800"
                         />
                         {form.passbookFileName ? (
-                          <div className="text-[11px] text-emerald-700 font-semibold mt-1 truncate">
-                            {attachedNote(form.passbookFileName, form.passbookFile)}
+                          <div className="text-[11px] text-emerald-700 font-semibold mt-1 flex items-center gap-2 flex-wrap">
+                            <span className="truncate">{attachedNote(form.passbookFileName, form.passbookFile)}</span>
+                            {String(form.passbookFile || "").startsWith("data:image") ? (
+                              <button
+                                type="button"
+                                className="text-blue-700 underline font-bold"
+                                onClick={() =>
+                                  recropFromDataUrl("passbookFile", "passbookFileName", form.passbookFile, form.passbookFileName)
+                                }
+                              >
+                                Crop
+                              </button>
+                            ) : null}
                           </div>
                         ) : null}
                       </div>
@@ -3945,8 +4133,19 @@ function ApplyPageInner() {
                             className="w-full text-xs text-slate-600 file:mr-2 file:py-1 file:px-2.5 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-100 file:text-blue-800"
                           />
                           {form.policeFileName ? (
-                            <div className="text-[11px] text-emerald-700 font-semibold mt-1 truncate">
-                              {attachedNote(form.policeFileName, form.policeFile)}
+                            <div className="text-[11px] text-emerald-700 font-semibold mt-1 flex items-center gap-2 flex-wrap">
+                              <span className="truncate">{attachedNote(form.policeFileName, form.policeFile)}</span>
+                              {String(form.policeFile || "").startsWith("data:image") ? (
+                                <button
+                                  type="button"
+                                  className="text-blue-700 underline font-bold"
+                                  onClick={() =>
+                                    recropFromDataUrl("policeFile", "policeFileName", form.policeFile, form.policeFileName)
+                                  }
+                                >
+                                  Crop
+                                </button>
+                              ) : null}
                             </div>
                           ) : (
                             <p className="text-[11px] text-slate-500 mt-1">
@@ -3982,9 +4181,21 @@ function ApplyPageInner() {
                         onChange={(e) => handleFileUpload(e, "aadhaarFile", "aadhaarFileName")}
                         className="w-full text-xs text-slate-600 file:mr-2 file:py-1 file:px-2.5 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-100 file:text-blue-800"
                       />
+                      <p className="text-[11px] text-slate-500">Photo: drag four sides to crop. PDF stays as it is.</p>
                       {form.aadhaarFileName && (
-                        <div className="text-[11px] text-emerald-700 font-semibold truncate">
-                          {attachedNote(form.aadhaarFileName, form.aadhaarFile)}
+                        <div className="text-[11px] text-emerald-700 font-semibold flex items-center gap-2 flex-wrap">
+                          <span className="truncate">{attachedNote(form.aadhaarFileName, form.aadhaarFile)}</span>
+                          {String(form.aadhaarFile || "").startsWith("data:image") ? (
+                            <button
+                              type="button"
+                              className="text-blue-700 underline font-bold"
+                              onClick={() =>
+                                recropFromDataUrl("aadhaarFile", "aadhaarFileName", form.aadhaarFile, form.aadhaarFileName)
+                              }
+                            >
+                              Crop
+                            </button>
+                          ) : null}
                         </div>
                       )}
                     </div>
@@ -4000,9 +4211,19 @@ function ApplyPageInner() {
                         onChange={(e) => handleFileUpload(e, "panFile", "panFileName")}
                         className="w-full text-xs text-slate-600 file:mr-2 file:py-1 file:px-2.5 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-blue-100 file:text-blue-800"
                       />
+                      <p className="text-[11px] text-slate-500">Photo: drag four sides to crop. PDF stays as it is.</p>
                       {form.panFileName && (
-                        <div className="text-[11px] text-emerald-700 font-semibold truncate">
-                          {attachedNote(form.panFileName, form.panFile)}
+                        <div className="text-[11px] text-emerald-700 font-semibold flex items-center gap-2 flex-wrap">
+                          <span className="truncate">{attachedNote(form.panFileName, form.panFile)}</span>
+                          {String(form.panFile || "").startsWith("data:image") ? (
+                            <button
+                              type="button"
+                              className="text-blue-700 underline font-bold"
+                              onClick={() => recropFromDataUrl("panFile", "panFileName", form.panFile, form.panFileName)}
+                            >
+                              Crop
+                            </button>
+                          ) : null}
                         </div>
                       )}
                     </div>
@@ -4082,14 +4303,35 @@ function ApplyPageInner() {
 
                 <div className="sticky bottom-3 z-20 rounded-2xl border border-slate-200 bg-white/95 backdrop-blur shadow-[0_12px_30px_-12px_rgba(15,23,42,0.45)] p-3 sm:p-4 space-y-2">
                   {!editApplicantId || savedDraftId ? (
-                    <button
-                      type="button"
-                      disabled={savingDraft || submitting || Boolean(compressingLabel)}
-                      onClick={handleSaveDraft}
-                      className="w-full bg-white hover:bg-slate-50 disabled:opacity-50 text-slate-800 font-bold py-3 rounded-xl border border-slate-300 transition text-sm"
-                    >
-                      {savingDraft ? "Saving draft..." : savedDraftId ? "Save draft again" : "Save as draft"}
-                    </button>
+                    <>
+                      <div
+                        className={`text-xs font-semibold px-1 ${
+                          draftStatus === "unsaved"
+                            ? "text-red-700"
+                            : draftStatus === "saved"
+                              ? "text-emerald-700"
+                              : "text-amber-800"
+                        }`}
+                      >
+                        {draftStatus === "saving" || savingDraft
+                          ? "Saving..."
+                          : draftStatus === "saved"
+                            ? "Saved automatically"
+                            : draftStatus === "unsaved"
+                              ? "Not saved"
+                              : "Saving automatically..."}
+                      </div>
+                      {draftStatus === "unsaved" ? (
+                        <button
+                          type="button"
+                          disabled={savingDraft || submitting || Boolean(compressingLabel)}
+                          onClick={() => handleSaveDraft(false)}
+                          className="w-full bg-white hover:bg-slate-50 disabled:opacity-50 text-slate-800 font-bold py-3 rounded-xl border border-slate-300 transition text-sm"
+                        >
+                          Save now
+                        </button>
+                      ) : null}
+                    </>
                   ) : null}
                   <button
                     type="submit"

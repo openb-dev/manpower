@@ -463,7 +463,8 @@ model AuditLog {
 model Contract {
   id                    String        @id @default(uuid())
   companyId             String        @map("company_id")
-  clientName            String        @map("client_name")
+  clientName            String        @default("") @map("client_name")
+  workLocation          String?       @map("work_location")
   departmentName        String?       @map("department_name")
   contractType          String        @default("A") @map("contract_type") // A - Manpower, B - Work, C - Office
   workName              String?       @map("work_name")

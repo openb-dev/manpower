@@ -6,6 +6,7 @@ import { addApplicantRemark, listApplicants, saveOfficeApplicantId, softDeleteAp
 import { approveApplicantAndCreateEmployee, assignEmployeeSite, listEmployees, softDeleteEmployee } from "@/modules/employees/services";
 import { bulkMarkAttendance, getMonthlyAttendanceSummary, lockMonthAttendance } from "@/modules/attendance/services";
 import { publicCatchMessage } from "@/lib/publicErrors";
+import { parseDateValue } from "@/lib/applicantFormFields";
 
 async function verifyTenantSession(companySlug: string) {
   const session = await auth();
@@ -248,7 +249,8 @@ export async function POST(
       const contract = await prisma.contract.create({
         data: {
           companyId: company.id,
-          clientName: body.clientName,
+          clientName: body.clientName || "",
+          workLocation: body.workLocation || null,
           departmentName: body.departmentName || null,
           contractType: body.contractType || "A",
           workName: body.workName || null,
@@ -256,7 +258,7 @@ export async function POST(
 
           // Tender & EMD Breakdown
           tenderNo: body.tenderNo || null,
-          tenderOpening: body.tenderOpening ? new Date(body.tenderOpening) : null,
+          tenderOpening: parseDateValue(body.tenderOpening),
           estimateCost: body.estimateCost ? Number(body.estimateCost) : null,
           tenderAmount: body.tenderAmount ? Number(body.tenderAmount) : null,
 
@@ -265,14 +267,14 @@ export async function POST(
           emdMode: body.emdMode || null,
           emdInstrumentNo: body.emdInstrumentNo || null,
           emdFdNo: body.emdFdNo || null,
-          emdDate: body.emdDate ? new Date(body.emdDate) : null,
+          emdDate: parseDateValue(body.emdDate),
           emdBankName: body.emdBankName || null,
           emdStatus: body.emdStatus || "SUBMITTED",
-          emdRefundDate: body.emdRefundDate ? new Date(body.emdRefundDate) : null,
+          emdRefundDate: parseDateValue(body.emdRefundDate),
           emdRefundRef: body.emdRefundRef || null,
           emdRegdSerialNo: body.emdRegdSerialNo || null,
           favouring: body.favouring || null,
-          emdMaturityDate: body.emdMaturityDate ? new Date(body.emdMaturityDate) : null,
+          emdMaturityDate: parseDateValue(body.emdMaturityDate),
           emdMaturityInstrumentNo: body.emdMaturityInstrumentNo || null,
           emdMaturityFdNo: body.emdMaturityFdNo || null,
           emdMaturityAmount: body.emdMaturityAmount ? Number(body.emdMaturityAmount) : null,
@@ -293,11 +295,11 @@ export async function POST(
           pgMode: body.pgMode || null,
           pgInstrumentNo: body.pgInstrumentNo || null,
           pgBankName: body.pgBankName || null,
-          pgDate: body.pgDate ? new Date(body.pgDate) : null,
-          pgExpiryDate: body.pgExpiryDate ? new Date(body.pgExpiryDate) : null,
-          pgClaimDate: body.pgClaimDate ? new Date(body.pgClaimDate) : null,
+          pgDate: parseDateValue(body.pgDate),
+          pgExpiryDate: parseDateValue(body.pgExpiryDate),
+          pgClaimDate: parseDateValue(body.pgClaimDate),
           pgStatus: body.pgStatus || "SUBMITTED",
-          pgReleaseDate: body.pgReleaseDate ? new Date(body.pgReleaseDate) : null,
+          pgReleaseDate: parseDateValue(body.pgReleaseDate),
           pgReleaseRef: body.pgReleaseRef || null,
           pgRegdSerialNo: body.pgRegdSerialNo || null,
           pgMaturityInstrumentNo: body.pgMaturityInstrumentNo || null,
@@ -311,7 +313,7 @@ export async function POST(
           pgReleaseBgNo: body.pgReleaseBgNo || null,
           regRef: body.regRef || null,
           workingDays: body.workingDays || null,
-          awardedDate: body.awardedDate ? new Date(body.awardedDate) : null,
+          awardedDate: parseDateValue(body.awardedDate),
           pgLetterStatus: body.pgLetterStatus || null,
           workOrderStatus: body.workOrderStatus || null,
           workPayments: Array.isArray(body.workPayments) ? body.workPayments : undefined,
@@ -319,15 +321,15 @@ export async function POST(
           // Execution & Register Reference
           measurementBookNo: body.measurementBookNo || null,
           lccNo: body.lccNo || null,
-          startAgreement: body.startAgreement ? new Date(body.startAgreement) : null,
-          startActual: body.startActual ? new Date(body.startActual) : null,
-          completionAgreement: body.completionAgreement ? new Date(body.completionAgreement) : null,
-          completionActual: body.completionActual ? new Date(body.completionActual) : null,
+          startAgreement: parseDateValue(body.startAgreement),
+          startActual: parseDateValue(body.startActual),
+          completionAgreement: parseDateValue(body.completionAgreement),
+          completionActual: parseDateValue(body.completionActual),
           workStatus: body.workStatus || "IN_PROGRESS",
 
           // Billing, Deductions & Recoveries Breakdown
           billNumber: body.billNumber || null,
-          billDate: body.billDate ? new Date(body.billDate) : null,
+          billDate: parseDateValue(body.billDate),
           grossAmount: body.grossAmount ? Number(body.grossAmount) : null,
           securityDeposit: body.securityDeposit ? Number(body.securityDeposit) : null,
           incomeTaxTds: body.incomeTaxTds ? Number(body.incomeTaxTds) : null,
@@ -342,8 +344,8 @@ export async function POST(
 
           // Payment & Vouchers
           voucherNumber: body.voucherNumber || null,
-          bankReceivedDate: body.bankReceivedDate ? new Date(body.bankReceivedDate) : null,
-          reimburseDate: body.reimburseDate ? new Date(body.reimburseDate) : null,
+          bankReceivedDate: parseDateValue(body.bankReceivedDate),
+          reimburseDate: parseDateValue(body.reimburseDate),
           otherDetails: body.otherDetails || null,
           remarks: body.remarks || null,
         },
@@ -355,7 +357,8 @@ export async function POST(
       const contract = await prisma.contract.update({
         where: { id: body.id, companyId: company.id },
         data: {
-          clientName: body.clientName,
+          clientName: body.clientName || "",
+          workLocation: body.workLocation || null,
           departmentName: body.departmentName || null,
           contractType: body.contractType || "A",
           workName: body.workName || null,
@@ -363,7 +366,7 @@ export async function POST(
 
           // Tender & EMD Breakdown
           tenderNo: body.tenderNo || null,
-          tenderOpening: body.tenderOpening ? new Date(body.tenderOpening) : null,
+          tenderOpening: parseDateValue(body.tenderOpening),
           estimateCost: body.estimateCost ? Number(body.estimateCost) : null,
           tenderAmount: body.tenderAmount ? Number(body.tenderAmount) : null,
 
@@ -372,14 +375,14 @@ export async function POST(
           emdMode: body.emdMode || null,
           emdInstrumentNo: body.emdInstrumentNo || null,
           emdFdNo: body.emdFdNo || null,
-          emdDate: body.emdDate ? new Date(body.emdDate) : null,
+          emdDate: parseDateValue(body.emdDate),
           emdBankName: body.emdBankName || null,
           emdStatus: body.emdStatus || "SUBMITTED",
-          emdRefundDate: body.emdRefundDate ? new Date(body.emdRefundDate) : null,
+          emdRefundDate: parseDateValue(body.emdRefundDate),
           emdRefundRef: body.emdRefundRef || null,
           emdRegdSerialNo: body.emdRegdSerialNo || null,
           favouring: body.favouring || null,
-          emdMaturityDate: body.emdMaturityDate ? new Date(body.emdMaturityDate) : null,
+          emdMaturityDate: parseDateValue(body.emdMaturityDate),
           emdMaturityInstrumentNo: body.emdMaturityInstrumentNo || null,
           emdMaturityFdNo: body.emdMaturityFdNo || null,
           emdMaturityAmount: body.emdMaturityAmount ? Number(body.emdMaturityAmount) : null,
@@ -400,11 +403,11 @@ export async function POST(
           pgMode: body.pgMode || null,
           pgInstrumentNo: body.pgInstrumentNo || null,
           pgBankName: body.pgBankName || null,
-          pgDate: body.pgDate ? new Date(body.pgDate) : null,
-          pgExpiryDate: body.pgExpiryDate ? new Date(body.pgExpiryDate) : null,
-          pgClaimDate: body.pgClaimDate ? new Date(body.pgClaimDate) : null,
+          pgDate: parseDateValue(body.pgDate),
+          pgExpiryDate: parseDateValue(body.pgExpiryDate),
+          pgClaimDate: parseDateValue(body.pgClaimDate),
           pgStatus: body.pgStatus || "SUBMITTED",
-          pgReleaseDate: body.pgReleaseDate ? new Date(body.pgReleaseDate) : null,
+          pgReleaseDate: parseDateValue(body.pgReleaseDate),
           pgReleaseRef: body.pgReleaseRef || null,
           pgRegdSerialNo: body.pgRegdSerialNo || null,
           pgMaturityInstrumentNo: body.pgMaturityInstrumentNo || null,
@@ -418,7 +421,7 @@ export async function POST(
           pgReleaseBgNo: body.pgReleaseBgNo || null,
           regRef: body.regRef || null,
           workingDays: body.workingDays || null,
-          awardedDate: body.awardedDate ? new Date(body.awardedDate) : null,
+          awardedDate: parseDateValue(body.awardedDate),
           pgLetterStatus: body.pgLetterStatus || null,
           workOrderStatus: body.workOrderStatus || null,
           workPayments: Array.isArray(body.workPayments) ? body.workPayments : undefined,
@@ -426,15 +429,15 @@ export async function POST(
           // Execution & Register Reference
           measurementBookNo: body.measurementBookNo || null,
           lccNo: body.lccNo || null,
-          startAgreement: body.startAgreement ? new Date(body.startAgreement) : null,
-          startActual: body.startActual ? new Date(body.startActual) : null,
-          completionAgreement: body.completionAgreement ? new Date(body.completionAgreement) : null,
-          completionActual: body.completionActual ? new Date(body.completionActual) : null,
+          startAgreement: parseDateValue(body.startAgreement),
+          startActual: parseDateValue(body.startActual),
+          completionAgreement: parseDateValue(body.completionAgreement),
+          completionActual: parseDateValue(body.completionActual),
           workStatus: body.workStatus || "IN_PROGRESS",
 
           // Billing, Deductions & Recoveries Breakdown
           billNumber: body.billNumber || null,
-          billDate: body.billDate ? new Date(body.billDate) : null,
+          billDate: parseDateValue(body.billDate),
           grossAmount: body.grossAmount ? Number(body.grossAmount) : null,
           securityDeposit: body.securityDeposit ? Number(body.securityDeposit) : null,
           incomeTaxTds: body.incomeTaxTds ? Number(body.incomeTaxTds) : null,
@@ -449,8 +452,8 @@ export async function POST(
 
           // Payment & Vouchers
           voucherNumber: body.voucherNumber || null,
-          bankReceivedDate: body.bankReceivedDate ? new Date(body.bankReceivedDate) : null,
-          reimburseDate: body.reimburseDate ? new Date(body.reimburseDate) : null,
+          bankReceivedDate: parseDateValue(body.bankReceivedDate),
+          reimburseDate: parseDateValue(body.reimburseDate),
           otherDetails: body.otherDetails || null,
           remarks: body.remarks || null,
         },

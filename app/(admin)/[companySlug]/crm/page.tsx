@@ -1,10 +1,10 @@
 "use client";
 
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { loadCrmBook } from "../actions";
 import { friendlyPublicError, readApiJson } from "@/lib/publicErrors";
-import { formatDateDmy } from "@/lib/applicantFormFields";
+import { formatDateDmy, maskDmyInput } from "@/lib/applicantFormFields";
 import {
   downloadEmdRegisterExcel,
   emdIssueDdNo as emdDdOf,
@@ -28,10 +28,16 @@ import {
   emptyWorkPayment,
   nextRaBillNo,
   paymentLineHasValue,
-  RA_BILL_NOS,
+  raBillDropdownOptions,
+  raBillOrdinal,
   workPaymentLines,
   type WorkPaymentLine,
 } from "@/lib/downloadWorkRegisterExcel";
+import {
+  downloadEmdRegisterPdf,
+  downloadPgRegisterPdf,
+  downloadWorkRegisterPdf,
+} from "@/lib/downloadRegisterPdf";
 import {
   FileSpreadsheet,
   Landmark,
@@ -60,34 +66,117 @@ function emptyPayment(raBillNo = ""): WorkPaymentLine {
   return emptyWorkPayment(raBillNo);
 }
 
-const BILL_LINE_FIELDS: Array<{ key: keyof WorkPaymentLine; label: string; type: "text" | "number" | "date" | "select" }> = [
-  { key: "raBillNo", label: "R.A. Bill No.", type: "select" },
-  { key: "mbNo", label: "M.B. No.", type: "text" },
-  { key: "billNumber", label: "Bill No.", type: "text" },
-  { key: "billDate", label: "Bill Date", type: "date" },
-  { key: "grossAmount", label: "Gross / Bill Amount", type: "number" },
-  { key: "taxableAmount", label: "Taxable Amount (Without GST)", type: "number" },
-  { key: "gstAmountOfBill", label: "Total GST Amount of Bill", type: "number" },
-  { key: "sdAmount", label: "Security Deposit (S.D.)", type: "number" },
-  { key: "itAmount", label: "Income Tax @ 1% or 2% (TDS IT)", type: "number" },
-  { key: "gstAmount", label: "GST @2% (TDS GST)", type: "number" },
-  { key: "labourCess", label: "Labour welfare Cess", type: "number" },
-  { key: "eduCess", label: "Edu. Cess", type: "number" },
-  { key: "waterCharge", label: "Water Charge", type: "number" },
-  { key: "withheldAmount", label: "Withheld Amount", type: "number" },
-  { key: "withheldReason", label: "withheld reason", type: "text" },
-  { key: "netAmount", label: "Net Amount", type: "number" },
-  { key: "voucherNo", label: "Voucher No.", type: "text" },
-  { key: "voucherDate", label: "Date", type: "date" },
-  { key: "epfo", label: "EPFO", type: "number" },
-  { key: "esic", label: "ESIC", type: "number" },
-  { key: "reimburseAmount", label: "Amount", type: "number" },
-  { key: "dateOfPayment", label: "Date of payment", type: "date" },
-  { key: "bankReceivedDate", label: "Bank Recived Date", type: "date" },
+function defaultRaRows(): WorkPaymentLine[] {
+  return Array.from({ length: 12 }, (_, index) => emptyPayment(raBillOrdinal(index + 1)));
+}
+
+const BILL_LINE_FIELDS: Array<{ no: number; key: keyof WorkPaymentLine; label: string; type: "text" | "number" | "date" | "select" }> = [
+  { no: 18, key: "raBillNo", label: "Running Account Bill (R.A. Bill) No.", type: "select" },
+  { no: 19, key: "mbNo", label: "M.B. No.", type: "text" },
+  { no: 20, key: "billNumber", label: "Bill No.", type: "text" },
+  { no: 21, key: "billDate", label: "Bill Date", type: "date" },
+  { no: 22, key: "grossAmount", label: "Gross / Bill Amount", type: "number" },
+  { no: 23, key: "taxableAmount", label: "Taxable Amount (Without GST)", type: "number" },
+  { no: 24, key: "gstAmountOfBill", label: "Total GST Amount of Bill", type: "number" },
+  { no: 25, key: "sdAmount", label: "Security Deposit (S.D.)", type: "number" },
+  { no: 26, key: "itAmount", label: "Income Tax @ 1% or 2% (TDS IT)", type: "number" },
+  { no: 27, key: "gstAmount", label: "GST @2% (TDS GST)", type: "number" },
+  { no: 28, key: "labourCess", label: "Labour welfare Cess", type: "number" },
+  { no: 29, key: "eduCess", label: "Edu. Cess", type: "number" },
+  { no: 30, key: "waterCharge", label: "Water Charge", type: "number" },
+  { no: 31, key: "withheldAmount", label: "Withheld Amount", type: "number" },
+  { no: 32, key: "withheldReason", label: "withheld reason", type: "text" },
+  { no: 33, key: "netAmount", label: "Net Amount", type: "number" },
+  { no: 34, key: "voucherNo", label: "Voucher No.", type: "text" },
+  { no: 35, key: "voucherDate", label: "Date", type: "date" },
+  { no: 36, key: "epfo", label: "EPFO", type: "number" },
+  { no: 37, key: "esic", label: "ESIC", type: "number" },
+  { no: 38, key: "reimburseAmount", label: "Amount", type: "number" },
+  { no: 39, key: "dateOfPayment", label: "Date of payment", type: "date" },
+  { no: 40, key: "bankReceivedDate", label: "Bank Recived Date", type: "date" },
 ];
 
-type ModalSection = "GENERAL" | "EMD" | "PG";
-const REGISTER_STEPS: ModalSection[] = ["GENERAL", "EMD", "PG"];
+const WORK_HEADER_FIELDS: Array<{ no: number; label: string; key: string; type: "text" | "number" | "date" }> = [
+  { no: 2, label: "Reg. Ref.", key: "regRef", type: "text" },
+  { no: 3, label: "Department/ Division", key: "departmentName", type: "text" },
+  { no: 4, label: "Name of work", key: "workName", type: "text" },
+  { no: 5, label: "Agmt./W.O. No.", key: "agreementNo", type: "text" },
+  { no: 6, label: "Awarded Date", key: "awardedDate", type: "date" },
+  { no: 7, label: "Working Period", key: "workingDays", type: "text" },
+  { no: 8, label: "Tender Amount", key: "tenderAmount", type: "number" },
+  { no: 9, label: "Estimate Cost", key: "estimateCost", type: "number" },
+  { no: 10, label: "EMD Amount", key: "emdAmount", type: "number" },
+  { no: 11, label: "EMD Date", key: "emdDate", type: "date" },
+  { no: 12, label: "P.G. Amount", key: "pgAmount", type: "number" },
+  { no: 13, label: "P.G. Date", key: "pgDate", type: "date" },
+  { no: 14, label: "As Per Agmt.", key: "startAgreement", type: "date" },
+  { no: 15, label: "As Per Actual", key: "startActual", type: "date" },
+  { no: 16, label: "As Per Agmt.", key: "completionAgreement", type: "date" },
+  { no: 17, label: "As Per Actual", key: "completionActual", type: "date" },
+];
+
+const SHEET_INPUT =
+  "w-full min-w-[76px] h-8 px-1 border-0 bg-transparent text-[11px] focus:outline-none focus:bg-indigo-50 focus:ring-1 focus:ring-indigo-500";
+
+function moveSheetFocus(root: HTMLElement | null, from: EventTarget | null, dir: 1 | -1) {
+  if (!root || !(from instanceof HTMLElement)) return;
+  const fields = Array.from(
+    root.querySelectorAll<HTMLElement>("input:not([disabled]):not([tabindex='-1']), select:not([disabled]), textarea:not([disabled])"),
+  );
+  const index = fields.indexOf(from);
+  const next = fields[index + dir];
+  if (!next) return;
+  next.focus();
+  if (next instanceof HTMLInputElement && next.type !== "date") {
+    try {
+      next.select();
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
+function onSheetKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
+  if (e.key !== "ArrowRight" && e.key !== "ArrowLeft" && e.key !== "Enter") return;
+  const target = e.target as HTMLElement;
+  if (!["INPUT", "SELECT", "TEXTAREA"].includes(target.tagName)) return;
+  if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+    if (target instanceof HTMLInputElement && (target.type === "text" || target.type === "number" || target.type === "")) {
+      const start = target.selectionStart ?? 0;
+      const end = target.selectionEnd ?? 0;
+      if (start !== end) return;
+      if (e.key === "ArrowLeft" && start > 0) return;
+      if (e.key === "ArrowRight" && start < String(target.value || "").length) return;
+    }
+  }
+  e.preventDefault();
+  moveSheetFocus(e.currentTarget, target, e.key === "ArrowLeft" ? -1 : 1);
+}
+
+type ModalSection = "PRE" | "GENERAL" | "EMD" | "PG";
+const REGISTER_STEPS: ModalSection[] = ["PRE", "GENERAL", "EMD", "PG"];
+
+function DateTextInput({
+  value,
+  onChange,
+  className,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  className: string;
+}) {
+  return (
+    <input
+      type="text"
+      inputMode="numeric"
+      autoComplete="off"
+      placeholder="dd/mm/yyyy"
+      value={value}
+      onChange={(e) => onChange(maskDmyInput(e.target.value))}
+      className={className}
+    />
+  );
+}
 
 function RegisterField({
   label,
@@ -117,6 +206,8 @@ function RegisterField({
       </label>
       {area ? (
         <textarea rows={2} value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} className={cls} />
+      ) : type === "date" ? (
+        <DateTextInput value={value} onChange={onChange} className={cls} />
       ) : (
         <input type={type} value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} className={cls} />
       )}
@@ -128,6 +219,7 @@ type Contract = {
   id: string;
   companyId: string;
   clientName: string;
+  workLocation: string | null;
   departmentName: string | null;
   contractType: string;
   workName: string | null;
@@ -242,6 +334,7 @@ export default function CrmPage() {
 
   // Active View Tab
   const [activeTab, setActiveTab] = useState<"WORK_REGISTER" | "EMD_REGISTER" | "PG_REGISTER">("WORK_REGISTER");
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [typeFilter, setTypeFilter] = useState("ALL");
@@ -257,6 +350,7 @@ export default function CrmPage() {
 
   // Form States
   const [clientName, setClientName] = useState("");
+  const [locationName, setLocationName] = useState("");
   const [departmentName, setDepartmentName] = useState("");
   const [contractType, setContractType] = useState("A");
   const [workName, setWorkName] = useState("");
@@ -322,7 +416,7 @@ export default function CrmPage() {
   const [awardedDate, setAwardedDate] = useState("");
   const [pgLetterStatus, setPgLetterStatus] = useState("");
   const [workOrderStatus, setWorkOrderStatus] = useState("");
-  const [workPayments, setWorkPayments] = useState<WorkPaymentLine[]>([emptyPayment()]);
+  const [workPayments, setWorkPayments] = useState<WorkPaymentLine[]>(defaultRaRows());
 
   // Execution & Dates
   const [measurementBookNo, setMeasurementBookNo] = useState("");
@@ -428,8 +522,9 @@ export default function CrmPage() {
 
   function openCreateModal() {
     setEditingId(null);
-    setModalSection("GENERAL");
+    setModalSection("PRE");
     setClientName("");
+    setLocationName("");
     setDepartmentName("");
     setContractType("A");
     setWorkName("");
@@ -493,7 +588,7 @@ export default function CrmPage() {
     setAwardedDate("");
     setPgLetterStatus("");
     setWorkOrderStatus("");
-    setWorkPayments([emptyPayment()]);
+    setWorkPayments(defaultRaRows());
 
     setMeasurementBookNo("");
     setLccNo("");
@@ -530,12 +625,7 @@ export default function CrmPage() {
   }
 
   function formatDateInput(dateStr: string | null | undefined) {
-    if (!dateStr) return "";
-    try {
-      return new Date(dateStr).toISOString().split("T")[0];
-    } catch {
-      return "";
-    }
+    return formatDateDmy(dateStr, "");
   }
 
   function openEditModal(c: Contract) {
@@ -543,6 +633,7 @@ export default function CrmPage() {
     setModalSection(activeTab === "EMD_REGISTER" ? "EMD" : activeTab === "PG_REGISTER" ? "PG" : "GENERAL");
 
     setClientName(c.clientName || "");
+    setLocationName(c.workLocation || "");
     setDepartmentName(c.departmentName || "");
     setContractType(c.contractType || "A");
     setWorkName(c.workName || "");
@@ -649,42 +740,13 @@ export default function CrmPage() {
 
   async function handleSaveContract(e: React.FormEvent) {
     e.preventDefault();
-    const later = workStatus === "AWARDED_PG" || workStatus === "IN_PROGRESS";
-    const emdClosed = String(emdStatus || "").toUpperCase() === "REFUNDED";
-    const pgReleased = String(pgStatus || "").toUpperCase() === "RELEASED";
-    const requiredEntries: Array<[string, string]> = [
-      ["Client / Organization Name", clientName],
-      ["Full Work Name / Description", workName],
-      ["Current Work Stage", workStatus],
-      ["Tender / NIT No", tenderNo],
-      ["Quoted / Tender Amount", tenderAmount],
-      ["Earnest Money Deposit (EMD)", emdAmount],
-      ["EMD Current Status", emdStatus],
-    ];
-    if (later) {
-      requiredEntries.push(["Performance Guarantee Amount", pgAmount], ["PG Current Status", pgStatus]);
-    }
-    if (emdClosed) {
-      requiredEntries.push(["EMD Refund / Adjustment Date", emdRefundDate]);
-    }
-    if (pgReleased) {
-      requiredEntries.push(["PG Release Date", pgReleaseDate]);
-    }
-    if (billNumber.trim()) {
-      requiredEntries.push(["Bill Date", billDate], ["Gross Amount", grossAmount]);
-    }
-    const missing = requiredEntries.find(([, value]) => !String(value ?? "").trim());
-    if (missing) {
-      alert(`${missing[0]} is required.`);
-      return;
-    }
-
     setSaving(true);
     try {
       const payload: any = {
         action: editingId ? "UPDATE_CONTRACT" : "CREATE_CONTRACT",
         id: editingId,
-        clientName,
+        clientName: clientName || "",
+        workLocation: locationName.trim() || null,
         departmentName,
         contractType,
         workName,
@@ -831,6 +893,7 @@ export default function CrmPage() {
       const matchSearch =
         !q ||
         c.clientName?.toLowerCase().includes(q) ||
+        c.workLocation?.toLowerCase().includes(q) ||
         c.departmentName?.toLowerCase().includes(q) ||
         c.agreementNo?.toLowerCase().includes(q) ||
         c.workName?.toLowerCase().includes(q) ||
@@ -872,10 +935,79 @@ export default function CrmPage() {
   }, [filteredContracts]);
 
   const workRows = useMemo(() => {
-    return filteredContracts.slice().sort((a, b) =>
-      String(a.awardedDate || a.createdAt || "").localeCompare(String(b.awardedDate || b.createdAt || "")),
-    );
+    return filteredContracts.slice().sort((a, b) => {
+      const client = String(a.clientName || "").localeCompare(String(b.clientName || ""));
+      if (client) return client;
+      const loc = String(a.workLocation || "").localeCompare(String(b.workLocation || ""));
+      if (loc) return loc;
+      return String(a.awardedDate || a.createdAt || "").localeCompare(String(b.awardedDate || b.createdAt || ""));
+    });
   }, [filteredContracts]);
+
+  const companyLabel = company?.legalName || company?.shortName || "M/s N.K. Enterprise";
+
+  function downloadRows(rows: Contract[]) {
+    const picked = rows.filter((row) => selectedIds.includes(row.id));
+    return picked.length ? picked : rows;
+  }
+
+  function allRowsSelected(rows: Contract[]) {
+    return rows.length > 0 && rows.every((row) => selectedIds.includes(row.id));
+  }
+
+  function toggleRow(id: string) {
+    setSelectedIds((ids) => (ids.includes(id) ? ids.filter((rowId) => rowId !== id) : [...ids, id]));
+  }
+
+  function toggleAllRows(rows: Contract[]) {
+    const select = !allRowsSelected(rows);
+    setSelectedIds((ids) => {
+      const rest = ids.filter((id) => !rows.some((row) => row.id === id));
+      return select ? [...rest, ...rows.map((row) => row.id)] : rest;
+    });
+  }
+
+  function registerDownloadBar(
+    rows: Contract[],
+    onExcel: (picked: Contract[]) => void,
+    onPdf: (picked: Contract[]) => void | Promise<void>,
+  ) {
+    const allOn = allRowsSelected(rows);
+    const pickedCount = rows.filter((row) => selectedIds.includes(row.id)).length;
+    return (
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={() => toggleAllRows(rows)}
+          disabled={!rows.length}
+          className="px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 text-[11px] font-bold rounded-lg disabled:opacity-50"
+        >
+          {allOn ? "Deselect all" : "Select all"}
+        </button>
+        <button
+          type="button"
+          onClick={() => onExcel(downloadRows(rows))}
+          disabled={!rows.length}
+          className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white text-[11px] font-bold rounded-lg disabled:opacity-50"
+        >
+          Download Excel
+        </button>
+        <button
+          type="button"
+          onClick={() => void onPdf(downloadRows(rows))}
+          disabled={!rows.length}
+          className="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white text-[11px] font-bold rounded-lg disabled:opacity-50"
+        >
+          Download PDF
+        </button>
+        {pickedCount ? (
+          <span className="text-[11px] font-semibold text-slate-500">{pickedCount} selected</span>
+        ) : (
+          <span className="text-[11px] text-slate-400">No row selected — downloads all</span>
+        )}
+      </div>
+    );
+  }
 
   // Totals for KPIs
   const totalTenderValue = contracts.reduce((acc, c) => acc + Number(c.tenderAmount || 0), 0);
@@ -1183,24 +1315,25 @@ export default function CrmPage() {
                     Same 42 columns as the office Work Register, with R.A. bills 1st to 12th under each work.
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() =>
-                    downloadWorkRegisterExcel({
-                      companyName: company?.legalName || company?.shortName || "M/s N.K. Enterprise",
-                      rows: workRows,
-                    })
-                  }
-                  className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white text-[11px] font-bold rounded-lg"
-                >
-                  Download Excel
-                </button>
+                {registerDownloadBar(
+                  workRows,
+                  (rows) => downloadWorkRegisterExcel({ companyName: companyLabel, rows }),
+                  (rows) => downloadWorkRegisterPdf({ companyName: companyLabel, rows }),
+                )}
               </div>
 
               <div className="overflow-x-auto">
                 <table className="min-w-[3200px] w-full text-left text-[10px] text-slate-800 border-collapse">
                   <thead className="bg-slate-100 text-slate-800 font-bold">
                     <tr>
+                      <th rowSpan={2} className="border border-slate-300 p-1 text-center align-middle w-8">
+                        <input
+                          type="checkbox"
+                          checked={allRowsSelected(workRows)}
+                          onChange={() => toggleAllRows(workRows)}
+                          aria-label={allRowsSelected(workRows) ? "Deselect all" : "Select all"}
+                        />
+                      </th>
                       <th rowSpan={2} className="border border-slate-300 p-1 text-center align-middle whitespace-nowrap">Sl. No.</th>
                       <th rowSpan={2} className="border border-slate-300 p-1 text-center align-middle whitespace-nowrap">Reg. Ref.</th>
                       <th rowSpan={2} className="border border-slate-300 p-1 text-center align-middle">Department/ Division</th>
@@ -1259,12 +1392,30 @@ export default function CrmPage() {
                   <tbody>
                     {workRows.map((c, index) => {
                       const lines = workPaymentLines(c);
+                      const prev = workRows[index - 1];
+                      const showGroup =
+                        !prev || prev.clientName !== c.clientName || prev.workLocation !== c.workLocation;
                       return (
                         <React.Fragment key={c.id}>
+                          {showGroup ? (
+                            <tr className="bg-indigo-50">
+                              <td colSpan={44} className="border border-slate-300 p-1.5 font-black text-slate-900">
+                                {[c.clientName, c.workLocation].filter(Boolean).join(" · ") || "Work"}
+                              </td>
+                            </tr>
+                          ) : null}
                           {lines.map((line, lineIndex) => (
                         <tr key={`${c.id}-${lineIndex}`} className="hover:bg-indigo-50/40">
                           {lineIndex === 0 && (
                             <>
+                              <td className="border border-slate-300 p-1 text-center align-top" rowSpan={lines.length}>
+                                <input
+                                  type="checkbox"
+                                  checked={selectedIds.includes(c.id)}
+                                  onChange={() => toggleRow(c.id)}
+                                  aria-label={`Select ${c.workName || "work"}`}
+                                />
+                              </td>
                               <td className="border border-slate-300 p-1 text-center font-mono align-top" rowSpan={lines.length}>{index + 1}</td>
                               <td className="border border-slate-300 p-1 font-mono align-top" rowSpan={lines.length}>{c.regRef || "—"}</td>
                               <td className="border border-slate-300 p-1 align-top" rowSpan={lines.length}>{c.departmentName || "—"}</td>
@@ -1350,24 +1501,25 @@ export default function CrmPage() {
                     Same 24 columns as the office EMD Register: issue, maturity and release with FD No. and DD No.
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() =>
-                    downloadEmdRegisterExcel({
-                      companyName: company?.legalName || company?.shortName || "M/s N.K. Enterprise",
-                      rows: emdRows,
-                    })
-                  }
-                  className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white text-[11px] font-bold rounded-lg"
-                >
-                  Download Excel
-                </button>
+                {registerDownloadBar(
+                  emdRows,
+                  (rows) => downloadEmdRegisterExcel({ companyName: companyLabel, rows }),
+                  (rows) => downloadEmdRegisterPdf({ companyName: companyLabel, rows }),
+                )}
               </div>
 
               <div className="overflow-x-auto">
                 <table className="min-w-[1800px] w-full text-left text-[11px] text-slate-800 border-collapse">
                   <thead className="bg-slate-100 text-slate-800 font-bold">
                     <tr>
+                      <th rowSpan={2} className="border border-slate-300 p-1.5 text-center align-middle w-8">
+                        <input
+                          type="checkbox"
+                          checked={allRowsSelected(emdRows)}
+                          onChange={() => toggleAllRows(emdRows)}
+                          aria-label={allRowsSelected(emdRows) ? "Deselect all" : "Select all"}
+                        />
+                      </th>
                       <th rowSpan={2} className="border border-slate-300 p-1.5 text-center align-middle whitespace-nowrap">SL NO.</th>
                       <th rowSpan={2} className="border border-slate-300 p-1.5 text-center align-middle whitespace-nowrap">Reg Sl No</th>
                       <th rowSpan={2} className="border border-slate-300 p-1.5 text-center align-middle">Department / Division</th>
@@ -1403,6 +1555,14 @@ export default function CrmPage() {
                   <tbody>
                     {emdRows.map((c, index) => (
                       <tr key={c.id} className="hover:bg-amber-50/40">
+                        <td className="border border-slate-300 p-1.5 text-center">
+                          <input
+                            type="checkbox"
+                            checked={selectedIds.includes(c.id)}
+                            onChange={() => toggleRow(c.id)}
+                            aria-label={`Select ${c.workName || "EMD"}`}
+                          />
+                        </td>
                         <td className="border border-slate-300 p-1.5 text-center font-mono">{index + 1}</td>
                         <td className="border border-slate-300 p-1.5 text-center font-mono">{c.emdRegdSerialNo || "—"}</td>
                         <td className="border border-slate-300 p-1.5">{c.departmentName || "—"}</td>
@@ -1443,7 +1603,7 @@ export default function CrmPage() {
                       const total = emdRows.reduce((sum, c) => sum + Number(c.emdAmount || 0), 0);
                       return (
                         <tr className="bg-slate-50 font-bold">
-                          <td className="border border-slate-300 p-1.5" colSpan={11}>
+                          <td className="border border-slate-300 p-1.5" colSpan={12}>
                             Total Amount =
                           </td>
                           <td className="border border-slate-300 p-1.5 text-right font-mono">{moneyCell(total)}</td>
@@ -1469,24 +1629,25 @@ export default function CrmPage() {
                     Same columns as the office PG register: FD No. and BG No. together.
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() =>
-                    downloadPgRegisterExcel({
-                      companyName: company?.legalName || company?.shortName || "M/s N.K. Enterprise",
-                      rows: pgRows,
-                    })
-                  }
-                  className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white text-[11px] font-bold rounded-lg"
-                >
-                  Download Excel
-                </button>
+                {registerDownloadBar(
+                  pgRows,
+                  (rows) => downloadPgRegisterExcel({ companyName: companyLabel, rows }),
+                  (rows) => downloadPgRegisterPdf({ companyName: companyLabel, rows }),
+                )}
               </div>
 
               <div className="overflow-x-auto">
                 <table className="min-w-[1800px] w-full text-left text-[11px] text-slate-800 border-collapse">
                   <thead className="bg-slate-100 text-slate-800 font-bold">
                     <tr>
+                      <th rowSpan={2} className="border border-slate-300 p-1.5 text-center align-middle w-8">
+                        <input
+                          type="checkbox"
+                          checked={allRowsSelected(pgRows)}
+                          onChange={() => toggleAllRows(pgRows)}
+                          aria-label={allRowsSelected(pgRows) ? "Deselect all" : "Select all"}
+                        />
+                      </th>
                       <th rowSpan={2} className="border border-slate-300 p-1.5 text-center align-middle whitespace-nowrap">SL NO.</th>
                       <th rowSpan={2} className="border border-slate-300 p-1.5 text-center align-middle whitespace-nowrap">Reg Sl No</th>
                       <th rowSpan={2} className="border border-slate-300 p-1.5 text-center align-middle">Department / Division</th>
@@ -1522,6 +1683,14 @@ export default function CrmPage() {
                   <tbody>
                     {pgRows.map((c, index) => (
                       <tr key={c.id} className="hover:bg-purple-50/40">
+                        <td className="border border-slate-300 p-1.5 text-center">
+                          <input
+                            type="checkbox"
+                            checked={selectedIds.includes(c.id)}
+                            onChange={() => toggleRow(c.id)}
+                            aria-label={`Select ${c.workName || "PG"}`}
+                          />
+                        </td>
                         <td className="border border-slate-300 p-1.5 text-center font-mono">{index + 1}</td>
                         <td className="border border-slate-300 p-1.5 text-center font-mono">{c.pgRegdSerialNo || c.emdRegdSerialNo || "—"}</td>
                         <td className="border border-slate-300 p-1.5">{c.departmentName || "—"}</td>
@@ -1567,7 +1736,7 @@ export default function CrmPage() {
       {/* MODAL: CREATE / EDIT WORK REGISTER ENTRY */}
       {showModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl max-w-6xl w-full my-6 shadow-2xl flex flex-col max-h-[92vh] overflow-hidden border border-slate-200">
+          <div className="bg-white rounded-2xl max-w-[98vw] w-full my-6 shadow-2xl flex flex-col max-h-[94vh] overflow-hidden border border-slate-200">
             {/* Modal Header */}
             <div className="px-6 py-4 bg-slate-900 text-white flex items-center justify-between shrink-0">
               <div>
@@ -1594,13 +1763,22 @@ export default function CrmPage() {
             <div className="flex items-center gap-1 overflow-x-auto px-6 py-2.5 bg-slate-100 border-b border-slate-200 shrink-0 text-xs font-bold text-slate-600">
               <button
                 type="button"
+                onClick={() => setModalSection("PRE")}
+                className={`px-3 py-1.5 rounded-lg whitespace-nowrap transition ${
+                  modalSection === "PRE" ? "bg-white text-slate-900 shadow-sm" : "hover:text-slate-900"
+                }`}
+              >
+                1. Client & Location
+              </button>
+              <button
+                type="button"
                 onClick={() => setModalSection("GENERAL")}
                 className={`px-3 py-1.5 rounded-lg whitespace-nowrap transition ${
                   modalSection === "GENERAL" ? "bg-white text-indigo-700 shadow-sm" : "hover:text-slate-900"
                 }`}
               >
                 <span className="inline-flex items-center gap-1.5">
-                  1. <ClipboardList className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden /> Work Register
+                  2. <ClipboardList className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden /> Work Register
                 </span>
               </button>
               <button
@@ -1611,7 +1789,7 @@ export default function CrmPage() {
                 }`}
               >
                 <span className="inline-flex items-center gap-1.5">
-                  2. <Landmark className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden /> EMD Register
+                  3. <Landmark className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden /> EMD Register
                 </span>
               </button>
               <button
@@ -1622,111 +1800,194 @@ export default function CrmPage() {
                 }`}
               >
                 <span className="inline-flex items-center gap-1.5">
-                  3. <Shield className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden /> PG Register
+                  4. <Shield className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden /> PG Register
                 </span>
               </button>
             </div>
 
             {/* Modal Body Form */}
-            <form noValidate onSubmit={handleSaveContract} className="flex-1 overflow-y-auto p-6 space-y-6">
+            <form noValidate onSubmit={handleSaveContract} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
+              {modalSection === "PRE" && (
+                <div className="space-y-4 max-w-xl">
+                  <div className="border-b border-slate-100 pb-2">
+                    <h3 className="text-sm font-bold text-slate-800">Before the Work Register</h3>
+                    <p className="text-xs text-slate-500">Fill client name and location first. These stay off the Excel sheet.</p>
+                  </div>
+                  <RegisterField label="Client name" value={clientName} onChange={setClientName} placeholder="e.g. K. Das & Co." />
+                  <RegisterField label="Location" value={locationName} onChange={setLocationName} placeholder="e.g. Kolkata / site name" />
+                </div>
+              )}
+
               {/* SECTION 1: WORK REGISTER */}
               {modalSection === "GENERAL" && (
-                <div className="space-y-4">
-                  <div className="border-b border-slate-100 pb-2">
-                    <h3 className="text-sm font-bold text-slate-800">Work Register</h3>
-                    <p className="text-xs text-slate-500">Same fields as the office Work Register sheet.</p>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                    <RegisterField label="Client" value={clientName} onChange={setClientName} placeholder="e.g. K. Das & Co." star />
-                    <RegisterField label="Reg. Ref." value={regRef} onChange={setRegRef} placeholder="e.g. 01/23-24" mono star />
-                    <RegisterField label="Department/ Division" value={departmentName} onChange={setDepartmentName} placeholder="e.g. BCD-III / KHD" star />
-                    <RegisterField label="Agmt./W.O. No." value={agreementNo} onChange={setAgreementNo} placeholder="Agreement / work order no" mono star />
-                    <div className="md:col-span-4">
-                      <RegisterField label="Name of work" value={workName} onChange={setWorkName} placeholder="Name of work" area star />
-                    </div>
-                    <RegisterField label="Awarded Date" value={awardedDate} onChange={setAwardedDate} type="date" star />
-                    <RegisterField label="Working Period" value={workingDays} onChange={setWorkingDays} placeholder="e.g. 15 Days / 6 Months" star />
-                    <RegisterField label="Tender Amount" value={tenderAmount} onChange={setTenderAmount} type="number" star />
-                    <RegisterField label="Estimate Cost" value={estimateCost} onChange={setEstimateCost} type="number" star />
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3 rounded-xl border border-slate-200 bg-slate-50/60 p-3">
-                    <RegisterField label="EMD Amount" value={emdAmount} onChange={setEmdAmount} type="number" star />
-                    <RegisterField label="EMD Date" value={emdDate} onChange={setEmdDate} type="date" star />
-                    <RegisterField label="P.G. Amount" value={pgAmount} onChange={setPgAmount} type="number" star />
-                    <RegisterField label="P.G. Date" value={pgDate} onChange={setPgDate} type="date" star />
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                    <RegisterField label="Date of Start (As Per Agmt.)" value={startAgreement} onChange={setStartAgreement} type="date" star />
-                    <RegisterField label="Date of Start (As Per Actual)" value={startActual} onChange={setStartActual} type="date" star />
-                    <RegisterField label="Date Of Completion (As Per Agmt.)" value={completionAgreement} onChange={setCompletionAgreement} type="date" star />
-                    <RegisterField label="Date Of Completion (As Per Actual)" value={completionActual} onChange={setCompletionActual} type="date" star />
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <div>
-                      <label className="text-xs font-bold text-slate-700 block mb-1">Kind of work<span className="text-red-600"> *</span></label>
-                      <select value={contractType} onChange={(e) => setContractType(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-white">
-                        <option value="A">A · Supply people</option>
-                        <option value="B">B · Building / electrical / civil work</option>
-                        <option value="C">C · Office / service</option>
-                      </select>
+                      <h3 className="text-sm font-bold text-slate-800">WORK REGISTER</h3>
+                      <p className="text-xs text-slate-500">
+                        Same 42 columns as the office Excel. Use Tab or the right arrow to move to the next field.
+                      </p>
                     </div>
-                    <div>
-                      <label className="text-xs font-bold text-slate-700 block mb-1">Work Stage<span className="text-red-600"> *</span></label>
-                      <select value={workStatus} onChange={(e) => setWorkStatus(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-white">
-                        <option value="TENDER_EMD">Tender / EMD</option>
-                        <option value="AWARDED_PG">Awarded / PG</option>
-                        <option value="IN_PROGRESS">In Progress</option>
-                        <option value="COMPLETED">Completed</option>
-                        <option value="CLOSED">Closed</option>
-                      </select>
+                    <div className="text-[11px] text-slate-600">
+                      {[clientName, locationName].filter(Boolean).join(" · ") || "Client & location not filled yet"}
                     </div>
                   </div>
 
-                  <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/60 p-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="text-xs font-black text-slate-800">Bill Details · Deduction of bill · Payment recerived details · Reimbursement Details</div>
-                      <button
-                        type="button"
-                        onClick={() => setWorkPayments((rows) => [...rows, emptyPayment(nextRaBillNo(rows))])}
-                        className="px-2.5 py-1 bg-indigo-700 hover:bg-indigo-800 text-white text-[11px] font-bold rounded-lg"
-                      >
-                        Add
-                      </button>
-                    </div>
-                    <div className="overflow-x-auto">
-                      <table className="min-w-[2200px] w-full text-[11px] border-collapse">
-                        <thead className="bg-white text-slate-700">
-                          <tr>
-                            {BILL_LINE_FIELDS.map((field) => (
-                              <th key={field.key} className="border border-slate-200 p-1 text-left whitespace-nowrap">{field.label}</th>
-                            ))}
-                            <th className="border border-slate-200 p-1" />
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {workPayments.map((line, index) => (
-                            <tr key={index}>
+                  <div className="flex items-center justify-end">
+                    <button
+                      type="button"
+                      onClick={() => setWorkPayments((rows) => [...rows, emptyPayment(nextRaBillNo(rows))])}
+                      className="px-2.5 py-1 bg-indigo-700 hover:bg-indigo-800 text-white text-[11px] font-bold rounded-lg"
+                    >
+                      Add
+                    </button>
+                  </div>
+
+                  <div onKeyDown={onSheetKeyDown} className="overflow-x-auto border border-slate-400 bg-white">
+                    <table className="min-w-[3200px] w-full text-[10px] text-slate-800 border-collapse">
+                      <thead className="bg-slate-100 font-bold">
+                        <tr>
+                          <th rowSpan={2} className="border border-slate-400 p-1 text-center align-middle w-10">
+                            <div>1</div>
+                            <div>Sl. No.</div>
+                          </th>
+                          {WORK_HEADER_FIELDS.slice(0, 8).map((field) => (
+                            <th key={field.key} rowSpan={2} className="border border-slate-400 p-1 text-center align-middle min-w-[88px]">
+                              <div>{field.no}</div>
+                              <div>{field.label}</div>
+                            </th>
+                          ))}
+                          <th colSpan={2} className="border border-slate-400 p-1 text-center">Earnest Money Deposit</th>
+                          <th colSpan={2} className="border border-slate-400 p-1 text-center">Performance Guarantee</th>
+                          <th colSpan={2} className="border border-slate-400 p-1 text-center">Date of Start</th>
+                          <th colSpan={2} className="border border-slate-400 p-1 text-center">Date Of Completion</th>
+                          <th colSpan={7} className="border border-slate-400 p-1 text-center">Bill Details</th>
+                          <th colSpan={9} className="border border-slate-400 p-1 text-center">Deduction of bill</th>
+                          <th colSpan={2} className="border border-slate-400 p-1 text-center">Payment recerived details</th>
+                          <th colSpan={5} className="border border-slate-400 p-1 text-center">Reimbursement Details</th>
+                          <th rowSpan={2} className="border border-slate-400 p-1 text-center align-middle">
+                            <div>41</div>
+                            <div>Other</div>
+                          </th>
+                          <th rowSpan={2} className="border border-slate-400 p-1 text-center align-middle">
+                            <div>42</div>
+                            <div>Remarks</div>
+                          </th>
+                          <th rowSpan={2} className="border border-slate-400 p-1 w-8" />
+                        </tr>
+                        <tr>
+                          {WORK_HEADER_FIELDS.slice(8).map((field) => (
+                            <th key={field.key} className="border border-slate-400 p-1 text-center min-w-[88px]">
+                              <div>{field.no}</div>
+                              <div>{field.label}</div>
+                            </th>
+                          ))}
+                          {BILL_LINE_FIELDS.map((field) => (
+                            <th key={field.key} className="border border-slate-400 p-1 text-center min-w-[88px]">
+                              <div>{field.no}</div>
+                              <div>{field.label}</div>
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {workPayments.map((line, index) => {
+                          const headerValues: Record<string, string> = {
+                            regRef,
+                            departmentName,
+                            workName,
+                            agreementNo,
+                            awardedDate,
+                            workingDays,
+                            tenderAmount,
+                            estimateCost,
+                            emdAmount,
+                            emdDate,
+                            pgAmount,
+                            pgDate,
+                            startAgreement,
+                            startActual,
+                            completionAgreement,
+                            completionActual,
+                          };
+                          const headerSetters: Record<string, (value: string) => void> = {
+                            regRef: setRegRef,
+                            departmentName: setDepartmentName,
+                            workName: setWorkName,
+                            agreementNo: setAgreementNo,
+                            awardedDate: setAwardedDate,
+                            workingDays: setWorkingDays,
+                            tenderAmount: setTenderAmount,
+                            estimateCost: setEstimateCost,
+                            emdAmount: setEmdAmount,
+                            emdDate: setEmdDate,
+                            pgAmount: setPgAmount,
+                            pgDate: setPgDate,
+                            startAgreement: setStartAgreement,
+                            startActual: setStartActual,
+                            completionAgreement: setCompletionAgreement,
+                            completionActual: setCompletionActual,
+                          };
+                          return (
+                            <tr key={index} className="hover:bg-indigo-50/40">
+                              {index === 0 && (
+                                <>
+                                  <td className="border border-slate-400 p-0 text-center font-mono bg-slate-50" rowSpan={workPayments.length}>
+                                    {editingId ? "—" : ""}
+                                  </td>
+                                  {WORK_HEADER_FIELDS.map((field) => (
+                                    <td key={field.key} className="border border-slate-400 p-0" rowSpan={workPayments.length}>
+                                      {field.type === "date" ? (
+                                        <DateTextInput
+                                          value={headerValues[field.key] || ""}
+                                          onChange={headerSetters[field.key]}
+                                          className={SHEET_INPUT}
+                                        />
+                                      ) : (
+                                        <input
+                                          type={field.type}
+                                          value={headerValues[field.key] || ""}
+                                          onChange={(e) => headerSetters[field.key](e.target.value)}
+                                          className={SHEET_INPUT}
+                                        />
+                                      )}
+                                    </td>
+                                  ))}
+                                </>
+                              )}
                               {BILL_LINE_FIELDS.map((field) => (
-                                <td key={field.key} className="border border-slate-200 p-1">
+                                <td key={field.key} className="border border-slate-400 p-0">
                                   {field.type === "select" ? (
                                     <select
                                       value={String(line[field.key] ?? "")}
-                                      onChange={(e) =>
+                                      onChange={(e) => {
+                                        const value = e.target.value;
+                                        if (value === "Add") {
+                                          setWorkPayments((rows) => [...rows, emptyPayment(nextRaBillNo(rows))]);
+                                          return;
+                                        }
                                         setWorkPayments((rows) =>
-                                          rows.map((row, i) => (i === index ? { ...row, [field.key]: e.target.value } : row)),
-                                        )
-                                      }
-                                      className="w-full min-w-[88px] px-1.5 py-1 border border-slate-300 rounded text-[11px] focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white"
+                                          rows.map((row, i) => (i === index ? { ...row, [field.key]: value } : row)),
+                                        );
+                                      }}
+                                      className={`${SHEET_INPUT} bg-white`}
                                     >
                                       <option value="">Select</option>
-                                      {RA_BILL_NOS.map((no) => (
+                                      {raBillDropdownOptions(workPayments).map((no) => (
                                         <option key={no} value={no}>{no}</option>
                                       ))}
+                                      <option value="Add">Add</option>
                                     </select>
+                                  ) : field.type === "date" ? (
+                                    <DateTextInput
+                                      value={String(line[field.key] ?? "")}
+                                      onChange={(value) =>
+                                        setWorkPayments((rows) =>
+                                          rows.map((row, i) => (i === index ? { ...row, [field.key]: value } : row)),
+                                        )
+                                      }
+                                      className={SHEET_INPUT}
+                                    />
                                   ) : (
                                     <input
                                       type={field.type}
@@ -1736,14 +1997,25 @@ export default function CrmPage() {
                                           rows.map((row, i) => (i === index ? { ...row, [field.key]: e.target.value } : row)),
                                         )
                                       }
-                                      className="w-full min-w-[88px] px-1.5 py-1 border border-slate-300 rounded text-[11px] focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                      className={SHEET_INPUT}
                                     />
                                   )}
                                 </td>
                               ))}
-                              <td className="border border-slate-200 p-1 text-center">
+                              {index === 0 && (
+                                <>
+                                  <td className="border border-slate-400 p-0" rowSpan={workPayments.length}>
+                                    <input type="text" value={otherDetails} onChange={(e) => setOtherDetails(e.target.value)} className={SHEET_INPUT} />
+                                  </td>
+                                  <td className="border border-slate-400 p-0" rowSpan={workPayments.length}>
+                                    <input type="text" value={remarks} onChange={(e) => setRemarks(e.target.value)} className={SHEET_INPUT} />
+                                  </td>
+                                </>
+                              )}
+                              <td className="border border-slate-400 p-0 text-center">
                                 <button
                                   type="button"
+                                  tabIndex={-1}
                                   onClick={() =>
                                     setWorkPayments((rows) => (rows.length === 1 ? [emptyPayment()] : rows.filter((_, i) => i !== index)))
                                   }
@@ -1753,15 +2025,10 @@ export default function CrmPage() {
                                 </button>
                               </td>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <RegisterField label="Other" value={otherDetails} onChange={setOtherDetails} star />
-                    <RegisterField label="Remarks" value={remarks} onChange={setRemarks} star />
+                          );
+                        })}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
               )}
@@ -1775,53 +2042,53 @@ export default function CrmPage() {
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                    <RegisterField label="Reg Sl No" value={emdRegdSerialNo} onChange={setEmdRegdSerialNo} placeholder="e.g. 20" mono star />
-                    <RegisterField label="Department / Division" value={departmentName} onChange={setDepartmentName} placeholder="Department / Division" star />
-                    <RegisterField label="NIT No." value={tenderNo} onChange={setTenderNo} placeholder="Tender / NIT number" mono star />
-                    <RegisterField label="Favouring" value={favouring} onChange={setFavouring} placeholder="Favouring" star />
+                    <RegisterField label="Reg Sl No" value={emdRegdSerialNo} onChange={setEmdRegdSerialNo} placeholder="e.g. 20" mono />
+                    <RegisterField label="Department / Division" value={departmentName} onChange={setDepartmentName} placeholder="Department / Division" />
+                    <RegisterField label="NIT No." value={tenderNo} onChange={setTenderNo} placeholder="Tender / NIT number" mono />
+                    <RegisterField label="Favouring" value={favouring} onChange={setFavouring} placeholder="Favouring" />
                     <div className="md:col-span-4">
-                      <RegisterField label="Name of Work" value={workName} onChange={setWorkName} placeholder="Name of work" area star />
+                      <RegisterField label="Name of Work" value={workName} onChange={setWorkName} placeholder="Name of work" area />
                     </div>
-                    <RegisterField label="Estimate Cost" value={estimateCost} onChange={setEstimateCost} type="number" star />
-                    <RegisterField label="Tender Amount" value={tenderAmount} onChange={setTenderAmount} type="number" star />
+                    <RegisterField label="Estimate Cost" value={estimateCost} onChange={setEstimateCost} type="number" />
+                    <RegisterField label="Tender Amount" value={tenderAmount} onChange={setTenderAmount} type="number" />
                   </div>
 
                   <div className="rounded-xl border border-amber-200 bg-amber-50/40 p-3 space-y-3">
                     <div className="text-xs font-black text-amber-900">EMD issue Details</div>
                     <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
-                      <RegisterField label="FD No." value={emdFdNo} onChange={setEmdFdNo} placeholder="Fixed deposit number" mono star />
-                      <RegisterField label="DD No." value={emdInstrumentNo} onChange={setEmdInstrumentNo} placeholder="Demand draft number" mono star />
-                      <RegisterField label="Date" value={emdDate} onChange={setEmdDate} type="date" star />
-                      <RegisterField label="Amount" value={emdAmount} onChange={setEmdAmount} type="number" star />
-                      <RegisterField label="Bank Name" value={emdBankName} onChange={setEmdBankName} placeholder="Issuing bank" star />
+                      <RegisterField label="FD No." value={emdFdNo} onChange={setEmdFdNo} placeholder="Fixed deposit number" mono />
+                      <RegisterField label="DD No." value={emdInstrumentNo} onChange={setEmdInstrumentNo} placeholder="Demand draft number" mono />
+                      <RegisterField label="Date" value={emdDate} onChange={setEmdDate} type="date" />
+                      <RegisterField label="Amount" value={emdAmount} onChange={setEmdAmount} type="number" />
+                      <RegisterField label="Bank Name" value={emdBankName} onChange={setEmdBankName} placeholder="Issuing bank" />
                     </div>
                   </div>
 
                   <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-3">
                     <div className="text-xs font-black text-slate-800">EMD Maturity details (As per Agreement)</div>
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                      <RegisterField label="FD No." value={emdMaturityFdNo} onChange={setEmdMaturityFdNo} mono star />
-                      <RegisterField label="DD No." value={emdMaturityInstrumentNo} onChange={setEmdMaturityInstrumentNo} mono star />
-                      <RegisterField label="Date" value={emdMaturityDate} onChange={setEmdMaturityDate} type="date" star />
-                      <RegisterField label="Amount" value={emdMaturityAmount} onChange={setEmdMaturityAmount} type="number" star />
+                      <RegisterField label="FD No." value={emdMaturityFdNo} onChange={setEmdMaturityFdNo} mono />
+                      <RegisterField label="DD No." value={emdMaturityInstrumentNo} onChange={setEmdMaturityInstrumentNo} mono />
+                      <RegisterField label="Date" value={emdMaturityDate} onChange={setEmdMaturityDate} type="date" />
+                      <RegisterField label="Amount" value={emdMaturityAmount} onChange={setEmdMaturityAmount} type="number" />
                     </div>
                   </div>
 
                   <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-3">
                     <div className="text-xs font-black text-slate-800">EMD Release details (As per Actual)</div>
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                      <RegisterField label="FD No." value={emdReleaseFdNo} onChange={setEmdReleaseFdNo} mono star />
-                      <RegisterField label="DD No." value={emdRefundRef} onChange={setEmdRefundRef} placeholder="Release DD No." mono star />
-                      <RegisterField label="Date" value={emdRefundDate} onChange={setEmdRefundDate} type="date" star />
-                      <RegisterField label="Amount" value={emdReleaseAmount} onChange={setEmdReleaseAmount} type="number" star />
+                      <RegisterField label="FD No." value={emdReleaseFdNo} onChange={setEmdReleaseFdNo} mono />
+                      <RegisterField label="DD No." value={emdRefundRef} onChange={setEmdRefundRef} placeholder="Release DD No." mono />
+                      <RegisterField label="Date" value={emdRefundDate} onChange={setEmdRefundDate} type="date" />
+                      <RegisterField label="Amount" value={emdReleaseAmount} onChange={setEmdReleaseAmount} type="number" />
                     </div>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                    <RegisterField label="Make Agency" value={makeAgency} onChange={setMakeAgency} placeholder="e.g. N.K. Ent." star />
-                    <RegisterField label="Applicant Agency" value={applicantAgency} onChange={setApplicantAgency} star />
+                    <RegisterField label="Make Agency" value={makeAgency} onChange={setMakeAgency} placeholder="e.g. N.K. Ent." />
+                    <RegisterField label="Applicant Agency" value={applicantAgency} onChange={setApplicantAgency} />
                     <div className="md:col-span-2">
-                      <RegisterField label="Remark/Status" value={emdRemark} onChange={setEmdRemark} star />
+                      <RegisterField label="Remark/Status" value={emdRemark} onChange={setEmdRemark} />
                     </div>
                     <div>
                       <label className="text-xs font-bold text-slate-700 block mb-1">EMD Current Status</label>
@@ -1859,53 +2126,53 @@ export default function CrmPage() {
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                    <RegisterField label="Reg Sl No" value={pgRegdSerialNo} onChange={setPgRegdSerialNo} placeholder="e.g. 10" mono star />
-                    <RegisterField label="Department / Division" value={departmentName} onChange={setDepartmentName} star />
-                    <RegisterField label="NIT No." value={tenderNo} onChange={setTenderNo} mono star />
-                    <RegisterField label="Favouring" value={favouring} onChange={setFavouring} star />
+                    <RegisterField label="Reg Sl No" value={pgRegdSerialNo} onChange={setPgRegdSerialNo} placeholder="e.g. 10" mono />
+                    <RegisterField label="Department / Division" value={departmentName} onChange={setDepartmentName} />
+                    <RegisterField label="NIT No." value={tenderNo} onChange={setTenderNo} mono />
+                    <RegisterField label="Favouring" value={favouring} onChange={setFavouring} />
                     <div className="md:col-span-2">
-                      <RegisterField label="Name of Work" value={workName} onChange={setWorkName} area star />
+                      <RegisterField label="Name of Work" value={workName} onChange={setWorkName} area />
                     </div>
-                    <RegisterField label="Estimate Cost" value={estimateCost} onChange={setEstimateCost} type="number" star />
-                    <RegisterField label="Contract Amount" value={tenderAmount} onChange={setTenderAmount} type="number" star />
+                    <RegisterField label="Estimate Cost" value={estimateCost} onChange={setEstimateCost} type="number" />
+                    <RegisterField label="Contract Amount" value={tenderAmount} onChange={setTenderAmount} type="number" />
                   </div>
 
                   <div className="rounded-xl border border-purple-200 bg-purple-50/40 p-3 space-y-3">
                     <div className="text-xs font-black text-purple-900">P.G. Issue Details</div>
                     <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
-                      <RegisterField label="FD No." value={pgFdNo} onChange={setPgFdNo} mono star />
-                      <RegisterField label="BG No." value={pgBgNo} onChange={setPgBgNo} mono star />
-                      <RegisterField label="Date" value={pgDate} onChange={setPgDate} type="date" star />
-                      <RegisterField label="Amount" value={pgAmount} onChange={setPgAmount} type="number" star />
-                      <RegisterField label="Bank Name" value={pgBankName} onChange={setPgBankName} star />
+                      <RegisterField label="FD No." value={pgFdNo} onChange={setPgFdNo} mono />
+                      <RegisterField label="BG No." value={pgBgNo} onChange={setPgBgNo} mono />
+                      <RegisterField label="Date" value={pgDate} onChange={setPgDate} type="date" />
+                      <RegisterField label="Amount" value={pgAmount} onChange={setPgAmount} type="number" />
+                      <RegisterField label="Bank Name" value={pgBankName} onChange={setPgBankName} />
                     </div>
                   </div>
 
                   <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-3">
                     <div className="text-xs font-black text-slate-800">P.G. Maturity details (As per Agreement)</div>
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                      <RegisterField label="FD No." value={pgMaturityFdNo} onChange={setPgMaturityFdNo} mono star />
-                      <RegisterField label="BG No." value={pgMaturityBgNo} onChange={setPgMaturityBgNo} mono star />
-                      <RegisterField label="Date" value={pgExpiryDate} onChange={setPgExpiryDate} type="date" star />
-                      <RegisterField label="Amount" value={pgMaturityAmount} onChange={setPgMaturityAmount} type="number" star />
+                      <RegisterField label="FD No." value={pgMaturityFdNo} onChange={setPgMaturityFdNo} mono />
+                      <RegisterField label="BG No." value={pgMaturityBgNo} onChange={setPgMaturityBgNo} mono />
+                      <RegisterField label="Date" value={pgExpiryDate} onChange={setPgExpiryDate} type="date" />
+                      <RegisterField label="Amount" value={pgMaturityAmount} onChange={setPgMaturityAmount} type="number" />
                     </div>
                   </div>
 
                   <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-3">
                     <div className="text-xs font-black text-slate-800">P.G. Release details (As per Actual)</div>
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                      <RegisterField label="FD No." value={pgReleaseFdNo} onChange={setPgReleaseFdNo} mono star />
-                      <RegisterField label="BG No." value={pgReleaseBgNo} onChange={setPgReleaseBgNo} mono star />
-                      <RegisterField label="Date" value={pgReleaseDate} onChange={setPgReleaseDate} type="date" star />
-                      <RegisterField label="Amount" value={pgReleaseAmount} onChange={setPgReleaseAmount} type="number" star />
+                      <RegisterField label="FD No." value={pgReleaseFdNo} onChange={setPgReleaseFdNo} mono />
+                      <RegisterField label="BG No." value={pgReleaseBgNo} onChange={setPgReleaseBgNo} mono />
+                      <RegisterField label="Date" value={pgReleaseDate} onChange={setPgReleaseDate} type="date" />
+                      <RegisterField label="Amount" value={pgReleaseAmount} onChange={setPgReleaseAmount} type="number" />
                     </div>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                    <RegisterField label="Make Agency" value={makeAgency} onChange={setMakeAgency} placeholder="e.g. N.K. Ent." star />
-                    <RegisterField label="Applicant Agency" value={applicantAgency} onChange={setApplicantAgency} star />
+                    <RegisterField label="Make Agency" value={makeAgency} onChange={setMakeAgency} placeholder="e.g. N.K. Ent." />
+                    <RegisterField label="Applicant Agency" value={applicantAgency} onChange={setApplicantAgency} />
                     <div className="md:col-span-2">
-                      <RegisterField label="Remark/Status" value={pgRemark} onChange={setPgRemark} star />
+                      <RegisterField label="Remark/Status" value={pgRemark} onChange={setPgRemark} />
                     </div>
                     <div>
                       <label className="text-xs font-bold text-slate-700 block mb-1">PG Current Status</label>
@@ -1934,7 +2201,7 @@ export default function CrmPage() {
               {/* Modal Footer Controls */}
               <div className="flex items-center justify-between pt-4 border-t border-slate-200">
                 <div className="flex items-center gap-1.5">
-                  {modalSection !== "GENERAL" && (
+                  {modalSection !== "PRE" && (
                     <button
                       type="button"
                       onClick={() => {

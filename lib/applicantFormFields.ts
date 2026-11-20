@@ -48,7 +48,10 @@ export const DEFAULT_COUNTRY = "India";
 export function formatDateDmy(value: unknown, empty = "—") {
   if (value == null || value === "") return empty;
   const raw = String(value).trim();
-  if (/^\d{2}\/\d{2}\/\d{4}$/.test(raw)) return raw;
+  if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(raw)) {
+    const [d, m, y] = raw.split("/");
+    return `${d.padStart(2, "0")}/${m.padStart(2, "0")}/${y}`;
+  }
   if (/^\d{4}-\d{2}-\d{2}$/.test(raw) || /^\d{4}-\d{2}-\d{2}T00:00:00/.test(raw)) {
     const [y, m, d] = raw.slice(0, 10).split("-");
     return `${d}/${m}/${y}`;
@@ -56,6 +59,31 @@ export function formatDateDmy(value: unknown, empty = "—") {
   const d = value instanceof Date ? value : new Date(raw);
   if (Number.isNaN(d.getTime())) return empty;
   return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
+}
+
+export function maskDmyInput(raw: string) {
+  const digits = String(raw || "").replace(/\D/g, "").slice(0, 8);
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+}
+
+export function dmyToIso(value: unknown): string | null {
+  const raw = String(value ?? "").trim();
+  if (!raw) return null;
+  if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10);
+  const match = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (match) {
+    return `${match[3]}-${match[2].padStart(2, "0")}-${match[1].padStart(2, "0")}`;
+  }
+  return null;
+}
+
+export function parseDateValue(value: unknown): Date | null {
+  const iso = dmyToIso(value);
+  if (!iso) return null;
+  const d = new Date(`${iso}T00:00:00`);
+  return Number.isNaN(d.getTime()) ? null : d;
 }
 
 export const FILE_DATA_KEYS = [

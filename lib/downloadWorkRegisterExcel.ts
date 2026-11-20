@@ -27,6 +27,29 @@ export const RA_BILL_NOS = [
   "12th",
 ] as const;
 
+export function raBillOrdinal(n: number) {
+  const mod100 = n % 100;
+  const mod10 = n % 10;
+  if (mod100 >= 11 && mod100 <= 13) return `${n}th`;
+  if (mod10 === 1) return `${n}st`;
+  if (mod10 === 2) return `${n}nd`;
+  if (mod10 === 3) return `${n}rd`;
+  return `${n}th`;
+}
+
+export function raBillNumber(label: unknown) {
+  const n = Number(String(label || "").replace(/\D/g, ""));
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+export function raBillDropdownOptions(lines: WorkPaymentLine[]) {
+  const extras = lines.map((line) => raBillNumber(line.raBillNo)).filter((n) => n > 12);
+  const maxExtra = extras.length ? Math.max(...extras) : 12;
+  const options: string[] = [...RA_BILL_NOS];
+  for (let n = 13; n <= maxExtra; n++) options.push(raBillOrdinal(n));
+  return options;
+}
+
 export type WorkPaymentLine = {
   raBillNo?: string;
   mbNo?: string;
@@ -144,12 +167,16 @@ export function workPaymentLines(row: any): WorkPaymentLine[] {
 }
 
 export function paymentLineHasValue(line: WorkPaymentLine) {
-  return Object.values(line).some((value) => value != null && String(value).trim() !== "");
+  return Object.entries(line).some(([key, value]) => {
+    if (key === "raBillNo" || key === "partOfPayment") return false;
+    return value != null && String(value).trim() !== "";
+  });
 }
 
 export function nextRaBillNo(lines: WorkPaymentLine[]) {
-  const used = new Set(lines.map((line) => line.raBillNo));
-  return RA_BILL_NOS.find((no) => !used.has(no)) || "";
+  const extras = lines.map((line) => raBillNumber(line.raBillNo)).filter((n) => n >= 13);
+  const next = extras.length ? Math.max(...extras) + 1 : 13;
+  return raBillOrdinal(next);
 }
 
 export async function downloadWorkRegisterExcel({

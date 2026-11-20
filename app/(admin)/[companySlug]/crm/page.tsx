@@ -6,23 +6,122 @@ import { loadCrmBook } from "../actions";
 import { friendlyPublicError, readApiJson } from "@/lib/publicErrors";
 import { formatDateDmy } from "@/lib/applicantFormFields";
 import {
+  downloadEmdRegisterExcel,
+  emdIssueDdNo as emdDdOf,
+  emdIssueFdNo as emdFdOf,
+  emdMaturityDdNo as emdMatDdOf,
+  emdMaturityFdNo as emdMatFdOf,
+  emdReleaseDdNo as emdRelDdOf,
+  emdReleaseFdNo as emdRelFdOf,
+} from "@/lib/downloadEmdRegisterExcel";
+import {
+  downloadPgRegisterExcel,
+  pgIssueBgNo as issueBgNoOf,
+  pgIssueFdNo as issueFdNoOf,
+  pgMaturityBgNo as maturityBgNoOf,
+  pgMaturityFdNo as maturityFdNoOf,
+  pgReleaseBgNo as releaseBgNoOf,
+  pgReleaseFdNo as releaseFdNoOf,
+} from "@/lib/downloadPgRegisterExcel";
+import {
+  downloadWorkRegisterExcel,
+  emptyWorkPayment,
+  nextRaBillNo,
+  paymentLineHasValue,
+  RA_BILL_NOS,
+  workPaymentLines,
+  type WorkPaymentLine,
+} from "@/lib/downloadWorkRegisterExcel";
+import {
   FileSpreadsheet,
   Landmark,
   Shield,
   ClipboardList,
-  CalendarRange,
-  BarChart3,
   Search,
   X,
   Printer,
   Pencil,
-  Trash2,
 } from "lucide-react";
 
 function workKindLabel(type?: string | null) {
   if (type === "B") return "B · Building / electrical work";
   if (type === "C") return "C · Office / service";
   return "A · Supply people";
+}
+
+function moneyCell(value: unknown) {
+  if (value == null || value === "") return "—";
+  const n = Number(value);
+  if (Number.isNaN(n)) return "—";
+  return n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function emptyPayment(raBillNo = ""): WorkPaymentLine {
+  return emptyWorkPayment(raBillNo);
+}
+
+const BILL_LINE_FIELDS: Array<{ key: keyof WorkPaymentLine; label: string; type: "text" | "number" | "date" | "select" }> = [
+  { key: "raBillNo", label: "R.A. Bill No.", type: "select" },
+  { key: "mbNo", label: "M.B. No.", type: "text" },
+  { key: "billNumber", label: "Bill No.", type: "text" },
+  { key: "billDate", label: "Bill Date", type: "date" },
+  { key: "grossAmount", label: "Gross / Bill Amount", type: "number" },
+  { key: "taxableAmount", label: "Taxable Amount (Without GST)", type: "number" },
+  { key: "gstAmountOfBill", label: "Total GST Amount of Bill", type: "number" },
+  { key: "sdAmount", label: "Security Deposit (S.D.)", type: "number" },
+  { key: "itAmount", label: "Income Tax @ 1% or 2% (TDS IT)", type: "number" },
+  { key: "gstAmount", label: "GST @2% (TDS GST)", type: "number" },
+  { key: "labourCess", label: "Labour welfare Cess", type: "number" },
+  { key: "eduCess", label: "Edu. Cess", type: "number" },
+  { key: "waterCharge", label: "Water Charge", type: "number" },
+  { key: "withheldAmount", label: "Withheld Amount", type: "number" },
+  { key: "withheldReason", label: "withheld reason", type: "text" },
+  { key: "netAmount", label: "Net Amount", type: "number" },
+  { key: "voucherNo", label: "Voucher No.", type: "text" },
+  { key: "voucherDate", label: "Date", type: "date" },
+  { key: "epfo", label: "EPFO", type: "number" },
+  { key: "esic", label: "ESIC", type: "number" },
+  { key: "reimburseAmount", label: "Amount", type: "number" },
+  { key: "dateOfPayment", label: "Date of payment", type: "date" },
+  { key: "bankReceivedDate", label: "Bank Recived Date", type: "date" },
+];
+
+type ModalSection = "GENERAL" | "EMD" | "PG";
+const REGISTER_STEPS: ModalSection[] = ["GENERAL", "EMD", "PG"];
+
+function RegisterField({
+  label,
+  value,
+  onChange,
+  type = "text",
+  placeholder,
+  mono,
+  area,
+  star,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  type?: string;
+  placeholder?: string;
+  mono?: boolean;
+  area?: boolean;
+  star?: boolean;
+}) {
+  const cls = `w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-white ${mono ? "font-mono" : ""}`;
+  return (
+    <div>
+      <label className="text-xs font-bold text-slate-700 block mb-1">
+        {label}
+        {star ? <span className="text-red-600"> *</span> : null}
+      </label>
+      {area ? (
+        <textarea rows={2} value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} className={cls} />
+      ) : (
+        <input type={type} value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} className={cls} />
+      )}
+    </div>
+  );
 }
 
 type Contract = {
@@ -43,11 +142,28 @@ type Contract = {
   emdPercent: number | null;
   emdMode: string | null;
   emdInstrumentNo: string | null;
+  emdFdNo: string | null;
   emdDate: string | null;
   emdBankName: string | null;
   emdStatus: string | null;
   emdRefundDate: string | null;
   emdRefundRef: string | null;
+  emdRegdSerialNo: string | null;
+  favouring: string | null;
+  emdMaturityDate: string | null;
+  emdMaturityInstrumentNo: string | null;
+  emdMaturityFdNo: string | null;
+  emdMaturityAmount: number | null;
+  emdReleaseFdNo: string | null;
+  emdReleaseAmount: number | null;
+  emdEstimateDetails: string | null;
+  agencyName: string | null;
+  applicantAccount: string | null;
+  makeAgency: string | null;
+  applicantAgency: string | null;
+  emdRemark: string | null;
+  pgRemark: string | null;
+  pgTenderDetails: string | null;
 
   // PG
   pgAmount: number | null;
@@ -61,6 +177,22 @@ type Contract = {
   pgStatus: string | null;
   pgReleaseDate: string | null;
   pgReleaseRef: string | null;
+  pgRegdSerialNo: string | null;
+  pgMaturityInstrumentNo: string | null;
+  pgMaturityAmount: number | null;
+  pgReleaseAmount: number | null;
+  pgFdNo: string | null;
+  pgBgNo: string | null;
+  pgMaturityFdNo: string | null;
+  pgMaturityBgNo: string | null;
+  pgReleaseFdNo: string | null;
+  pgReleaseBgNo: string | null;
+  regRef: string | null;
+  workingDays: string | null;
+  awardedDate: string | null;
+  pgLetterStatus: string | null;
+  workOrderStatus: string | null;
+  workPayments: WorkPaymentLine[] | null;
 
   // Execution & Dates
   measurementBookNo: string | null;
@@ -90,6 +222,7 @@ type Contract = {
   voucherNumber: string | null;
   bankReceivedDate: string | null;
   reimburseDate: string | null;
+  otherDetails: string | null;
   remarks: string | null;
 
   _count?: { invoices: number; purchases: number };
@@ -119,7 +252,7 @@ export default function CrmPage() {
   // Create / Edit Modal
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [modalSection, setModalSection] = useState<"GENERAL" | "EMD" | "PG" | "EXECUTION" | "BILLING" | "PAYMENT">("GENERAL");
+  const [modalSection, setModalSection] = useState<ModalSection>("GENERAL");
   const [saving, setSaving] = useState(false);
 
   // Form States
@@ -139,11 +272,28 @@ export default function CrmPage() {
   const [emdPercent, setEmdPercent] = useState("");
   const [emdMode, setEmdMode] = useState("DEMAND_DRAFT");
   const [emdInstrumentNo, setEmdInstrumentNo] = useState("");
+  const [emdFdNo, setEmdFdNo] = useState("");
   const [emdDate, setEmdDate] = useState("");
   const [emdBankName, setEmdBankName] = useState("");
   const [emdStatus, setEmdStatus] = useState("SUBMITTED");
   const [emdRefundDate, setEmdRefundDate] = useState("");
   const [emdRefundRef, setEmdRefundRef] = useState("");
+  const [emdRegdSerialNo, setEmdRegdSerialNo] = useState("");
+  const [favouring, setFavouring] = useState("");
+  const [emdMaturityDate, setEmdMaturityDate] = useState("");
+  const [emdMaturityInstrumentNo, setEmdMaturityInstrumentNo] = useState("");
+  const [emdMaturityFdNo, setEmdMaturityFdNo] = useState("");
+  const [emdMaturityAmount, setEmdMaturityAmount] = useState("");
+  const [emdReleaseFdNo, setEmdReleaseFdNo] = useState("");
+  const [emdReleaseAmount, setEmdReleaseAmount] = useState("");
+  const [emdEstimateDetails, setEmdEstimateDetails] = useState("");
+  const [agencyName, setAgencyName] = useState("");
+  const [applicantAccount, setApplicantAccount] = useState("");
+  const [makeAgency, setMakeAgency] = useState("");
+  const [applicantAgency, setApplicantAgency] = useState("");
+  const [emdRemark, setEmdRemark] = useState("");
+  const [pgRemark, setPgRemark] = useState("");
+  const [pgTenderDetails, setPgTenderDetails] = useState("");
 
   // PG Fields
   const [pgAmount, setPgAmount] = useState("");
@@ -157,6 +307,22 @@ export default function CrmPage() {
   const [pgStatus, setPgStatus] = useState("SUBMITTED");
   const [pgReleaseDate, setPgReleaseDate] = useState("");
   const [pgReleaseRef, setPgReleaseRef] = useState("");
+  const [pgRegdSerialNo, setPgRegdSerialNo] = useState("");
+  const [pgMaturityInstrumentNo, setPgMaturityInstrumentNo] = useState("");
+  const [pgMaturityAmount, setPgMaturityAmount] = useState("");
+  const [pgReleaseAmount, setPgReleaseAmount] = useState("");
+  const [pgFdNo, setPgFdNo] = useState("");
+  const [pgBgNo, setPgBgNo] = useState("");
+  const [pgMaturityFdNo, setPgMaturityFdNo] = useState("");
+  const [pgMaturityBgNo, setPgMaturityBgNo] = useState("");
+  const [pgReleaseFdNo, setPgReleaseFdNo] = useState("");
+  const [pgReleaseBgNo, setPgReleaseBgNo] = useState("");
+  const [regRef, setRegRef] = useState("");
+  const [workingDays, setWorkingDays] = useState("");
+  const [awardedDate, setAwardedDate] = useState("");
+  const [pgLetterStatus, setPgLetterStatus] = useState("");
+  const [workOrderStatus, setWorkOrderStatus] = useState("");
+  const [workPayments, setWorkPayments] = useState<WorkPaymentLine[]>([emptyPayment()]);
 
   // Execution & Dates
   const [measurementBookNo, setMeasurementBookNo] = useState("");
@@ -185,6 +351,7 @@ export default function CrmPage() {
   const [voucherNumber, setVoucherNumber] = useState("");
   const [bankReceivedDate, setBankReceivedDate] = useState("");
   const [reimburseDate, setReimburseDate] = useState("");
+  const [otherDetails, setOtherDetails] = useState("");
   const [remarks, setRemarks] = useState("");
 
   function loadCrmData() {
@@ -277,11 +444,28 @@ export default function CrmPage() {
     setEmdPercent("2");
     setEmdMode("DEMAND_DRAFT");
     setEmdInstrumentNo("");
+    setEmdFdNo("");
     setEmdDate("");
     setEmdBankName("");
     setEmdStatus("SUBMITTED");
     setEmdRefundDate("");
     setEmdRefundRef("");
+    setEmdRegdSerialNo("");
+    setFavouring("");
+    setEmdMaturityDate("");
+    setEmdMaturityInstrumentNo("");
+    setEmdMaturityFdNo("");
+    setEmdMaturityAmount("");
+    setEmdReleaseFdNo("");
+    setEmdReleaseAmount("");
+    setEmdEstimateDetails("");
+    setAgencyName("");
+    setApplicantAccount("");
+    setMakeAgency("");
+    setApplicantAgency("");
+    setEmdRemark("");
+    setPgRemark("");
+    setPgTenderDetails("");
 
     setPgAmount("");
     setPgPercent("5");
@@ -294,6 +478,22 @@ export default function CrmPage() {
     setPgStatus("SUBMITTED");
     setPgReleaseDate("");
     setPgReleaseRef("");
+    setPgRegdSerialNo("");
+    setPgMaturityInstrumentNo("");
+    setPgMaturityAmount("");
+    setPgReleaseAmount("");
+    setPgFdNo("");
+    setPgBgNo("");
+    setPgMaturityFdNo("");
+    setPgMaturityBgNo("");
+    setPgReleaseFdNo("");
+    setPgReleaseBgNo("");
+    setRegRef("");
+    setWorkingDays("");
+    setAwardedDate("");
+    setPgLetterStatus("");
+    setWorkOrderStatus("");
+    setWorkPayments([emptyPayment()]);
 
     setMeasurementBookNo("");
     setLccNo("");
@@ -319,6 +519,7 @@ export default function CrmPage() {
     setVoucherNumber("");
     setBankReceivedDate("");
     setReimburseDate("");
+    setOtherDetails("");
     setRemarks("");
 
     setShowModal(true);
@@ -339,7 +540,7 @@ export default function CrmPage() {
 
   function openEditModal(c: Contract) {
     setEditingId(c.id);
-    setModalSection("GENERAL");
+    setModalSection(activeTab === "EMD_REGISTER" ? "EMD" : activeTab === "PG_REGISTER" ? "PG" : "GENERAL");
 
     setClientName(c.clientName || "");
     setDepartmentName(c.departmentName || "");
@@ -356,11 +557,28 @@ export default function CrmPage() {
     setEmdPercent(c.emdPercent ? c.emdPercent.toString() : "");
     setEmdMode(c.emdMode || "DEMAND_DRAFT");
     setEmdInstrumentNo(c.emdInstrumentNo || "");
+    setEmdFdNo(c.emdFdNo || "");
     setEmdDate(formatDateInput(c.emdDate));
     setEmdBankName(c.emdBankName || "");
     setEmdStatus(c.emdStatus || "SUBMITTED");
     setEmdRefundDate(formatDateInput(c.emdRefundDate));
     setEmdRefundRef(c.emdRefundRef || "");
+    setEmdRegdSerialNo(c.emdRegdSerialNo || "");
+    setFavouring(c.favouring || "");
+    setEmdMaturityDate(formatDateInput(c.emdMaturityDate));
+    setEmdMaturityInstrumentNo(c.emdMaturityInstrumentNo || "");
+    setEmdMaturityFdNo(c.emdMaturityFdNo || "");
+    setEmdMaturityAmount(c.emdMaturityAmount != null ? String(c.emdMaturityAmount) : "");
+    setEmdReleaseFdNo(c.emdReleaseFdNo || "");
+    setEmdReleaseAmount(c.emdReleaseAmount != null ? String(c.emdReleaseAmount) : "");
+    setEmdEstimateDetails(c.emdEstimateDetails || "");
+    setAgencyName(c.agencyName || "");
+    setApplicantAccount(c.applicantAccount || "");
+    setMakeAgency(c.makeAgency || c.agencyName || "");
+    setApplicantAgency(c.applicantAgency || c.applicantAccount || "");
+    setEmdRemark(c.emdRemark || "");
+    setPgRemark(c.pgRemark || "");
+    setPgTenderDetails(c.pgTenderDetails || "");
 
     setPgAmount(c.pgAmount ? c.pgAmount.toString() : "");
     setPgPercent(c.pgPercent ? c.pgPercent.toString() : "");
@@ -373,6 +591,31 @@ export default function CrmPage() {
     setPgStatus(c.pgStatus || "SUBMITTED");
     setPgReleaseDate(formatDateInput(c.pgReleaseDate));
     setPgReleaseRef(c.pgReleaseRef || "");
+    setPgRegdSerialNo(c.pgRegdSerialNo || "");
+    setPgMaturityInstrumentNo(c.pgMaturityInstrumentNo || "");
+    setPgMaturityAmount(c.pgMaturityAmount != null ? String(c.pgMaturityAmount) : "");
+    setPgReleaseAmount(c.pgReleaseAmount != null ? String(c.pgReleaseAmount) : "");
+    setPgFdNo(issueFdNoOf(c));
+    setPgBgNo(issueBgNoOf(c));
+    setPgMaturityFdNo(maturityFdNoOf(c));
+    setPgMaturityBgNo(maturityBgNoOf(c));
+    setPgReleaseFdNo(releaseFdNoOf(c));
+    setPgReleaseBgNo(releaseBgNoOf(c));
+    setRegRef(c.regRef || "");
+    setWorkingDays(c.workingDays || "");
+    setAwardedDate(formatDateInput(c.awardedDate));
+    setPgLetterStatus(c.pgLetterStatus || "");
+    setWorkOrderStatus(c.workOrderStatus || "");
+    setWorkPayments(
+      workPaymentLines(c).map((line) => ({
+        ...emptyPayment(line.raBillNo || "1st"),
+        ...line,
+        billDate: formatDateInput(line.billDate as string | null | undefined),
+        voucherDate: formatDateInput(line.voucherDate as string | null | undefined),
+        dateOfPayment: formatDateInput(line.dateOfPayment as string | null | undefined),
+        bankReceivedDate: formatDateInput(line.bankReceivedDate as string | null | undefined),
+      })),
+    );
 
     setMeasurementBookNo(c.measurementBookNo || "");
     setLccNo(c.lccNo || "");
@@ -398,6 +641,7 @@ export default function CrmPage() {
     setVoucherNumber(c.voucherNumber || "");
     setBankReceivedDate(formatDateInput(c.bankReceivedDate));
     setReimburseDate(formatDateInput(c.reimburseDate));
+    setOtherDetails(c.otherDetails || "");
     setRemarks(c.remarks || "");
 
     setShowModal(true);
@@ -456,27 +700,60 @@ export default function CrmPage() {
         emdPercent: emdPercent || null,
         emdMode,
         emdInstrumentNo,
+        emdFdNo,
         emdDate: emdDate || null,
         emdBankName,
         emdStatus,
         emdRefundDate: emdRefundDate || null,
         emdRefundRef,
+        emdRegdSerialNo,
+        favouring,
+        emdMaturityDate: emdMaturityDate || null,
+        emdMaturityInstrumentNo,
+        emdMaturityFdNo,
+        emdMaturityAmount: emdMaturityAmount || null,
+        emdReleaseFdNo,
+        emdReleaseAmount: emdReleaseAmount || null,
+        emdEstimateDetails,
+        agencyName,
+        applicantAccount,
+        makeAgency,
+        applicantAgency,
+        emdRemark,
+        pgRemark,
+        pgTenderDetails,
 
         // PG
         pgAmount: pgAmount || null,
         pgPercent: pgPercent || null,
         pgMode,
-        pgInstrumentNo,
+        pgInstrumentNo: pgBgNo || pgFdNo || pgInstrumentNo,
+        pgFdNo,
+        pgBgNo,
         pgBankName,
         pgDate: pgDate || null,
         pgExpiryDate: pgExpiryDate || null,
         pgClaimDate: pgClaimDate || null,
         pgStatus,
         pgReleaseDate: pgReleaseDate || null,
-        pgReleaseRef,
+        pgReleaseRef: pgReleaseBgNo || pgReleaseFdNo || pgReleaseRef,
+        pgRegdSerialNo,
+        pgMaturityInstrumentNo: pgMaturityBgNo || pgMaturityFdNo || pgMaturityInstrumentNo,
+        pgMaturityAmount: pgMaturityAmount || null,
+        pgReleaseAmount: pgReleaseAmount || null,
+        pgMaturityFdNo,
+        pgMaturityBgNo,
+        pgReleaseFdNo,
+        pgReleaseBgNo,
+        regRef,
+        workingDays,
+        awardedDate: awardedDate || null,
+        pgLetterStatus,
+        workOrderStatus,
+        workPayments: workPayments.filter(paymentLineHasValue),
 
         // Execution & Dates
-        measurementBookNo,
+        measurementBookNo: workPayments.filter((line) => line.mbNo).at(-1)?.mbNo || measurementBookNo,
         lccNo,
         startAgreement: startAgreement || null,
         startActual: startActual || null,
@@ -484,24 +761,30 @@ export default function CrmPage() {
         completionActual: completionActual || null,
 
         // Billing Breakdown
-        billNumber,
-        billDate: billDate || null,
-        grossAmount: grossAmount || null,
-        securityDeposit: securityDeposit || null,
-        incomeTaxTds: incomeTaxTds || null,
-        gstRecovery: gstRecovery || null,
-        labourCess: labourCess || null,
-        waterCharge: waterCharge || null,
-        esiPfDeduction: esiPfDeduction || null,
-        withheldAmount: withheldAmount || null,
+        billNumber: workPayments.filter((line) => line.billNumber || line.raBillNo).at(-1)?.billNumber
+          || workPayments.filter((line) => line.raBillNo).at(-1)?.raBillNo
+          || billNumber,
+        billDate: workPayments.filter((line) => line.billDate).at(-1)?.billDate || billDate || null,
+        grossAmount: workPayments.filter((line) => line.grossAmount).at(-1)?.grossAmount || grossAmount || null,
+        securityDeposit: workPayments.filter((line) => line.sdAmount).at(-1)?.sdAmount || securityDeposit || null,
+        incomeTaxTds: workPayments.filter((line) => line.itAmount).at(-1)?.itAmount || incomeTaxTds || null,
+        gstRecovery: workPayments.filter((line) => line.gstAmount).at(-1)?.gstAmount || gstRecovery || null,
+        labourCess: workPayments.filter((line) => line.labourCess).at(-1)?.labourCess || labourCess || null,
+        waterCharge: workPayments.filter((line) => line.waterCharge).at(-1)?.waterCharge || waterCharge || null,
+        esiPfDeduction: workPayments.filter((line) => line.epfo || line.esic).at(-1)
+          ? Number(workPayments.filter((line) => line.epfo || line.esic).at(-1)?.epfo || 0)
+            + Number(workPayments.filter((line) => line.epfo || line.esic).at(-1)?.esic || 0)
+          : esiPfDeduction || null,
+        withheldAmount: workPayments.filter((line) => line.withheldAmount).at(-1)?.withheldAmount || withheldAmount || null,
         otherRecovery: otherRecovery || null,
         totalDeductions: totalDeductions || null,
-        netAmount: netAmount || null,
+        netAmount: workPayments.filter((line) => line.netAmount).at(-1)?.netAmount || netAmount || null,
 
         // Payment & Vouchers
-        voucherNumber,
-        bankReceivedDate: bankReceivedDate || null,
-        reimburseDate: reimburseDate || null,
+        voucherNumber: workPayments.filter((line) => line.voucherNo).at(-1)?.voucherNo || voucherNumber,
+        bankReceivedDate: workPayments.filter((line) => line.bankReceivedDate).at(-1)?.bankReceivedDate || bankReceivedDate || null,
+        reimburseDate: workPayments.filter((line) => line.dateOfPayment).at(-1)?.dateOfPayment || reimburseDate || null,
+        otherDetails,
         remarks,
       };
 
@@ -553,7 +836,12 @@ export default function CrmPage() {
         c.workName?.toLowerCase().includes(q) ||
         c.tenderNo?.toLowerCase().includes(q) ||
         c.emdInstrumentNo?.toLowerCase().includes(q) ||
-        c.pgInstrumentNo?.toLowerCase().includes(q);
+        c.emdFdNo?.toLowerCase().includes(q) ||
+        c.favouring?.toLowerCase().includes(q) ||
+        c.emdRegdSerialNo?.toLowerCase().includes(q) ||
+        c.pgInstrumentNo?.toLowerCase().includes(q) ||
+        c.regRef?.toLowerCase().includes(q) ||
+        c.pgRegdSerialNo?.toLowerCase().includes(q);
 
       // Status
       const matchStatus = statusFilter === "ALL" || c.workStatus === statusFilter;
@@ -564,6 +852,30 @@ export default function CrmPage() {
       return matchSearch && matchStatus && matchType;
     });
   }, [contracts, searchQuery, statusFilter, typeFilter]);
+
+  const emdRows = useMemo(() => {
+    return filteredContracts
+      .filter((c) => c.emdAmount || c.tenderNo || c.emdInstrumentNo || c.emdFdNo)
+      .slice()
+      .sort((a, b) =>
+        String(a.emdDate || a.createdAt || "").localeCompare(String(b.emdDate || b.createdAt || "")),
+      );
+  }, [filteredContracts]);
+
+  const pgRows = useMemo(() => {
+    return filteredContracts
+      .filter((c) => c.pgAmount || c.pgInstrumentNo || c.pgFdNo || c.pgBgNo || c.pgMode)
+      .slice()
+      .sort((a, b) =>
+        String(a.pgDate || a.createdAt || "").localeCompare(String(b.pgDate || b.createdAt || "")),
+      );
+  }, [filteredContracts]);
+
+  const workRows = useMemo(() => {
+    return filteredContracts.slice().sort((a, b) =>
+      String(a.awardedDate || a.createdAt || "").localeCompare(String(b.awardedDate || b.createdAt || "")),
+    );
+  }, [filteredContracts]);
 
   // Totals for KPIs
   const totalTenderValue = contracts.reduce((acc, c) => acc + Number(c.tenderAmount || 0), 0);
@@ -862,150 +1174,164 @@ export default function CrmPage() {
           {/* TAB 1: FULL WORK REGISTER TABLE */}
           {activeTab === "WORK_REGISTER" && (
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-              <div className="px-5 py-3.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+              <div className="px-5 py-3.5 bg-slate-50 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div>
-                  <h3 className="text-xs font-black uppercase tracking-wider text-slate-700">
-                    Government Work Register & Billing Ledger
+                  <h3 className="text-sm font-black text-center sm:text-left text-slate-900">
+                    Work Register ( {company?.legalName || company?.shortName || "M/s N.K. Enterprise"} )
                   </h3>
                   <p className="text-[11px] text-slate-500">
-                    Official CPWD / Public Works multi-column register with Gross, Deductions (SD, TDS, GST, Cess), and Net realization.
+                    Same 42 columns as the office Work Register, with R.A. bills 1st to 12th under each work.
                   </p>
                 </div>
-                <div className="text-[11px] font-bold text-slate-500">
-                  Showing {filteredContracts.length} records
-                </div>
+                <button
+                  type="button"
+                  onClick={() =>
+                    downloadWorkRegisterExcel({
+                      companyName: company?.legalName || company?.shortName || "M/s N.K. Enterprise",
+                      rows: workRows,
+                    })
+                  }
+                  className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white text-[11px] font-bold rounded-lg"
+                >
+                  Download Excel
+                </button>
               </div>
 
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs text-slate-600">
-                  <thead className="bg-slate-100/75 text-slate-700 font-bold border-b border-slate-200 text-[11px] uppercase tracking-wider">
+                <table className="min-w-[3200px] w-full text-left text-[10px] text-slate-800 border-collapse">
+                  <thead className="bg-slate-100 text-slate-800 font-bold">
                     <tr>
-                      <th className="p-3.5 whitespace-nowrap">Agreement / Tender No</th>
-                      <th className="p-3.5">Client & Work Details</th>
-                      <th className="p-3.5 text-center">Kind of work</th>
-                      <th className="p-3.5 text-right whitespace-nowrap">Tender Value (₹)</th>
-                      <th className="p-3.5 text-center">EMD / PG Status</th>
-                      <th className="p-3.5 text-right whitespace-nowrap">Gross Billed (₹)</th>
-                      <th className="p-3.5 text-right whitespace-nowrap">Deductions (₹)</th>
-                      <th className="p-3.5 text-right whitespace-nowrap">Net Realized (₹)</th>
-                      <th className="p-3.5 text-center">Work Status</th>
-                      <th className="p-3.5 text-center whitespace-nowrap">Actions</th>
+                      <th rowSpan={2} className="border border-slate-300 p-1 text-center align-middle whitespace-nowrap">Sl. No.</th>
+                      <th rowSpan={2} className="border border-slate-300 p-1 text-center align-middle whitespace-nowrap">Reg. Ref.</th>
+                      <th rowSpan={2} className="border border-slate-300 p-1 text-center align-middle">Department/ Division</th>
+                      <th rowSpan={2} className="border border-slate-300 p-1 text-center align-middle min-w-[160px]">Name of work</th>
+                      <th rowSpan={2} className="border border-slate-300 p-1 text-center align-middle">Agmt./W.O. No.</th>
+                      <th rowSpan={2} className="border border-slate-300 p-1 text-center align-middle whitespace-nowrap">Awarded Date</th>
+                      <th rowSpan={2} className="border border-slate-300 p-1 text-center align-middle">Working Period</th>
+                      <th rowSpan={2} className="border border-slate-300 p-1 text-center align-middle whitespace-nowrap">Tender Amount</th>
+                      <th rowSpan={2} className="border border-slate-300 p-1 text-center align-middle whitespace-nowrap">Estimate Cost</th>
+                      <th colSpan={2} className="border border-slate-300 p-1 text-center">Earnest Money Deposit</th>
+                      <th colSpan={2} className="border border-slate-300 p-1 text-center">Performance Guarantee</th>
+                      <th colSpan={2} className="border border-slate-300 p-1 text-center">Date of Start</th>
+                      <th colSpan={2} className="border border-slate-300 p-1 text-center">Date Of Completion</th>
+                      <th colSpan={7} className="border border-slate-300 p-1 text-center">Bill Details</th>
+                      <th colSpan={9} className="border border-slate-300 p-1 text-center">Deduction of bill</th>
+                      <th colSpan={2} className="border border-slate-300 p-1 text-center">Payment recerived details</th>
+                      <th colSpan={5} className="border border-slate-300 p-1 text-center">Reimbursement Details</th>
+                      <th rowSpan={2} className="border border-slate-300 p-1 text-center align-middle">Other</th>
+                      <th rowSpan={2} className="border border-slate-300 p-1 text-center align-middle">Remarks</th>
+                      <th rowSpan={2} className="border border-slate-300 p-1 text-center align-middle">Open</th>
+                    </tr>
+                    <tr>
+                      <th className="border border-slate-300 p-1 text-center whitespace-nowrap">EMD Amount</th>
+                      <th className="border border-slate-300 p-1 text-center whitespace-nowrap">EMD Date</th>
+                      <th className="border border-slate-300 p-1 text-center whitespace-nowrap">P.G. Amount</th>
+                      <th className="border border-slate-300 p-1 text-center whitespace-nowrap">P.G. Date</th>
+                      <th className="border border-slate-300 p-1 text-center whitespace-nowrap">As Per Agmt.</th>
+                      <th className="border border-slate-300 p-1 text-center whitespace-nowrap">As Per Actual</th>
+                      <th className="border border-slate-300 p-1 text-center whitespace-nowrap">As Per Agmt.</th>
+                      <th className="border border-slate-300 p-1 text-center whitespace-nowrap">As Per Actual</th>
+                      <th className="border border-slate-300 p-1 text-center">Running Account Bill (R.A. Bill) No.</th>
+                      <th className="border border-slate-300 p-1 text-center whitespace-nowrap">M.B. No.</th>
+                      <th className="border border-slate-300 p-1 text-center whitespace-nowrap">Bill No.</th>
+                      <th className="border border-slate-300 p-1 text-center whitespace-nowrap">Bill Date</th>
+                      <th className="border border-slate-300 p-1 text-center">Gross / Bill Amount</th>
+                      <th className="border border-slate-300 p-1 text-center">Taxable Amount (Without GST)</th>
+                      <th className="border border-slate-300 p-1 text-center">Total GST Amount of Bill</th>
+                      <th className="border border-slate-300 p-1 text-center">Security Deposit (S.D.)</th>
+                      <th className="border border-slate-300 p-1 text-center">Income Tax @ 1% or 2% (TDS IT)</th>
+                      <th className="border border-slate-300 p-1 text-center">GST @2% (TDS GST)</th>
+                      <th className="border border-slate-300 p-1 text-center">Labour welfare Cess</th>
+                      <th className="border border-slate-300 p-1 text-center">Edu. Cess</th>
+                      <th className="border border-slate-300 p-1 text-center">Water Charge</th>
+                      <th className="border border-slate-300 p-1 text-center">Withheld Amount</th>
+                      <th className="border border-slate-300 p-1 text-center">withheld reason</th>
+                      <th className="border border-slate-300 p-1 text-center">Net Amount</th>
+                      <th className="border border-slate-300 p-1 text-center whitespace-nowrap">Voucher No.</th>
+                      <th className="border border-slate-300 p-1 text-center">Date</th>
+                      <th className="border border-slate-300 p-1 text-center">EPFO</th>
+                      <th className="border border-slate-300 p-1 text-center">ESIC</th>
+                      <th className="border border-slate-300 p-1 text-center">Amount</th>
+                      <th className="border border-slate-300 p-1 text-center whitespace-nowrap">Date of payment</th>
+                      <th className="border border-slate-300 p-1 text-center whitespace-nowrap">Bank Recived Date</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {filteredContracts.map((c) => (
-                      <tr key={c.id} className="hover:bg-indigo-50/40 transition">
-                        {/* Agreement & Tender */}
-                        <td className="p-3.5 font-mono">
-                          <div className="font-bold text-slate-900 text-xs">
-                            {c.agreementNo && c.agreementNo !== "PENDING_AWARD" ? c.agreementNo : "Award Pending"}
-                          </div>
-                          {c.tenderNo && (
-                            <div className="text-[10px] text-slate-500 truncate max-w-[140px]" title={c.tenderNo}>
-                              NIT: {c.tenderNo}
-                            </div>
+                  <tbody>
+                    {workRows.map((c, index) => {
+                      const lines = workPaymentLines(c);
+                      return (
+                        <React.Fragment key={c.id}>
+                          {lines.map((line, lineIndex) => (
+                        <tr key={`${c.id}-${lineIndex}`} className="hover:bg-indigo-50/40">
+                          {lineIndex === 0 && (
+                            <>
+                              <td className="border border-slate-300 p-1 text-center font-mono align-top" rowSpan={lines.length}>{index + 1}</td>
+                              <td className="border border-slate-300 p-1 font-mono align-top" rowSpan={lines.length}>{c.regRef || "—"}</td>
+                              <td className="border border-slate-300 p-1 align-top" rowSpan={lines.length}>{c.departmentName || "—"}</td>
+                              <td className="border border-slate-300 p-1 min-w-[160px] align-top" rowSpan={lines.length}>{c.workName || "—"}</td>
+                              <td className="border border-slate-300 p-1 font-mono align-top" rowSpan={lines.length}>{c.agreementNo || "—"}</td>
+                              <td className="border border-slate-300 p-1 whitespace-nowrap align-top" rowSpan={lines.length}>{c.awardedDate ? formatDateDmy(c.awardedDate) : "—"}</td>
+                              <td className="border border-slate-300 p-1 align-top" rowSpan={lines.length}>{c.workingDays || "—"}</td>
+                              <td className="border border-slate-300 p-1 text-right font-mono align-top" rowSpan={lines.length}>{moneyCell(c.tenderAmount)}</td>
+                              <td className="border border-slate-300 p-1 text-right font-mono align-top" rowSpan={lines.length}>{moneyCell(c.estimateCost)}</td>
+                              <td className="border border-slate-300 p-1 text-right font-mono align-top" rowSpan={lines.length}>{moneyCell(c.emdAmount)}</td>
+                              <td className="border border-slate-300 p-1 whitespace-nowrap align-top" rowSpan={lines.length}>{c.emdDate ? formatDateDmy(c.emdDate) : "—"}</td>
+                              <td className="border border-slate-300 p-1 text-right font-mono align-top" rowSpan={lines.length}>{moneyCell(c.pgAmount)}</td>
+                              <td className="border border-slate-300 p-1 whitespace-nowrap align-top" rowSpan={lines.length}>{c.pgDate ? formatDateDmy(c.pgDate) : "—"}</td>
+                              <td className="border border-slate-300 p-1 whitespace-nowrap align-top" rowSpan={lines.length}>{c.startAgreement ? formatDateDmy(c.startAgreement) : "—"}</td>
+                              <td className="border border-slate-300 p-1 whitespace-nowrap align-top" rowSpan={lines.length}>{c.startActual ? formatDateDmy(c.startActual) : "—"}</td>
+                              <td className="border border-slate-300 p-1 whitespace-nowrap align-top" rowSpan={lines.length}>{c.completionAgreement ? formatDateDmy(c.completionAgreement) : "—"}</td>
+                              <td className="border border-slate-300 p-1 whitespace-nowrap align-top" rowSpan={lines.length}>{c.completionActual ? formatDateDmy(c.completionActual) : "—"}</td>
+                            </>
                           )}
-                          {c.measurementBookNo && (
-                            <div className="text-[10px] text-indigo-600 font-semibold truncate max-w-[140px]" title={c.measurementBookNo}>
-                              MB: {c.measurementBookNo}
-                            </div>
+                          <td className="border border-slate-300 p-1">{line.raBillNo || "—"}</td>
+                          <td className="border border-slate-300 p-1 font-mono">{line.mbNo || "—"}</td>
+                          <td className="border border-slate-300 p-1 font-mono">{line.billNumber || "—"}</td>
+                          <td className="border border-slate-300 p-1 whitespace-nowrap">{line.billDate ? formatDateDmy(line.billDate) : "—"}</td>
+                          <td className="border border-slate-300 p-1 text-right font-mono">{moneyCell(line.grossAmount)}</td>
+                          <td className="border border-slate-300 p-1 text-right font-mono">{moneyCell(line.taxableAmount)}</td>
+                          <td className="border border-slate-300 p-1 text-right font-mono">{moneyCell(line.gstAmountOfBill)}</td>
+                          <td className="border border-slate-300 p-1 text-right font-mono">{moneyCell(line.sdAmount)}</td>
+                          <td className="border border-slate-300 p-1 text-right font-mono">{moneyCell(line.itAmount)}</td>
+                          <td className="border border-slate-300 p-1 text-right font-mono">{moneyCell(line.gstAmount)}</td>
+                          <td className="border border-slate-300 p-1 text-right font-mono">{moneyCell(line.labourCess)}</td>
+                          <td className="border border-slate-300 p-1 text-right font-mono">{moneyCell(line.eduCess)}</td>
+                          <td className="border border-slate-300 p-1 text-right font-mono">{moneyCell(line.waterCharge)}</td>
+                          <td className="border border-slate-300 p-1 text-right font-mono">{moneyCell(line.withheldAmount)}</td>
+                          <td className="border border-slate-300 p-1">{line.withheldReason || "—"}</td>
+                          <td className="border border-slate-300 p-1 text-right font-mono">{moneyCell(line.netAmount)}</td>
+                          <td className="border border-slate-300 p-1 font-mono">{line.voucherNo || "—"}</td>
+                          <td className="border border-slate-300 p-1 whitespace-nowrap">{line.voucherDate ? formatDateDmy(line.voucherDate) : "—"}</td>
+                          <td className="border border-slate-300 p-1 text-right font-mono">{moneyCell(line.epfo)}</td>
+                          <td className="border border-slate-300 p-1 text-right font-mono">{moneyCell(line.esic)}</td>
+                          <td className="border border-slate-300 p-1 text-right font-mono">{moneyCell(line.reimburseAmount)}</td>
+                          <td className="border border-slate-300 p-1 whitespace-nowrap">{line.dateOfPayment ? formatDateDmy(line.dateOfPayment) : "—"}</td>
+                          <td className="border border-slate-300 p-1 whitespace-nowrap">{line.bankReceivedDate ? formatDateDmy(line.bankReceivedDate) : "—"}</td>
+                          {lineIndex === 0 && (
+                            <>
+                              <td className="border border-slate-300 p-1 align-top" rowSpan={lines.length}>{c.otherDetails || "—"}</td>
+                              <td className="border border-slate-300 p-1 align-top" rowSpan={lines.length}>{c.remarks || "—"}</td>
+                              <td className="border border-slate-300 p-1 text-center whitespace-nowrap align-top" rowSpan={lines.length}>
+                                <button
+                                  onClick={() => openEditModal(c)}
+                                  className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded text-[11px] transition"
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteContract(c.id)}
+                                  className="ml-1 px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold rounded text-[11px] transition"
+                                >
+                                  Delete
+                                </button>
+                              </td>
+                            </>
                           )}
-                        </td>
-
-                        {/* Client & Work */}
-                        <td className="p-3.5 max-w-xs">
-                          <div className="font-bold text-slate-900 text-xs">{c.clientName}</div>
-                          <div className="text-[11px] text-slate-500">{c.departmentName || "General Division"}</div>
-                          <div className="text-[11px] text-slate-700 truncate mt-0.5" title={c.workName || ""}>
-                            {c.workName || "Manpower Supply & Service"}
-                          </div>
-                        </td>
-
-                        {/* Contract Type */}
-                        <td className="p-3.5 text-center">
-                          <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold ${
-                            c.contractType === "A"
-                              ? "bg-blue-100 text-blue-800"
-                              : c.contractType === "B"
-                              ? "bg-emerald-100 text-emerald-800"
-                              : "bg-purple-100 text-purple-800"
-                          }`}>
-                            {workKindLabel(c.contractType)}
-                          </span>
-                        </td>
-
-                        {/* Tender Value */}
-                        <td className="p-3.5 text-right font-mono font-bold text-slate-900">
-                          {c.tenderAmount ? `₹${Number(c.tenderAmount).toLocaleString("en-IN")}` : "—"}
-                        </td>
-
-                        {/* EMD & PG status badges */}
-                        <td className="p-3.5 text-center space-y-1">
-                          <div>{renderEmdStatusBadge(c.emdStatus)}</div>
-                          <div>{renderPgStatusBadge(c.pgStatus)}</div>
-                        </td>
-
-                        {/* Gross Amount */}
-                        <td className="p-3.5 text-right font-mono text-slate-800">
-                          {c.grossAmount ? `₹${Number(c.grossAmount).toLocaleString("en-IN")}` : "—"}
-                          {c.billNumber && (
-                            <div className="text-[10px] text-slate-400 font-sans">{c.billNumber}</div>
-                          )}
-                        </td>
-
-                        {/* Total Deductions */}
-                        <td className="p-3.5 text-right font-mono text-rose-700">
-                          {c.totalDeductions ? `₹${Number(c.totalDeductions).toLocaleString("en-IN")}` : "—"}
-                          {c.totalDeductions ? (
-                            <div className="text-[9px] text-slate-400 font-sans">
-                              SD+TDS+GST
-                            </div>
-                          ) : null}
-                        </td>
-
-                        {/* Net Amount */}
-                        <td className="p-3.5 text-right font-mono font-black text-emerald-700 text-xs">
-                          {c.netAmount ? `₹${Number(c.netAmount).toLocaleString("en-IN")}` : "—"}
-                          {c.bankReceivedDate && (
-                            <div className="text-[9px] text-slate-400 font-sans">
-                              Paid {formatDateDmy(c.bankReceivedDate)}
-                            </div>
-                          )}
-                        </td>
-
-                        {/* Work Status */}
-                        <td className="p-3.5 text-center">
-                          {renderWorkStatusBadge(c.workStatus)}
-                        </td>
-
-                        {/* Actions */}
-                        <td className="p-3.5 text-center whitespace-nowrap">
-                          <div className="flex items-center justify-center gap-1.5">
-                            <button
-                              onClick={() => setViewingContract(c)}
-                              title="View Official Government Register Sheet"
-                              className="px-2 py-1 bg-slate-100 hover:bg-indigo-100 text-indigo-700 font-bold rounded text-[11px] transition"
-                            >
-                              View Sheet
-                            </button>
-                            <button
-                              onClick={() => openEditModal(c)}
-                              title="Edit Entry"
-                              className="p-1 text-slate-400 hover:text-slate-800 rounded hover:bg-slate-100 transition"
-                            >
-                              <Pencil className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteContract(c.id)}
-                              title="Delete Entry"
-                              className="p-1 text-slate-400 hover:text-rose-600 rounded hover:bg-rose-50 transition"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
+                        </tr>
+                          ))}
+                        </React.Fragment>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -1015,124 +1341,116 @@ export default function CrmPage() {
           {/* TAB 2: PRE-CONTRACT EMD REGISTER */}
           {activeTab === "EMD_REGISTER" && (
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-              <div className="px-5 py-3.5 bg-amber-50/60 border-b border-amber-100 flex items-center justify-between">
+              <div className="px-5 py-3.5 bg-amber-50/60 border-b border-amber-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div>
-                  <h3 className="text-xs font-black uppercase tracking-wider text-amber-900">
-                    Pre-Contract Earnest Money Deposit (EMD) Register
+                  <h3 className="text-sm font-black text-center sm:text-left text-slate-900">
+                    EMD Register ( {company?.legalName || company?.shortName || "M/s N.K. Enterprise"} )
                   </h3>
-                  <p className="text-[11px] text-amber-700">
-                    Track all tender submissions, EMD deposits (DD/FDR/BG/Online), bank receipts, and refund/adjustment before contract award.
+                  <p className="text-[11px] text-amber-800">
+                    Same 24 columns as the office EMD Register: issue, maturity and release with FD No. and DD No.
                   </p>
                 </div>
-                <div className="text-[11px] font-bold text-amber-900">
-                  Active Bids: {filteredContracts.filter((c) => c.emdStatus === "ACTIVE" || c.emdStatus === "SUBMITTED").length}
-                </div>
+                <button
+                  type="button"
+                  onClick={() =>
+                    downloadEmdRegisterExcel({
+                      companyName: company?.legalName || company?.shortName || "M/s N.K. Enterprise",
+                      rows: emdRows,
+                    })
+                  }
+                  className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white text-[11px] font-bold rounded-lg"
+                >
+                  Download Excel
+                </button>
               </div>
 
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs text-slate-600">
-                  <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200 text-[11px] uppercase tracking-wider">
+                <table className="min-w-[1800px] w-full text-left text-[11px] text-slate-800 border-collapse">
+                  <thead className="bg-slate-100 text-slate-800 font-bold">
                     <tr>
-                      <th className="p-3.5">Tender / NIT No</th>
-                      <th className="p-3.5">Client & Work</th>
-                      <th className="p-3.5 text-right whitespace-nowrap">Estimate / Quoted (₹)</th>
-                      <th className="p-3.5 text-right whitespace-nowrap">EMD Amount (₹)</th>
-                      <th className="p-3.5 text-center">EMD Mode</th>
-                      <th className="p-3.5">Instrument / Ref No</th>
-                      <th className="p-3.5">Bank & Date</th>
-                      <th className="p-3.5 text-center">EMD Status</th>
-                      <th className="p-3.5">Refund / Adjustment</th>
-                      <th className="p-3.5 text-center">Actions</th>
+                      <th rowSpan={2} className="border border-slate-300 p-1.5 text-center align-middle whitespace-nowrap">SL NO.</th>
+                      <th rowSpan={2} className="border border-slate-300 p-1.5 text-center align-middle whitespace-nowrap">Reg Sl No</th>
+                      <th rowSpan={2} className="border border-slate-300 p-1.5 text-center align-middle">Department / Division</th>
+                      <th rowSpan={2} className="border border-slate-300 p-1.5 text-center align-middle">NIT No.</th>
+                      <th rowSpan={2} className="border border-slate-300 p-1.5 text-center align-middle min-w-[180px]">Name of Work</th>
+                      <th rowSpan={2} className="border border-slate-300 p-1.5 text-center align-middle">Estimate Cost</th>
+                      <th rowSpan={2} className="border border-slate-300 p-1.5 text-center align-middle">Tender Amount</th>
+                      <th rowSpan={2} className="border border-slate-300 p-1.5 text-center align-middle">Favouring</th>
+                      <th colSpan={5} className="border border-slate-300 p-1.5 text-center">EMD issue Details</th>
+                      <th colSpan={4} className="border border-slate-300 p-1.5 text-center">EMD Maturity details<br />(As per Agreement)</th>
+                      <th colSpan={4} className="border border-slate-300 p-1.5 text-center">EMD Release details<br />(As per Actual)</th>
+                      <th rowSpan={2} className="border border-slate-300 p-1.5 text-center align-middle">Make Agency</th>
+                      <th rowSpan={2} className="border border-slate-300 p-1.5 text-center align-middle">Applicant Agency</th>
+                      <th rowSpan={2} className="border border-slate-300 p-1.5 text-center align-middle">Remark/Status</th>
+                      <th rowSpan={2} className="border border-slate-300 p-1.5 text-center align-middle">Open</th>
+                    </tr>
+                    <tr>
+                      <th className="border border-slate-300 p-1.5 text-center">FD No.</th>
+                      <th className="border border-slate-300 p-1.5 text-center">DD No.</th>
+                      <th className="border border-slate-300 p-1.5 text-center">Date</th>
+                      <th className="border border-slate-300 p-1.5 text-center">Amount</th>
+                      <th className="border border-slate-300 p-1.5 text-center">Bank Name</th>
+                      <th className="border border-slate-300 p-1.5 text-center">FD No.</th>
+                      <th className="border border-slate-300 p-1.5 text-center">DD No.</th>
+                      <th className="border border-slate-300 p-1.5 text-center">Date</th>
+                      <th className="border border-slate-300 p-1.5 text-center">Amount</th>
+                      <th className="border border-slate-300 p-1.5 text-center">FD No.</th>
+                      <th className="border border-slate-300 p-1.5 text-center">DD No.</th>
+                      <th className="border border-slate-300 p-1.5 text-center">Date</th>
+                      <th className="border border-slate-300 p-1.5 text-center">Amount</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {filteredContracts.map((c) => (
-                      <tr key={c.id} className="hover:bg-amber-50/30 transition">
-                        <td className="p-3.5 font-mono">
-                          <div className="font-bold text-slate-900 text-xs">{c.tenderNo || "—"}</div>
-                          {c.tenderOpening && (
-                            <div className="text-[10px] text-slate-500 font-sans">
-                              Opens: {formatDateDmy(c.tenderOpening)}
-                            </div>
-                          )}
+                  <tbody>
+                    {emdRows.map((c, index) => (
+                      <tr key={c.id} className="hover:bg-amber-50/40">
+                        <td className="border border-slate-300 p-1.5 text-center font-mono">{index + 1}</td>
+                        <td className="border border-slate-300 p-1.5 text-center font-mono">{c.emdRegdSerialNo || "—"}</td>
+                        <td className="border border-slate-300 p-1.5">{c.departmentName || "—"}</td>
+                        <td className="border border-slate-300 p-1.5 font-mono">{c.tenderNo || "—"}</td>
+                        <td className="border border-slate-300 p-1.5 min-w-[180px]">{c.workName || "—"}</td>
+                        <td className="border border-slate-300 p-1.5 text-right font-mono">{moneyCell(c.estimateCost)}</td>
+                        <td className="border border-slate-300 p-1.5 text-right font-mono">{moneyCell(c.tenderAmount)}</td>
+                        <td className="border border-slate-300 p-1.5">{c.favouring || "—"}</td>
+                        <td className="border border-slate-300 p-1.5 font-mono">{emdFdOf(c) || "—"}</td>
+                        <td className="border border-slate-300 p-1.5 font-mono">{emdDdOf(c) || "—"}</td>
+                        <td className="border border-slate-300 p-1.5 whitespace-nowrap">{c.emdDate ? formatDateDmy(c.emdDate) : "—"}</td>
+                        <td className="border border-slate-300 p-1.5 text-right font-mono">{moneyCell(c.emdAmount)}</td>
+                        <td className="border border-slate-300 p-1.5">{c.emdBankName || "—"}</td>
+                        <td className="border border-slate-300 p-1.5 font-mono">{emdMatFdOf(c) || "—"}</td>
+                        <td className="border border-slate-300 p-1.5 font-mono">{emdMatDdOf(c) || "—"}</td>
+                        <td className="border border-slate-300 p-1.5 whitespace-nowrap">{c.emdMaturityDate ? formatDateDmy(c.emdMaturityDate) : "—"}</td>
+                        <td className="border border-slate-300 p-1.5 text-right font-mono">{moneyCell(c.emdMaturityAmount)}</td>
+                        <td className="border border-slate-300 p-1.5 font-mono">{emdRelFdOf(c) || "—"}</td>
+                        <td className="border border-slate-300 p-1.5 font-mono">{emdRelDdOf(c) || "—"}</td>
+                        <td className="border border-slate-300 p-1.5 whitespace-nowrap">{c.emdRefundDate ? formatDateDmy(c.emdRefundDate) : "—"}</td>
+                        <td className="border border-slate-300 p-1.5 text-right font-mono">{moneyCell(c.emdReleaseAmount)}</td>
+                        <td className="border border-slate-300 p-1.5">{c.makeAgency || c.agencyName || "—"}</td>
+                        <td className="border border-slate-300 p-1.5">{c.applicantAgency || c.applicantAccount || "—"}</td>
+                        <td className="border border-slate-300 p-1.5">
+                          {c.emdRemark || c.remarks || (c.emdStatus ? c.emdStatus.replace(/_/g, " ") : "—")}
                         </td>
-
-                        <td className="p-3.5 max-w-xs">
-                          <div className="font-bold text-slate-900 text-xs">{c.clientName}</div>
-                          <div className="text-[11px] text-slate-500">{c.departmentName}</div>
-                          <div className="text-[11px] text-slate-700 truncate" title={c.workName || ""}>
-                            {c.workName}
-                          </div>
-                        </td>
-
-                        <td className="p-3.5 text-right font-mono">
-                          <div className="font-bold text-slate-900">
-                            {c.tenderAmount ? `₹${Number(c.tenderAmount).toLocaleString("en-IN")}` : "—"}
-                          </div>
-                          {c.estimateCost && (
-                            <div className="text-[10px] text-slate-400">
-                              Est: ₹{Number(c.estimateCost).toLocaleString("en-IN")}
-                            </div>
-                          )}
-                        </td>
-
-                        <td className="p-3.5 text-right font-mono font-black text-amber-800 text-xs">
-                          {c.emdAmount ? `₹${Number(c.emdAmount).toLocaleString("en-IN")}` : "—"}
-                          {c.emdPercent && (
-                            <div className="text-[10px] text-slate-400 font-sans font-normal">
-                              ({c.emdPercent}%)
-                            </div>
-                          )}
-                        </td>
-
-                        <td className="p-3.5 text-center">
-                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700">
-                            {c.emdMode ? c.emdMode.replace(/_/g, " ") : "—"}
-                          </span>
-                        </td>
-
-                        <td className="p-3.5 font-mono text-xs text-slate-800">
-                          {c.emdInstrumentNo || "—"}
-                        </td>
-
-                        <td className="p-3.5">
-                          <div className="text-slate-800 font-medium text-[11px]">{c.emdBankName || "—"}</div>
-                          {c.emdDate && (
-                            <div className="text-[10px] text-slate-400">
-                              {formatDateDmy(c.emdDate)}
-                            </div>
-                          )}
-                        </td>
-
-                        <td className="p-3.5 text-center">
-                          {renderEmdStatusBadge(c.emdStatus)}
-                        </td>
-
-                        <td className="p-3.5 text-xs">
-                          {c.emdRefundDate ? (
-                            <div>
-                              <span className="font-semibold text-emerald-700">
-                                {formatDateDmy(c.emdRefundDate)}
-                              </span>
-                              {c.emdRefundRef && (
-                                <div className="text-[10px] text-slate-400 font-mono">{c.emdRefundRef}</div>
-                              )}
-                            </div>
-                          ) : (
-                            <span className="text-slate-400">—</span>
-                          )}
-                        </td>
-
-                        <td className="p-3.5 text-center whitespace-nowrap">
+                        <td className="border border-slate-300 p-1.5 text-center whitespace-nowrap">
                           <button
                             onClick={() => openEditModal(c)}
                             className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded text-[11px] transition"
                           >
-                            Edit EMD
+                            Edit
                           </button>
                         </td>
                       </tr>
                     ))}
+                    {(() => {
+                      const total = emdRows.reduce((sum, c) => sum + Number(c.emdAmount || 0), 0);
+                      return (
+                        <tr className="bg-slate-50 font-bold">
+                          <td className="border border-slate-300 p-1.5" colSpan={11}>
+                            Total Amount =
+                          </td>
+                          <td className="border border-slate-300 p-1.5 text-right font-mono">{moneyCell(total)}</td>
+                          <td className="border border-slate-300 p-1.5" colSpan={13} />
+                        </tr>
+                      );
+                    })()}
                   </tbody>
                 </table>
               </div>
@@ -1142,127 +1460,98 @@ export default function CrmPage() {
           {/* TAB 3: POST-AWARD PG REGISTER */}
           {activeTab === "PG_REGISTER" && (
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-              <div className="px-5 py-3.5 bg-purple-50/60 border-b border-purple-100 flex items-center justify-between">
+              <div className="px-5 py-3.5 bg-purple-50/60 border-b border-purple-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div>
-                  <h3 className="text-xs font-black uppercase tracking-wider text-purple-900">
-                    Post-Award Performance Guarantee (PG) Register
+                  <h3 className="text-sm font-black text-center sm:text-left text-slate-900">
+                    Performance Guarantee(P.G.) Register ( {company?.legalName || company?.shortName || "M/s N.K. Enterprise"} )
                   </h3>
-                  <p className="text-[11px] text-purple-700">
-                    Track Performance Guarantees submitted after contract award / LOA and before commencing work on site.
+                  <p className="text-[11px] text-purple-800">
+                    Same columns as the office PG register: FD No. and BG No. together.
                   </p>
                 </div>
-                <div className="text-[11px] font-bold text-purple-900">
-                  Active PG Total: ₹{totalPgActive.toLocaleString("en-IN")}
-                </div>
+                <button
+                  type="button"
+                  onClick={() =>
+                    downloadPgRegisterExcel({
+                      companyName: company?.legalName || company?.shortName || "M/s N.K. Enterprise",
+                      rows: pgRows,
+                    })
+                  }
+                  className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white text-[11px] font-bold rounded-lg"
+                >
+                  Download Excel
+                </button>
               </div>
 
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs text-slate-600">
-                  <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200 text-[11px] uppercase tracking-wider">
+                <table className="min-w-[1800px] w-full text-left text-[11px] text-slate-800 border-collapse">
+                  <thead className="bg-slate-100 text-slate-800 font-bold">
                     <tr>
-                      <th className="p-3.5">Agreement / Work Order</th>
-                      <th className="p-3.5">Client & Work</th>
-                      <th className="p-3.5 text-right whitespace-nowrap">Contract Value (₹)</th>
-                      <th className="p-3.5 text-right whitespace-nowrap">PG Amount (₹)</th>
-                      <th className="p-3.5 text-center">PG Mode</th>
-                      <th className="p-3.5">BG / Instrument No</th>
-                      <th className="p-3.5">Issuing Bank & Branch</th>
-                      <th className="p-3.5 whitespace-nowrap">Validity / Expiry</th>
-                      <th className="p-3.5 text-center">PG Status</th>
-                      <th className="p-3.5">Release Details</th>
-                      <th className="p-3.5 text-center">Actions</th>
+                      <th rowSpan={2} className="border border-slate-300 p-1.5 text-center align-middle whitespace-nowrap">SL NO.</th>
+                      <th rowSpan={2} className="border border-slate-300 p-1.5 text-center align-middle whitespace-nowrap">Reg Sl No</th>
+                      <th rowSpan={2} className="border border-slate-300 p-1.5 text-center align-middle">Department / Division</th>
+                      <th rowSpan={2} className="border border-slate-300 p-1.5 text-center align-middle">NIT No.</th>
+                      <th rowSpan={2} className="border border-slate-300 p-1.5 text-center align-middle min-w-[180px]">Name of Work</th>
+                      <th rowSpan={2} className="border border-slate-300 p-1.5 text-center align-middle">Estimate Cost</th>
+                      <th rowSpan={2} className="border border-slate-300 p-1.5 text-center align-middle">Contract Amount</th>
+                      <th rowSpan={2} className="border border-slate-300 p-1.5 text-center align-middle">Favouring</th>
+                      <th colSpan={5} className="border border-slate-300 p-1.5 text-center">P.G. issue Details</th>
+                      <th colSpan={4} className="border border-slate-300 p-1.5 text-center">P.G. Maturity details<br />(As per Agreement)</th>
+                      <th colSpan={4} className="border border-slate-300 p-1.5 text-center">P.G. Release details<br />(As per Actual)</th>
+                      <th rowSpan={2} className="border border-slate-300 p-1.5 text-center align-middle">Make Agency</th>
+                      <th rowSpan={2} className="border border-slate-300 p-1.5 text-center align-middle">Applicant Agency</th>
+                      <th rowSpan={2} className="border border-slate-300 p-1.5 text-center align-middle">Remark/Status</th>
+                      <th rowSpan={2} className="border border-slate-300 p-1.5 text-center align-middle">Open</th>
+                    </tr>
+                    <tr>
+                      <th className="border border-slate-300 p-1.5 text-center">FD No.</th>
+                      <th className="border border-slate-300 p-1.5 text-center">BG No.</th>
+                      <th className="border border-slate-300 p-1.5 text-center">Date</th>
+                      <th className="border border-slate-300 p-1.5 text-center">Amount</th>
+                      <th className="border border-slate-300 p-1.5 text-center">Bank Name</th>
+                      <th className="border border-slate-300 p-1.5 text-center">FD No.</th>
+                      <th className="border border-slate-300 p-1.5 text-center">BG No.</th>
+                      <th className="border border-slate-300 p-1.5 text-center">Date</th>
+                      <th className="border border-slate-300 p-1.5 text-center">Amount</th>
+                      <th className="border border-slate-300 p-1.5 text-center">FD No.</th>
+                      <th className="border border-slate-300 p-1.5 text-center">BG No.</th>
+                      <th className="border border-slate-300 p-1.5 text-center">Date</th>
+                      <th className="border border-slate-300 p-1.5 text-center">Amount</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {filteredContracts.map((c) => (
-                      <tr key={c.id} className="hover:bg-purple-50/30 transition">
-                        <td className="p-3.5 font-mono">
-                          <div className="font-bold text-slate-900 text-xs">{c.agreementNo || "—"}</div>
-                          <div className="text-[10px] text-slate-500">{renderWorkStatusBadge(c.workStatus)}</div>
-                        </td>
-
-                        <td className="p-3.5 max-w-xs">
-                          <div className="font-bold text-slate-900 text-xs">{c.clientName}</div>
-                          <div className="text-[11px] text-slate-500">{c.departmentName}</div>
-                          <div className="text-[11px] text-slate-700 truncate" title={c.workName || ""}>
-                            {c.workName}
-                          </div>
-                        </td>
-
-                        <td className="p-3.5 text-right font-mono font-bold text-slate-900">
-                          {c.tenderAmount ? `₹${Number(c.tenderAmount).toLocaleString("en-IN")}` : "—"}
-                        </td>
-
-                        <td className="p-3.5 text-right font-mono font-black text-purple-800 text-xs">
-                          {c.pgAmount ? `₹${Number(c.pgAmount).toLocaleString("en-IN")}` : "—"}
-                          {c.pgPercent && (
-                            <div className="text-[10px] text-slate-400 font-sans font-normal">
-                              ({c.pgPercent}%)
-                            </div>
-                          )}
-                        </td>
-
-                        <td className="p-3.5 text-center">
-                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-purple-100 text-purple-800">
-                            {c.pgMode ? c.pgMode.replace(/_/g, " ") : "—"}
-                          </span>
-                        </td>
-
-                        <td className="p-3.5 font-mono text-xs text-slate-800">
-                          {c.pgInstrumentNo || "—"}
-                        </td>
-
-                        <td className="p-3.5">
-                          <div className="text-slate-800 font-medium text-[11px]">{c.pgBankName || "—"}</div>
-                          {c.pgDate && (
-                            <div className="text-[10px] text-slate-400">
-                              Issued: {formatDateDmy(c.pgDate)}
-                            </div>
-                          )}
-                        </td>
-
-                        <td className="p-3.5 text-xs">
-                          {c.pgExpiryDate ? (
-                            <div>
-                              <span className="font-semibold text-slate-800">
-                                {formatDateDmy(c.pgExpiryDate)}
-                              </span>
-                              {c.pgClaimDate && (
-                                <div className="text-[10px] text-slate-400">
-                                  Claim: {formatDateDmy(c.pgClaimDate)}
-                                </div>
-                              )}
-                            </div>
-                          ) : (
-                            <span className="text-slate-400">—</span>
-                          )}
-                        </td>
-
-                        <td className="p-3.5 text-center">
-                          {renderPgStatusBadge(c.pgStatus)}
-                        </td>
-
-                        <td className="p-3.5 text-xs">
-                          {c.pgReleaseDate ? (
-                            <div>
-                              <span className="font-semibold text-emerald-700">
-                                {formatDateDmy(c.pgReleaseDate)}
-                              </span>
-                              {c.pgReleaseRef && (
-                                <div className="text-[10px] text-slate-400 font-mono">{c.pgReleaseRef}</div>
-                              )}
-                            </div>
-                          ) : (
-                            <span className="text-slate-400">—</span>
-                          )}
-                        </td>
-
-                        <td className="p-3.5 text-center whitespace-nowrap">
+                  <tbody>
+                    {pgRows.map((c, index) => (
+                      <tr key={c.id} className="hover:bg-purple-50/40">
+                        <td className="border border-slate-300 p-1.5 text-center font-mono">{index + 1}</td>
+                        <td className="border border-slate-300 p-1.5 text-center font-mono">{c.pgRegdSerialNo || c.emdRegdSerialNo || "—"}</td>
+                        <td className="border border-slate-300 p-1.5">{c.departmentName || "—"}</td>
+                        <td className="border border-slate-300 p-1.5 font-mono">{c.tenderNo || "—"}</td>
+                        <td className="border border-slate-300 p-1.5 min-w-[180px]">{c.workName || "—"}</td>
+                        <td className="border border-slate-300 p-1.5 text-right font-mono">{c.estimateCost != null ? moneyCell(c.estimateCost) : (c.emdEstimateDetails || "—")}</td>
+                        <td className="border border-slate-300 p-1.5 text-right font-mono">{moneyCell(c.tenderAmount)}</td>
+                        <td className="border border-slate-300 p-1.5">{c.favouring || "—"}</td>
+                        <td className="border border-slate-300 p-1.5 font-mono">{issueFdNoOf(c) || "—"}</td>
+                        <td className="border border-slate-300 p-1.5 font-mono">{issueBgNoOf(c) || "—"}</td>
+                        <td className="border border-slate-300 p-1.5 whitespace-nowrap">{c.pgDate ? formatDateDmy(c.pgDate) : "—"}</td>
+                        <td className="border border-slate-300 p-1.5 text-right font-mono">{moneyCell(c.pgAmount)}</td>
+                        <td className="border border-slate-300 p-1.5">{c.pgBankName || "—"}</td>
+                        <td className="border border-slate-300 p-1.5 font-mono">{maturityFdNoOf(c) || "—"}</td>
+                        <td className="border border-slate-300 p-1.5 font-mono">{maturityBgNoOf(c) || "—"}</td>
+                        <td className="border border-slate-300 p-1.5 whitespace-nowrap">{c.pgExpiryDate ? formatDateDmy(c.pgExpiryDate) : "—"}</td>
+                        <td className="border border-slate-300 p-1.5 text-right font-mono">{moneyCell(c.pgMaturityAmount)}</td>
+                        <td className="border border-slate-300 p-1.5 font-mono">{releaseFdNoOf(c) || "—"}</td>
+                        <td className="border border-slate-300 p-1.5 font-mono">{releaseBgNoOf(c) || "—"}</td>
+                        <td className="border border-slate-300 p-1.5 whitespace-nowrap">{c.pgReleaseDate ? formatDateDmy(c.pgReleaseDate) : "—"}</td>
+                        <td className="border border-slate-300 p-1.5 text-right font-mono">{moneyCell(c.pgReleaseAmount)}</td>
+                        <td className="border border-slate-300 p-1.5">{c.makeAgency || c.agencyName || "—"}</td>
+                        <td className="border border-slate-300 p-1.5">{c.applicantAgency || "—"}</td>
+                        <td className="border border-slate-300 p-1.5">{c.pgRemark || c.remarks || (c.pgStatus ? c.pgStatus.replace(/_/g, " ") : "—")}</td>
+                        <td className="border border-slate-300 p-1.5 text-center whitespace-nowrap">
                           <button
                             onClick={() => openEditModal(c)}
                             className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded text-[11px] transition"
                           >
-                            Edit PG
+                            Edit
                           </button>
                         </td>
                       </tr>
@@ -1278,7 +1567,7 @@ export default function CrmPage() {
       {/* MODAL: CREATE / EDIT WORK REGISTER ENTRY */}
       {showModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl max-w-4xl w-full my-6 shadow-2xl flex flex-col max-h-[92vh] overflow-hidden border border-slate-200">
+          <div className="bg-white rounded-2xl max-w-6xl w-full my-6 shadow-2xl flex flex-col max-h-[92vh] overflow-hidden border border-slate-200">
             {/* Modal Header */}
             <div className="px-6 py-4 bg-slate-900 text-white flex items-center justify-between shrink-0">
               <div>
@@ -1311,7 +1600,7 @@ export default function CrmPage() {
                 }`}
               >
                 <span className="inline-flex items-center gap-1.5">
-                  1. <ClipboardList className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden /> General Details
+                  1. <ClipboardList className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden /> Work Register
                 </span>
               </button>
               <button
@@ -1322,7 +1611,7 @@ export default function CrmPage() {
                 }`}
               >
                 <span className="inline-flex items-center gap-1.5">
-                  2. <Landmark className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden /> Pre-Contract (EMD)
+                  2. <Landmark className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden /> EMD Register
                 </span>
               </button>
               <button
@@ -1333,304 +1622,210 @@ export default function CrmPage() {
                 }`}
               >
                 <span className="inline-flex items-center gap-1.5">
-                  3. <Shield className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden /> Post-Award (PG)
-                </span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setModalSection("EXECUTION")}
-                className={`px-3 py-1.5 rounded-lg whitespace-nowrap transition ${
-                  modalSection === "EXECUTION" ? "bg-white text-blue-700 shadow-sm" : "hover:text-slate-900"
-                }`}
-              >
-                <span className="inline-flex items-center gap-1.5">
-                  4. <CalendarRange className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden /> MB & Dates
-                </span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setModalSection("BILLING")}
-                className={`px-3 py-1.5 rounded-lg whitespace-nowrap transition ${
-                  modalSection === "BILLING" ? "bg-white text-rose-700 shadow-sm" : "hover:text-slate-900"
-                }`}
-              >
-                <span className="inline-flex items-center gap-1.5">
-                  5. <BarChart3 className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden /> Billing & Deductions
-                </span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setModalSection("PAYMENT")}
-                className={`px-3 py-1.5 rounded-lg whitespace-nowrap transition ${
-                  modalSection === "PAYMENT" ? "bg-white text-emerald-700 shadow-sm" : "hover:text-slate-900"
-                }`}
-              >
-                <span className="inline-flex items-center gap-1.5">
-                  6. <Landmark className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden /> Bank & Vouchers
+                  3. <Shield className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden /> PG Register
                 </span>
               </button>
             </div>
 
             {/* Modal Body Form */}
             <form noValidate onSubmit={handleSaveContract} className="flex-1 overflow-y-auto p-6 space-y-6">
-              {/* SECTION 1: GENERAL & WORK DETAILS */}
+              {/* SECTION 1: WORK REGISTER */}
               {modalSection === "GENERAL" && (
                 <div className="space-y-4">
                   <div className="border-b border-slate-100 pb-2">
-                    <h3 className="text-sm font-bold text-slate-800">Client & Agreement Identification</h3>
-                    <p className="text-xs text-slate-500">
-                      Enter the government or corporate client, agreement number, work name, and classification.
-                    </p>
+                    <h3 className="text-sm font-bold text-slate-800">Work Register</h3>
+                    <p className="text-xs text-slate-500">Same fields as the office Work Register sheet.</p>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-xs font-bold text-slate-700 block mb-1">
-                        Client / Organization Name <span className="text-rose-500">*</span>
-                      </label>
-                      <input
-                        required
-                        type="text"
-                        placeholder="e.g. West Bengal State Electricity (WBSEDCL)"
-                        value={clientName}
-                        onChange={(e) => setClientName(e.target.value)}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                      />
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                    <RegisterField label="Client" value={clientName} onChange={setClientName} placeholder="e.g. K. Das & Co." star />
+                    <RegisterField label="Reg. Ref." value={regRef} onChange={setRegRef} placeholder="e.g. 01/23-24" mono star />
+                    <RegisterField label="Department/ Division" value={departmentName} onChange={setDepartmentName} placeholder="e.g. BCD-III / KHD" star />
+                    <RegisterField label="Agmt./W.O. No." value={agreementNo} onChange={setAgreementNo} placeholder="Agreement / work order no" mono star />
+                    <div className="md:col-span-4">
+                      <RegisterField label="Name of work" value={workName} onChange={setWorkName} placeholder="Name of work" area star />
                     </div>
-
-                    <div>
-                      <label className="text-xs font-bold text-slate-700 block mb-1">
-                        Department / Division / Office <span className="text-red-600">*</span>
-                      </label>
-                      <input
-                        required
-                        type="text"
-                        placeholder="e.g. Kolkata North Substation Division"
-                        value={departmentName}
-                        onChange={(e) => setDepartmentName(e.target.value)}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                      />
-                    </div>
+                    <RegisterField label="Awarded Date" value={awardedDate} onChange={setAwardedDate} type="date" star />
+                    <RegisterField label="Working Period" value={workingDays} onChange={setWorkingDays} placeholder="e.g. 15 Days / 6 Months" star />
+                    <RegisterField label="Tender Amount" value={tenderAmount} onChange={setTenderAmount} type="number" star />
+                    <RegisterField label="Estimate Cost" value={estimateCost} onChange={setEstimateCost} type="number" star />
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                      <label className="text-xs font-bold text-slate-700 block mb-1">Agreement / Work Order No <span className="text-red-600">*</span></label>
-                      <input
-                        required
-                        type="text"
-                        placeholder="e.g. NK/AGR/WBSEDCL/2026/089"
-                        value={agreementNo}
-                        onChange={(e) => setAgreementNo(e.target.value)}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-mono focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                      />
-                    </div>
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3 rounded-xl border border-slate-200 bg-slate-50/60 p-3">
+                    <RegisterField label="EMD Amount" value={emdAmount} onChange={setEmdAmount} type="number" star />
+                    <RegisterField label="EMD Date" value={emdDate} onChange={setEmdDate} type="date" star />
+                    <RegisterField label="P.G. Amount" value={pgAmount} onChange={setPgAmount} type="number" star />
+                    <RegisterField label="P.G. Date" value={pgDate} onChange={setPgDate} type="date" star />
+                  </div>
 
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                    <RegisterField label="Date of Start (As Per Agmt.)" value={startAgreement} onChange={setStartAgreement} type="date" star />
+                    <RegisterField label="Date of Start (As Per Actual)" value={startActual} onChange={setStartActual} type="date" star />
+                    <RegisterField label="Date Of Completion (As Per Agmt.)" value={completionAgreement} onChange={setCompletionAgreement} type="date" star />
+                    <RegisterField label="Date Of Completion (As Per Actual)" value={completionActual} onChange={setCompletionActual} type="date" star />
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div>
-                      <label className="text-xs font-bold text-slate-700 block mb-1">What kind of work? <span className="text-red-600">*</span></label>
-                      <select
-                        required
-                        value={contractType}
-                        onChange={(e) => setContractType(e.target.value)}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-medium focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                      >
-                        <option value="A">A · Supply people (guards, helpers, cleaners)</option>
+                      <label className="text-xs font-bold text-slate-700 block mb-1">Kind of work<span className="text-red-600"> *</span></label>
+                      <select value={contractType} onChange={(e) => setContractType(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-white">
+                        <option value="A">A · Supply people</option>
                         <option value="B">B · Building / electrical / civil work</option>
-                        <option value="C">C · Office / housekeeping / other service</option>
+                        <option value="C">C · Office / service</option>
                       </select>
-                      <p className="text-[11px] text-slate-500 mt-1">A = send employees. B = construction work. C = office work.</p>
                     </div>
-
                     <div>
-                      <label className="text-xs font-bold text-slate-700 block mb-1">Current Work Stage <span className="text-red-600">*</span></label>
-                      <select
-                        required
-                        value={workStatus}
-                        onChange={(e) => setWorkStatus(e.target.value)}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-medium focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                      >
-                        <option value="TENDER_EMD">Pre-Contract: Tender / EMD Stage</option>
-                        <option value="AWARDED_PG">Awarded: Performance Guarantee (PG) Stage</option>
-                        <option value="IN_PROGRESS">Execution: In Progress</option>
+                      <label className="text-xs font-bold text-slate-700 block mb-1">Work Stage<span className="text-red-600"> *</span></label>
+                      <select value={workStatus} onChange={(e) => setWorkStatus(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-white">
+                        <option value="TENDER_EMD">Tender / EMD</option>
+                        <option value="AWARDED_PG">Awarded / PG</option>
+                        <option value="IN_PROGRESS">In Progress</option>
                         <option value="COMPLETED">Completed</option>
-                        <option value="CLOSED">Closed / Archived</option>
+                        <option value="CLOSED">Closed</option>
                       </select>
                     </div>
                   </div>
 
-                  <div>
-                    <label className="text-xs font-bold text-slate-700 block mb-1">Full Work Name / Description <span className="text-red-600">*</span></label>
-                    <textarea
-                      required
-                      rows={2}
-                      placeholder="e.g. Round-the-clock Security Guard & Supervisor Deployment at 33/11kV Substation"
-                      value={workName}
-                      onChange={(e) => setWorkName(e.target.value)}
-                      className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                    />
+                  <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/60 p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="text-xs font-black text-slate-800">Bill Details · Deduction of bill · Payment recerived details · Reimbursement Details</div>
+                      <button
+                        type="button"
+                        onClick={() => setWorkPayments((rows) => [...rows, emptyPayment(nextRaBillNo(rows))])}
+                        className="px-2.5 py-1 bg-indigo-700 hover:bg-indigo-800 text-white text-[11px] font-bold rounded-lg"
+                      >
+                        Add
+                      </button>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="min-w-[2200px] w-full text-[11px] border-collapse">
+                        <thead className="bg-white text-slate-700">
+                          <tr>
+                            {BILL_LINE_FIELDS.map((field) => (
+                              <th key={field.key} className="border border-slate-200 p-1 text-left whitespace-nowrap">{field.label}</th>
+                            ))}
+                            <th className="border border-slate-200 p-1" />
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {workPayments.map((line, index) => (
+                            <tr key={index}>
+                              {BILL_LINE_FIELDS.map((field) => (
+                                <td key={field.key} className="border border-slate-200 p-1">
+                                  {field.type === "select" ? (
+                                    <select
+                                      value={String(line[field.key] ?? "")}
+                                      onChange={(e) =>
+                                        setWorkPayments((rows) =>
+                                          rows.map((row, i) => (i === index ? { ...row, [field.key]: e.target.value } : row)),
+                                        )
+                                      }
+                                      className="w-full min-w-[88px] px-1.5 py-1 border border-slate-300 rounded text-[11px] focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white"
+                                    >
+                                      <option value="">Select</option>
+                                      {RA_BILL_NOS.map((no) => (
+                                        <option key={no} value={no}>{no}</option>
+                                      ))}
+                                    </select>
+                                  ) : (
+                                    <input
+                                      type={field.type}
+                                      value={String(line[field.key] ?? "")}
+                                      onChange={(e) =>
+                                        setWorkPayments((rows) =>
+                                          rows.map((row, i) => (i === index ? { ...row, [field.key]: e.target.value } : row)),
+                                        )
+                                      }
+                                      className="w-full min-w-[88px] px-1.5 py-1 border border-slate-300 rounded text-[11px] focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                    />
+                                  )}
+                                </td>
+                              ))}
+                              <td className="border border-slate-200 p-1 text-center">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setWorkPayments((rows) => (rows.length === 1 ? [emptyPayment()] : rows.filter((_, i) => i !== index)))
+                                  }
+                                  className="text-rose-600 font-bold px-1"
+                                >
+                                  ×
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <RegisterField label="Other" value={otherDetails} onChange={setOtherDetails} star />
+                    <RegisterField label="Remarks" value={remarks} onChange={setRemarks} star />
                   </div>
                 </div>
               )}
 
-              {/* SECTION 2: PRE-CONTRACT TENDER & EMD BREAKDOWN */}
+              {/* SECTION 2: EMD REGISTER */}
               {modalSection === "EMD" && (
                 <div className="space-y-4">
                   <div className="border-b border-amber-100 pb-2">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h3 className="text-sm font-bold text-amber-900">Pre-Contract: Tender & EMD Breakdown</h3>
-                        <p className="text-xs text-amber-700">
-                          Details prior to getting the contract: Tender/NIT number, earnest money deposit, bank instrument, and refund/adjustment.
-                        </p>
-                      </div>
-                      <span className="text-[10px] font-bold bg-amber-100 text-amber-800 px-2.5 py-1 rounded-md">
-                        Pre-Award Phase
-                      </span>
+                    <h3 className="text-sm font-bold text-amber-900">EMD Register</h3>
+                    <p className="text-xs text-amber-700">Same fields as the office EMD Register sheet.</p>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                    <RegisterField label="Reg Sl No" value={emdRegdSerialNo} onChange={setEmdRegdSerialNo} placeholder="e.g. 20" mono star />
+                    <RegisterField label="Department / Division" value={departmentName} onChange={setDepartmentName} placeholder="Department / Division" star />
+                    <RegisterField label="NIT No." value={tenderNo} onChange={setTenderNo} placeholder="Tender / NIT number" mono star />
+                    <RegisterField label="Favouring" value={favouring} onChange={setFavouring} placeholder="Favouring" star />
+                    <div className="md:col-span-4">
+                      <RegisterField label="Name of Work" value={workName} onChange={setWorkName} placeholder="Name of work" area star />
+                    </div>
+                    <RegisterField label="Estimate Cost" value={estimateCost} onChange={setEstimateCost} type="number" star />
+                    <RegisterField label="Tender Amount" value={tenderAmount} onChange={setTenderAmount} type="number" star />
+                  </div>
+
+                  <div className="rounded-xl border border-amber-200 bg-amber-50/40 p-3 space-y-3">
+                    <div className="text-xs font-black text-amber-900">EMD issue Details</div>
+                    <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+                      <RegisterField label="FD No." value={emdFdNo} onChange={setEmdFdNo} placeholder="Fixed deposit number" mono star />
+                      <RegisterField label="DD No." value={emdInstrumentNo} onChange={setEmdInstrumentNo} placeholder="Demand draft number" mono star />
+                      <RegisterField label="Date" value={emdDate} onChange={setEmdDate} type="date" star />
+                      <RegisterField label="Amount" value={emdAmount} onChange={setEmdAmount} type="number" star />
+                      <RegisterField label="Bank Name" value={emdBankName} onChange={setEmdBankName} placeholder="Issuing bank" star />
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                      <label className="text-xs font-bold text-slate-700 block mb-1">Tender / NIT No <span className="text-red-600">*</span></label>
-                      <input
-                        required
-                        type="text"
-                        placeholder="e.g. NIT/WBSEDCL/SEC/2025/112"
-                        value={tenderNo}
-                        onChange={(e) => setTenderNo(e.target.value)}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-mono focus:ring-2 focus:ring-amber-500 focus:outline-none"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-xs font-bold text-slate-700 block mb-1">Tender Opening Date <span className="text-red-600">*</span></label>
-                      <input
-                        required
-                        type="date"
-                        value={tenderOpening}
-                        onChange={(e) => setTenderOpening(e.target.value)}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-amber-500 focus:outline-none"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-xs font-bold text-slate-700 block mb-1">Estimated Department Cost (₹) <span className="text-red-600">*</span></label>
-                      <input
-                        required
-                        type="number"
-                        placeholder="₹"
-                        value={estimateCost}
-                        onChange={(e) => setEstimateCost(e.target.value)}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-mono focus:ring-2 focus:ring-amber-500 focus:outline-none"
-                      />
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-3">
+                    <div className="text-xs font-black text-slate-800">EMD Maturity details (As per Agreement)</div>
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                      <RegisterField label="FD No." value={emdMaturityFdNo} onChange={setEmdMaturityFdNo} mono star />
+                      <RegisterField label="DD No." value={emdMaturityInstrumentNo} onChange={setEmdMaturityInstrumentNo} mono star />
+                      <RegisterField label="Date" value={emdMaturityDate} onChange={setEmdMaturityDate} type="date" star />
+                      <RegisterField label="Amount" value={emdMaturityAmount} onChange={setEmdMaturityAmount} type="number" star />
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-amber-50/50 p-4 rounded-xl border border-amber-200">
-                    <div>
-                      <label className="text-xs font-bold text-slate-800 block mb-1">
-                        Quoted / Tender Amount (₹)
- <span className="text-red-600">*</span></label>
-                      <input
-                        required
-                        type="number"
-                        placeholder="₹ Total quoted value"
-                        value={tenderAmount}
-                        onChange={(e) => setTenderAmount(e.target.value)}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-mono font-bold focus:ring-2 focus:ring-amber-500 focus:outline-none bg-white"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-xs font-bold text-slate-800 block mb-1">EMD % of Tender <span className="text-red-600">*</span></label>
-                      <input
-                        required
-                        type="number"
-                        step="0.1"
-                        placeholder="Usually 2%"
-                        value={emdPercent}
-                        onChange={(e) => handleEmdPercentChange(e.target.value)}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-mono focus:ring-2 focus:ring-amber-500 focus:outline-none bg-white"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-xs font-bold text-slate-800 block mb-1">
-                        Earnest Money Deposit (EMD) (₹)
- <span className="text-red-600">*</span></label>
-                      <input
-                        required
-                        type="number"
-                        placeholder="₹ EMD value"
-                        value={emdAmount}
-                        onChange={(e) => setEmdAmount(e.target.value)}
-                        className="w-full px-3 py-2 border border-amber-300 rounded-xl text-xs font-mono font-bold text-amber-900 focus:ring-2 focus:ring-amber-500 focus:outline-none bg-white"
-                      />
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-3">
+                    <div className="text-xs font-black text-slate-800">EMD Release details (As per Actual)</div>
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                      <RegisterField label="FD No." value={emdReleaseFdNo} onChange={setEmdReleaseFdNo} mono star />
+                      <RegisterField label="DD No." value={emdRefundRef} onChange={setEmdRefundRef} placeholder="Release DD No." mono star />
+                      <RegisterField label="Date" value={emdRefundDate} onChange={setEmdRefundDate} type="date" star />
+                      <RegisterField label="Amount" value={emdReleaseAmount} onChange={setEmdReleaseAmount} type="number" star />
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                      <label className="text-xs font-bold text-slate-700 block mb-1">EMD Mode <span className="text-red-600">*</span></label>
-                      <select
-                        required
-                        value={emdMode}
-                        onChange={(e) => setEmdMode(e.target.value)}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-amber-500 focus:outline-none"
-                      >
-                        <option value="DEMAND_DRAFT">Demand Draft (DD)</option>
-                        <option value="FDR">Fixed Deposit Receipt (FDR)</option>
-                        <option value="BANK_GUARANTEE">Bank Guarantee (BG)</option>
-                        <option value="ONLINE">Online / RTGS / NEFT</option>
-                        <option value="CHALLAN">Treasury Challan</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="text-xs font-bold text-slate-700 block mb-1">EMD Instrument / DD / FDR No <span className="text-red-600">*</span></label>
-                      <input
-                        required
-                        type="text"
-                        placeholder="e.g. FDR/SBI/782190"
-                        value={emdInstrumentNo}
-                        onChange={(e) => setEmdInstrumentNo(e.target.value)}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-mono focus:ring-2 focus:ring-amber-500 focus:outline-none"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-xs font-bold text-slate-700 block mb-1">EMD Issue Date <span className="text-red-600">*</span></label>
-                      <input
-                        required
-                        type="date"
-                        value={emdDate}
-                        onChange={(e) => setEmdDate(e.target.value)}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-amber-500 focus:outline-none"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                    <RegisterField label="Make Agency" value={makeAgency} onChange={setMakeAgency} placeholder="e.g. N.K. Ent." star />
+                    <RegisterField label="Applicant Agency" value={applicantAgency} onChange={setApplicantAgency} star />
                     <div className="md:col-span-2">
-                      <label className="text-xs font-bold text-slate-700 block mb-1">Issuing Bank & Branch <span className="text-red-600">*</span></label>
-                      <input
-                        required
-                        type="text"
-                        placeholder="e.g. State Bank of India, Dalhousie Branch, Kolkata"
-                        value={emdBankName}
-                        onChange={(e) => setEmdBankName(e.target.value)}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-amber-500 focus:outline-none"
-                      />
+                      <RegisterField label="Remark/Status" value={emdRemark} onChange={setEmdRemark} star />
                     </div>
-
                     <div>
-                      <label className="text-xs font-bold text-slate-700 block mb-1">EMD Current Status <span className="text-red-600">*</span></label>
-                      <select
-                        required
-                        value={emdStatus}
-                        onChange={(e) => setEmdStatus(e.target.value)}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-bold focus:ring-2 focus:ring-amber-500 focus:outline-none"
-                      >
+                      <label className="text-xs font-bold text-slate-700 block mb-1">EMD Current Status</label>
+                      <select value={emdStatus} onChange={(e) => setEmdStatus(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-bold focus:ring-2 focus:ring-amber-500 focus:outline-none bg-white">
                         <option value="SUBMITTED">Submitted with Bid</option>
                         <option value="ACTIVE">Active / Under Evaluation</option>
                         <option value="REFUNDED">Refunded to Firm</option>
@@ -1639,532 +1834,99 @@ export default function CrmPage() {
                         <option value="FORFEITED">Forfeited</option>
                       </select>
                     </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+                    <RegisterField label="Tender Opening Date" value={tenderOpening} onChange={setTenderOpening} type="date" />
+                    <RegisterField label="EMD % of Tender" value={emdPercent} onChange={handleEmdPercentChange} type="number" />
                     <div>
-                      <label className="text-xs font-bold text-slate-700 block mb-1">EMD Refund / Adjustment Date <span className="text-red-600">*</span></label>
-                      <input
-                        required
-                        type="date"
-                        value={emdRefundDate}
-                        onChange={(e) => setEmdRefundDate(e.target.value)}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-amber-500 focus:outline-none bg-white"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-xs font-bold text-slate-700 block mb-1">Refund / Adjustment Voucher Ref <span className="text-red-600">*</span></label>
-                      <input
-                        required
-                        type="text"
-                        placeholder="e.g. VCH-REF-2026/012 or Letter No"
-                        value={emdRefundRef}
-                        onChange={(e) => setEmdRefundRef(e.target.value)}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-mono focus:ring-2 focus:ring-amber-500 focus:outline-none bg-white"
-                      />
+                      <label className="text-xs font-bold text-slate-700 block mb-1">EMD Mode</label>
+                      <select value={emdMode} onChange={(e) => setEmdMode(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-amber-500 focus:outline-none bg-white">
+                        <option value="DEMAND_DRAFT">Demand Draft (DD)</option>
+                        <option value="FDR">Fixed Deposit Receipt (FDR)</option>
+                        <option value="BANK_GUARANTEE">Bank Guarantee (BG)</option>
+                        <option value="ONLINE">Online / RTGS / NEFT</option>
+                        <option value="CHALLAN">Treasury Challan</option>
+                      </select>
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* SECTION 3: POST-AWARD / PRE-WORK PERFORMANCE GUARANTEE (PG) */}
+              {/* SECTION 3: PG REGISTER */}
               {modalSection === "PG" && (
                 <div className="space-y-4">
                   <div className="border-b border-purple-100 pb-2">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h3 className="text-sm font-bold text-purple-900">Post-Award: Performance Guarantee (PG) Breakdown</h3>
-                        <p className="text-xs text-purple-700">
-                          Required after getting contract/LOA, before starting work on site. Track Bank Guarantee details, validity, and release.
-                        </p>
-                      </div>
-                      <span className="text-[10px] font-bold bg-purple-100 text-purple-800 px-2.5 py-1 rounded-md">
-                        Pre-Work Security
-                      </span>
+                    <h3 className="text-sm font-bold text-purple-900">Performance Guarantee(P.G.) Register</h3>
+                    <p className="text-xs text-purple-700">Same fields as the office PG register.</p>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                    <RegisterField label="Reg Sl No" value={pgRegdSerialNo} onChange={setPgRegdSerialNo} placeholder="e.g. 10" mono star />
+                    <RegisterField label="Department / Division" value={departmentName} onChange={setDepartmentName} star />
+                    <RegisterField label="NIT No." value={tenderNo} onChange={setTenderNo} mono star />
+                    <RegisterField label="Favouring" value={favouring} onChange={setFavouring} star />
+                    <div className="md:col-span-2">
+                      <RegisterField label="Name of Work" value={workName} onChange={setWorkName} area star />
+                    </div>
+                    <RegisterField label="Estimate Cost" value={estimateCost} onChange={setEstimateCost} type="number" star />
+                    <RegisterField label="Contract Amount" value={tenderAmount} onChange={setTenderAmount} type="number" star />
+                  </div>
+
+                  <div className="rounded-xl border border-purple-200 bg-purple-50/40 p-3 space-y-3">
+                    <div className="text-xs font-black text-purple-900">P.G. Issue Details</div>
+                    <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+                      <RegisterField label="FD No." value={pgFdNo} onChange={setPgFdNo} mono star />
+                      <RegisterField label="BG No." value={pgBgNo} onChange={setPgBgNo} mono star />
+                      <RegisterField label="Date" value={pgDate} onChange={setPgDate} type="date" star />
+                      <RegisterField label="Amount" value={pgAmount} onChange={setPgAmount} type="number" star />
+                      <RegisterField label="Bank Name" value={pgBankName} onChange={setPgBankName} star />
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-purple-50/50 p-4 rounded-xl border border-purple-200">
-                    <div>
-                      <label className="text-xs font-bold text-slate-800 block mb-1">PG % of Contract Value <span className="text-red-600">*</span></label>
-                      <input
-                        required
-                        type="number"
-                        step="0.1"
-                        placeholder="Usually 3% to 5%"
-                        value={pgPercent}
-                        onChange={(e) => handlePgPercentChange(e.target.value)}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-mono focus:ring-2 focus:ring-purple-500 focus:outline-none bg-white"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-xs font-bold text-slate-800 block mb-1">
-                        Performance Guarantee Amount (₹)
- <span className="text-red-600">*</span></label>
-                      <input
-                        required
-                        type="number"
-                        placeholder="₹ PG value"
-                        value={pgAmount}
-                        onChange={(e) => setPgAmount(e.target.value)}
-                        className="w-full px-3 py-2 border border-purple-300 rounded-xl text-xs font-mono font-bold text-purple-900 focus:ring-2 focus:ring-purple-500 focus:outline-none bg-white"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-xs font-bold text-slate-800 block mb-1">PG Instrument Mode <span className="text-red-600">*</span></label>
-                      <select
-                        required
-                        value={pgMode}
-                        onChange={(e) => setPgMode(e.target.value)}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-medium focus:ring-2 focus:ring-purple-500 focus:outline-none bg-white"
-                      >
-                        <option value="BANK_GUARANTEE">Bank Guarantee (BG)</option>
-                        <option value="FDR">Fixed Deposit Receipt (FDR)</option>
-                        <option value="DEMAND_DRAFT">Demand Draft (DD)</option>
-                        <option value="CASH_DEPOSIT">Cash Deposit / Treasury</option>
-                      </select>
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-3">
+                    <div className="text-xs font-black text-slate-800">P.G. Maturity details (As per Agreement)</div>
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                      <RegisterField label="FD No." value={pgMaturityFdNo} onChange={setPgMaturityFdNo} mono star />
+                      <RegisterField label="BG No." value={pgMaturityBgNo} onChange={setPgMaturityBgNo} mono star />
+                      <RegisterField label="Date" value={pgExpiryDate} onChange={setPgExpiryDate} type="date" star />
+                      <RegisterField label="Amount" value={pgMaturityAmount} onChange={setPgMaturityAmount} type="number" star />
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-xs font-bold text-slate-700 block mb-1">PG / BG Instrument Number <span className="text-red-600">*</span></label>
-                      <input
-                        required
-                        type="text"
-                        placeholder="e.g. BG/PNB/2026/4412"
-                        value={pgInstrumentNo}
-                        onChange={(e) => setPgInstrumentNo(e.target.value)}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-mono focus:ring-2 focus:ring-purple-500 focus:outline-none"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-xs font-bold text-slate-700 block mb-1">Issuing Bank & Branch <span className="text-red-600">*</span></label>
-                      <input
-                        required
-                        type="text"
-                        placeholder="e.g. Punjab National Bank, Burrabazar Branch"
-                        value={pgBankName}
-                        onChange={(e) => setPgBankName(e.target.value)}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-purple-500 focus:outline-none"
-                      />
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-3">
+                    <div className="text-xs font-black text-slate-800">P.G. Release details (As per Actual)</div>
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                      <RegisterField label="FD No." value={pgReleaseFdNo} onChange={setPgReleaseFdNo} mono star />
+                      <RegisterField label="BG No." value={pgReleaseBgNo} onChange={setPgReleaseBgNo} mono star />
+                      <RegisterField label="Date" value={pgReleaseDate} onChange={setPgReleaseDate} type="date" star />
+                      <RegisterField label="Amount" value={pgReleaseAmount} onChange={setPgReleaseAmount} type="number" star />
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                      <label className="text-xs font-bold text-slate-700 block mb-1">PG Issue Date <span className="text-red-600">*</span></label>
-                      <input
-                        required
-                        type="date"
-                        value={pgDate}
-                        onChange={(e) => setPgDate(e.target.value)}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-purple-500 focus:outline-none"
-                      />
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                    <RegisterField label="Make Agency" value={makeAgency} onChange={setMakeAgency} placeholder="e.g. N.K. Ent." star />
+                    <RegisterField label="Applicant Agency" value={applicantAgency} onChange={setApplicantAgency} star />
+                    <div className="md:col-span-2">
+                      <RegisterField label="Remark/Status" value={pgRemark} onChange={setPgRemark} star />
                     </div>
-
                     <div>
-                      <label className="text-xs font-bold text-slate-700 block mb-1">
-                        Validity / Expiry Date <span className="text-rose-500">*</span>
-                      </label>
-                      <input
-                        required
-                        type="date"
-                        value={pgExpiryDate}
-                        onChange={(e) => setPgExpiryDate(e.target.value)}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-purple-500 focus:outline-none"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-xs font-bold text-slate-700 block mb-1">Claim Period Expiry Date <span className="text-red-600">*</span></label>
-                      <input
-                        required
-                        type="date"
-                        value={pgClaimDate}
-                        onChange={(e) => setPgClaimDate(e.target.value)}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-purple-500 focus:outline-none"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
-                    <div>
-                      <label className="text-xs font-bold text-slate-700 block mb-1">PG Current Status <span className="text-red-600">*</span></label>
-                      <select
-                        required
-                        value={pgStatus}
-                        onChange={(e) => setPgStatus(e.target.value)}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-bold focus:ring-2 focus:ring-purple-500 focus:outline-none bg-white"
-                      >
+                      <label className="text-xs font-bold text-slate-700 block mb-1">PG Current Status</label>
+                      <select value={pgStatus} onChange={(e) => setPgStatus(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-bold focus:ring-2 focus:ring-purple-500 focus:outline-none bg-white">
                         <option value="SUBMITTED">Submitted to Client</option>
                         <option value="ACTIVE">Active & Verified</option>
                         <option value="RELEASED">Released / Discharged</option>
                         <option value="INVOKED">Invoked / Encashment</option>
                       </select>
                     </div>
-
                     <div>
-                      <label className="text-xs font-bold text-slate-700 block mb-1">PG Release Date <span className="text-red-600">*</span></label>
-                      <input
-                        required
-                        type="date"
-                        value={pgReleaseDate}
-                        onChange={(e) => setPgReleaseDate(e.target.value)}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-purple-500 focus:outline-none bg-white"
-                      />
+                      <label className="text-xs font-bold text-slate-700 block mb-1">PG Instrument Mode</label>
+                      <select value={pgMode} onChange={(e) => setPgMode(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-purple-500 focus:outline-none bg-white">
+                        <option value="BANK_GUARANTEE">Bank Guarantee (BG)</option>
+                        <option value="FDR">Fixed Deposit Receipt (FDR)</option>
+                        <option value="DEMAND_DRAFT">Demand Draft (DD)</option>
+                        <option value="CASH_DEPOSIT">Cash Deposit / Treasury</option>
+                      </select>
                     </div>
-
-                    <div>
-                      <label className="text-xs font-bold text-slate-700 block mb-1">Release Letter / Voucher Ref <span className="text-red-600">*</span></label>
-                      <input
-                        required
-                        type="text"
-                        placeholder="e.g. REL-BG/2027/99"
-                        value={pgReleaseRef}
-                        onChange={(e) => setPgReleaseRef(e.target.value)}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-mono focus:ring-2 focus:ring-purple-500 focus:outline-none bg-white"
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* SECTION 4: EXECUTION & MEASUREMENT (MB, LCC, DATES) */}
-              {modalSection === "EXECUTION" && (
-                <div className="space-y-4">
-                  <div className="border-b border-blue-100 pb-2">
-                    <h3 className="text-sm font-bold text-blue-900">Execution, Measurement & Time Schedule</h3>
-                    <p className="text-xs text-blue-700">
-                      Measurement Book (MB) volume, Labour Contractor Certificate (LCC), and stipulated vs actual work dates.
-                    </p>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-xs font-bold text-slate-700 block mb-1">Measurement Book (MB) Reference <span className="text-red-600">*</span></label>
-                      <input
-                        required
-                        type="text"
-                        placeholder="e.g. MB-2026/104, Page 12 to 28"
-                        value={measurementBookNo}
-                        onChange={(e) => setMeasurementBookNo(e.target.value)}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-mono focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-xs font-bold text-slate-700 block mb-1">Labour Contractor Certificate (LCC) No <span className="text-red-600">*</span></label>
-                      <input
-                        required
-                        type="text"
-                        placeholder="e.g. LCC/WB/KOL/0942"
-                        value={lccNo}
-                        onChange={(e) => setLccNo(e.target.value)}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-mono focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
-                    <div>
-                      <label className="text-xs font-bold text-slate-700 block mb-1">Stipulated Start Date (Agreement) <span className="text-red-600">*</span></label>
-                      <input
-                        required
-                        type="date"
-                        value={startAgreement}
-                        onChange={(e) => setStartAgreement(e.target.value)}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-xs font-bold text-slate-700 block mb-1">Actual Start Date (On Site) <span className="text-red-600">*</span></label>
-                      <input
-                        required
-                        type="date"
-                        value={startActual}
-                        onChange={(e) => setStartActual(e.target.value)}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
-                    <div>
-                      <label className="text-xs font-bold text-slate-700 block mb-1">Stipulated Completion Date <span className="text-red-600">*</span></label>
-                      <input
-                        required
-                        type="date"
-                        value={completionAgreement}
-                        onChange={(e) => setCompletionAgreement(e.target.value)}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-xs font-bold text-slate-700 block mb-1">Actual Completion Date <span className="text-red-600">*</span></label>
-                      <input
-                        required
-                        type="date"
-                        value={completionActual}
-                        onChange={(e) => setCompletionActual(e.target.value)}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white"
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* SECTION 5: BILLING, DEDUCTIONS & RECOVERIES BREAKDOWN */}
-              {modalSection === "BILLING" && (
-                <div className="space-y-4">
-                  <div className="border-b border-rose-100 pb-2">
-                    <h3 className="text-sm font-bold text-rose-900">
-                      Running Bill & Statutory Deductions Breakdown
-                    </h3>
-                    <p className="text-xs text-rose-700">
-                      Official CPWD / Public Works breakdown: Security Deposit, TDS u/s 194C, GST TDS, Labour Cess, and Withheld amounts.
-                    </p>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                      <label className="text-xs font-bold text-slate-700 block mb-1">Running Bill Number <span className="text-red-600">*</span></label>
-                      <input
-                        required
-                        type="text"
-                        placeholder="e.g. RA-04 / Final Bill"
-                        value={billNumber}
-                        onChange={(e) => setBillNumber(e.target.value)}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-mono focus:ring-2 focus:ring-rose-500 focus:outline-none"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-xs font-bold text-slate-700 block mb-1">Bill Date <span className="text-red-600">*</span></label>
-                      <input
-                        required
-                        type="date"
-                        value={billDate}
-                        onChange={(e) => setBillDate(e.target.value)}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-rose-500 focus:outline-none"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-xs font-bold text-slate-900 block mb-1">
-                        Gross Bill Amount (₹) <span className="text-rose-500">*</span>
-                      </label>
-                      <input
-                        required
-                        type="number"
-                        placeholder="₹ Gross amount"
-                        value={grossAmount}
-                        onChange={(e) => setGrossAmount(e.target.value)}
-                        className="w-full px-3 py-2 border border-rose-300 rounded-xl text-xs font-mono font-bold text-slate-900 focus:ring-2 focus:ring-rose-500 focus:outline-none bg-rose-50/20"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Deduction Breakdown Grid */}
-                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
-                    <div className="text-xs font-bold uppercase tracking-wider text-slate-700">
-                      Recoveries & Deductions Breakdown (₹)
-                    </div>
-
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                      <div>
-                        <label className="text-[11px] font-semibold text-slate-600 block mb-1">
-                          Security Deposit (SD)
- <span className="text-red-600">*</span></label>
-                        <input
-                          required
-                          type="number"
-                          placeholder="₹ SD (5%/10%)"
-                          value={securityDeposit}
-                          onChange={(e) => setSecurityDeposit(e.target.value)}
-                          className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs font-mono bg-white focus:ring-1 focus:ring-indigo-500 focus:outline-none"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="text-[11px] font-semibold text-slate-600 block mb-1">
-                          Income Tax TDS (194C)
- <span className="text-red-600">*</span></label>
-                        <input
-                          required
-                          type="number"
-                          placeholder="₹ IT TDS (1%/2%)"
-                          value={incomeTaxTds}
-                          onChange={(e) => setIncomeTaxTds(e.target.value)}
-                          className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs font-mono bg-white focus:ring-1 focus:ring-indigo-500 focus:outline-none"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="text-[11px] font-semibold text-slate-600 block mb-1">
-                          GST Recovery / TDS
- <span className="text-red-600">*</span></label>
-                        <input
-                          required
-                          type="number"
-                          placeholder="₹ GST TDS (2%)"
-                          value={gstRecovery}
-                          onChange={(e) => setGstRecovery(e.target.value)}
-                          className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs font-mono bg-white focus:ring-1 focus:ring-indigo-500 focus:outline-none"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="text-[11px] font-semibold text-slate-600 block mb-1">
-                          Labour Welfare Cess (1%)
- <span className="text-red-600">*</span></label>
-                        <input
-                          required
-                          type="number"
-                          placeholder="₹ Cess (1%)"
-                          value={labourCess}
-                          onChange={(e) => setLabourCess(e.target.value)}
-                          className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs font-mono bg-white focus:ring-1 focus:ring-indigo-500 focus:outline-none"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="text-[11px] font-semibold text-slate-600 block mb-1">Water Charges <span className="text-red-600">*</span></label>
-                        <input
-                          required
-                          type="number"
-                          placeholder="₹ Water charges"
-                          value={waterCharge}
-                          onChange={(e) => setWaterCharge(e.target.value)}
-                          className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs font-mono bg-white focus:ring-1 focus:ring-indigo-500 focus:outline-none"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="text-[11px] font-semibold text-slate-600 block mb-1">ESI / PF Withheld <span className="text-red-600">*</span></label>
-                        <input
-                          required
-                          type="number"
-                          placeholder="₹ ESI / PF deduction"
-                          value={esiPfDeduction}
-                          onChange={(e) => setEsiPfDeduction(e.target.value)}
-                          className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs font-mono bg-white focus:ring-1 focus:ring-indigo-500 focus:outline-none"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="text-[11px] font-semibold text-slate-600 block mb-1">Other Withheld <span className="text-red-600">*</span></label>
-                        <input
-                          required
-                          type="number"
-                          placeholder="₹ Retention withheld"
-                          value={withheldAmount}
-                          onChange={(e) => setWithheldAmount(e.target.value)}
-                          className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs font-mono bg-white focus:ring-1 focus:ring-indigo-500 focus:outline-none"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="text-[11px] font-semibold text-slate-600 block mb-1">Other Recovery / Fine <span className="text-red-600">*</span></label>
-                        <input
-                          required
-                          type="number"
-                          placeholder="₹ Other penalty"
-                          value={otherRecovery}
-                          onChange={(e) => setOtherRecovery(e.target.value)}
-                          className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs font-mono bg-white focus:ring-1 focus:ring-indigo-500 focus:outline-none"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Computed Summary Banner */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-emerald-50/60 p-4 rounded-xl border border-emerald-200">
-                    <div>
-                      <div className="text-xs font-bold text-rose-800 uppercase tracking-wider">
-                        Total Deductions & Recoveries
-                      </div>
-                      <div className="text-xl font-mono font-black text-rose-700 mt-1">
-                        ₹{totalDeductions ? Number(totalDeductions).toLocaleString("en-IN") : "0"}
-                      </div>
-                      <div className="text-[10px] text-slate-500 mt-0.5">Auto-calculated sum of all deductions</div>
-                    </div>
-
-                    <div>
-                      <div className="text-xs font-bold text-emerald-800 uppercase tracking-wider">
-                        Net Realizable / Passed Amount
-                      </div>
-                      <div className="text-2xl font-mono font-black text-emerald-700 mt-1">
-                        ₹{netAmount ? Number(netAmount).toLocaleString("en-IN") : "0"}
-                      </div>
-                      <div className="text-[10px] text-slate-500 mt-0.5">Gross Bill Amount − Total Deductions</div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* SECTION 6: PAYMENT REALIZATION & VOUCHERS */}
-              {modalSection === "PAYMENT" && (
-                <div className="space-y-4">
-                  <div className="border-b border-emerald-100 pb-2">
-                    <h3 className="text-sm font-bold text-emerald-900">Payment Realization & Bank Settlement</h3>
-                    <p className="text-xs text-emerald-700">
-                      Record when net funds hit your bank account, voucher numbers, and SD reimbursement dates.
-                    </p>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                      <label className="text-xs font-bold text-slate-700 block mb-1">Passed Voucher Number <span className="text-red-600">*</span></label>
-                      <input
-                        required
-                        type="text"
-                        placeholder="e.g. VCH-2026-0914"
-                        value={voucherNumber}
-                        onChange={(e) => setVoucherNumber(e.target.value)}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-mono focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-xs font-bold text-slate-700 block mb-1">Bank Received / Credit Date <span className="text-red-600">*</span></label>
-                      <input
-                        required
-                        type="date"
-                        value={bankReceivedDate}
-                        onChange={(e) => setBankReceivedDate(e.target.value)}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-xs font-bold text-slate-700 block mb-1">Reimburse / SD Release Date <span className="text-red-600">*</span></label>
-                      <input
-                        required
-                        type="date"
-                        value={reimburseDate}
-                        onChange={(e) => setReimburseDate(e.target.value)}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="text-xs font-bold text-slate-700 block mb-1">Remarks / Bank Account Details <span className="text-red-600">*</span></label>
-                    <textarea
-                      required
-                      rows={3}
-                      placeholder="e.g. Bill passed and credited to SBI Current A/c. Labour compliance verified."
-                      value={remarks}
-                      onChange={(e) => setRemarks(e.target.value)}
-                      className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                    />
+                    <RegisterField label="PG % of Contract Value" value={pgPercent} onChange={handlePgPercentChange} type="number" />
+                    <RegisterField label="Claim Period Expiry Date" value={pgClaimDate} onChange={setPgClaimDate} type="date" />
                   </div>
                 </div>
               )}
@@ -2176,36 +1938,20 @@ export default function CrmPage() {
                     <button
                       type="button"
                       onClick={() => {
-                        const sections: Array<"GENERAL" | "EMD" | "PG" | "EXECUTION" | "BILLING" | "PAYMENT"> = [
-                          "GENERAL",
-                          "EMD",
-                          "PG",
-                          "EXECUTION",
-                          "BILLING",
-                          "PAYMENT",
-                        ];
-                        const idx = sections.indexOf(modalSection);
-                        if (idx > 0) setModalSection(sections[idx - 1]);
+                        const idx = REGISTER_STEPS.indexOf(modalSection);
+                        if (idx > 0) setModalSection(REGISTER_STEPS[idx - 1]);
                       }}
                       className="px-3 py-2 border border-slate-300 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-50 transition"
                     >
                       ← Back
                     </button>
                   )}
-                  {modalSection !== "PAYMENT" && (
+                  {modalSection !== "PG" && (
                     <button
                       type="button"
                       onClick={() => {
-                        const sections: Array<"GENERAL" | "EMD" | "PG" | "EXECUTION" | "BILLING" | "PAYMENT"> = [
-                          "GENERAL",
-                          "EMD",
-                          "PG",
-                          "EXECUTION",
-                          "BILLING",
-                          "PAYMENT",
-                        ];
-                        const idx = sections.indexOf(modalSection);
-                        if (idx < sections.length - 1) setModalSection(sections[idx + 1]);
+                        const idx = REGISTER_STEPS.indexOf(modalSection);
+                        if (idx < REGISTER_STEPS.length - 1) setModalSection(REGISTER_STEPS[idx + 1]);
                       }}
                       className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold transition"
                     >

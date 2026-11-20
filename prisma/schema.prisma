@@ -478,11 +478,28 @@ model Contract {
   emdPercent            Decimal?      @map("emd_percent") @db.Decimal(5, 2)
   emdMode               String?       @default("DD") @map("emd_mode") // DD, FDR, BG, ONLINE, CHALLAN
   emdInstrumentNo       String?       @map("emd_instrument_no")
+  emdFdNo               String?       @map("emd_fd_no")
   emdDate               DateTime?     @map("emd_date") @db.Date
   emdBankName           String?       @map("emd_bank_name")
   emdStatus             String?       @default("SUBMITTED") @map("emd_status") // SUBMITTED, ACTIVE, REFUNDED, ADJUSTED_TO_PG, ADJUSTED_TO_SD, FORFEITED
   emdRefundDate         DateTime?     @map("emd_refund_date") @db.Date
   emdRefundRef          String?       @map("emd_refund_ref")
+  emdRegdSerialNo       String?       @map("emd_regd_serial_no")
+  favouring             String?
+  emdMaturityDate       DateTime?     @map("emd_maturity_date") @db.Date
+  emdMaturityInstrumentNo String?     @map("emd_maturity_instrument_no")
+  emdMaturityFdNo       String?       @map("emd_maturity_fd_no")
+  emdMaturityAmount     Decimal?      @map("emd_maturity_amount") @db.Decimal(14, 2)
+  emdReleaseFdNo        String?       @map("emd_release_fd_no")
+  emdReleaseAmount      Decimal?      @map("emd_release_amount") @db.Decimal(14, 2)
+  emdEstimateDetails    String?       @map("emd_estimate_details")
+  agencyName            String?       @map("agency_name")
+  applicantAccount      String?       @map("applicant_account")
+  makeAgency            String?       @map("make_agency")
+  applicantAgency       String?       @map("applicant_agency")
+  emdRemark             String?       @map("emd_remark")
+  pgRemark              String?       @map("pg_remark")
+  pgTenderDetails       String?       @map("pg_tender_details")
 
   // PG (Performance Guarantee) - Post-award, pre-work stage
   pgAmount              Decimal?      @map("pg_amount") @db.Decimal(14, 2)
@@ -496,6 +513,22 @@ model Contract {
   pgStatus              String?       @default("SUBMITTED") @map("pg_status") // SUBMITTED, ACTIVE, RELEASED, INVOKED
   pgReleaseDate         DateTime?     @map("pg_release_date") @db.Date
   pgReleaseRef          String?       @map("pg_release_ref")
+  pgRegdSerialNo        String?       @map("pg_regd_serial_no")
+  pgMaturityInstrumentNo String?      @map("pg_maturity_instrument_no")
+  pgMaturityAmount      Decimal?      @map("pg_maturity_amount") @db.Decimal(14, 2)
+  pgReleaseAmount       Decimal?      @map("pg_release_amount") @db.Decimal(14, 2)
+  pgFdNo                String?       @map("pg_fd_no")
+  pgBgNo                String?       @map("pg_bg_no")
+  pgMaturityFdNo        String?       @map("pg_maturity_fd_no")
+  pgMaturityBgNo        String?       @map("pg_maturity_bg_no")
+  pgReleaseFdNo         String?       @map("pg_release_fd_no")
+  pgReleaseBgNo         String?       @map("pg_release_bg_no")
+  regRef                String?       @map("reg_ref")
+  workingDays           String?       @map("working_days")
+  awardedDate           DateTime?     @map("awarded_date") @db.Date
+  pgLetterStatus        String?       @map("pg_letter_status")
+  workOrderStatus       String?       @map("work_order_status")
+  workPayments          Json?         @map("work_payments")
 
   // Work Register & Execution Details
   measurementBookNo     String?       @map("measurement_book_no")
@@ -523,6 +556,7 @@ model Contract {
   voucherNumber         String?       @map("voucher_number")
   bankReceivedDate      DateTime?     @map("bank_received_date") @db.Date
   reimburseDate         DateTime?     @map("reimburse_date") @db.Date
+  otherDetails          String?       @map("other_details")
   remarks               String?
 
   deletedAt             DateTime?     @map("deleted_at")

@@ -29,7 +29,6 @@ import {
   nextRaBillNo,
   paymentLineHasValue,
   raBillDropdownOptions,
-  raBillOrdinal,
   workPaymentLines,
   type WorkPaymentLine,
 } from "@/lib/downloadWorkRegisterExcel";
@@ -67,7 +66,7 @@ function emptyPayment(raBillNo = ""): WorkPaymentLine {
 }
 
 function defaultRaRows(): WorkPaymentLine[] {
-  return Array.from({ length: 12 }, (_, index) => emptyPayment(raBillOrdinal(index + 1)));
+  return [emptyPayment("")];
 }
 
 const BILL_LINE_FIELDS: Array<{ no: number; key: keyof WorkPaymentLine; label: string; type: "text" | "number" | "date" | "select" }> = [
@@ -127,6 +126,7 @@ function moveSheetFocus(root: HTMLElement | null, from: EventTarget | null, dir:
   const next = fields[index + dir];
   if (!next) return;
   next.focus();
+  next.scrollIntoView({ block: "nearest", inline: "nearest" });
   if (next instanceof HTMLInputElement && next.type !== "date") {
     try {
       next.select();
@@ -187,6 +187,7 @@ function RegisterField({
   mono,
   area,
   star,
+  no,
 }: {
   label: string;
   value: string;
@@ -196,11 +197,13 @@ function RegisterField({
   mono?: boolean;
   area?: boolean;
   star?: boolean;
+  no?: number | string;
 }) {
   const cls = `w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-white ${mono ? "font-mono" : ""}`;
   return (
     <div>
       <label className="text-xs font-bold text-slate-700 block mb-1">
+        {no != null ? <span className="text-slate-400 mr-1">{no}.</span> : null}
         {label}
         {star ? <span className="text-red-600"> *</span> : null}
       </label>
@@ -697,16 +700,19 @@ export default function CrmPage() {
     setAwardedDate(formatDateInput(c.awardedDate));
     setPgLetterStatus(c.pgLetterStatus || "");
     setWorkOrderStatus(c.workOrderStatus || "");
-    setWorkPayments(
-      workPaymentLines(c).map((line) => ({
-        ...emptyPayment(line.raBillNo || "1st"),
-        ...line,
-        billDate: formatDateInput(line.billDate as string | null | undefined),
-        voucherDate: formatDateInput(line.voucherDate as string | null | undefined),
-        dateOfPayment: formatDateInput(line.dateOfPayment as string | null | undefined),
-        bankReceivedDate: formatDateInput(line.bankReceivedDate as string | null | undefined),
-      })),
-    );
+    setWorkPayments(() => {
+      const lines = workPaymentLines(c)
+        .map((line) => ({
+          ...emptyPayment(line.raBillNo || ""),
+          ...line,
+          billDate: formatDateInput(line.billDate as string | null | undefined),
+          voucherDate: formatDateInput(line.voucherDate as string | null | undefined),
+          dateOfPayment: formatDateInput(line.dateOfPayment as string | null | undefined),
+          bankReceivedDate: formatDateInput(line.bankReceivedDate as string | null | undefined),
+        }))
+        .filter(paymentLineHasValue);
+      return lines.length ? lines : defaultRaRows();
+    });
 
     setMeasurementBookNo(c.measurementBookNo || "");
     setLccNo(c.lccNo || "");
@@ -1312,7 +1318,7 @@ export default function CrmPage() {
                     Work Register ( {company?.legalName || company?.shortName || "M/s N.K. Enterprise"} )
                   </h3>
                   <p className="text-[11px] text-slate-500">
-                    Same 42 columns as the office Work Register, with R.A. bills 1st to 12th under each work.
+                    Same columns as the office Work Register. Tick rows, then download Excel or PDF.
                   </p>
                 </div>
                 {registerDownloadBar(
@@ -1391,7 +1397,8 @@ export default function CrmPage() {
                   </thead>
                   <tbody>
                     {workRows.map((c, index) => {
-                      const lines = workPaymentLines(c);
+                      const filled = workPaymentLines(c).filter(paymentLineHasValue);
+                      const lines = filled.length ? filled : [emptyWorkPayment("")];
                       const prev = workRows[index - 1];
                       const showGroup =
                         !prev || prev.clientName !== c.clientName || prev.workLocation !== c.workLocation;
@@ -1806,7 +1813,7 @@ export default function CrmPage() {
             </div>
 
             {/* Modal Body Form */}
-            <form noValidate onSubmit={handleSaveContract} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
+            <form noValidate onSubmit={handleSaveContract} className="flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6 space-y-6">
               {modalSection === "PRE" && (
                 <div className="space-y-4 max-w-xl">
                   <div className="border-b border-slate-100 pb-2">
@@ -1825,7 +1832,7 @@ export default function CrmPage() {
                     <div>
                       <h3 className="text-sm font-bold text-slate-800">WORK REGISTER</h3>
                       <p className="text-xs text-slate-500">
-                        Same 42 columns as the office Excel. Use Tab or the right arrow to move to the next field.
+                        Scroll sideways like Excel. Tab or the right arrow moves to the next field. R.A. bill is a dropdown.
                       </p>
                     </div>
                     <div className="text-[11px] text-slate-600">
@@ -1833,203 +1840,197 @@ export default function CrmPage() {
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-end">
-                    <button
-                      type="button"
-                      onClick={() => setWorkPayments((rows) => [...rows, emptyPayment(nextRaBillNo(rows))])}
-                      className="px-2.5 py-1 bg-indigo-700 hover:bg-indigo-800 text-white text-[11px] font-bold rounded-lg"
-                    >
-                      Add
-                    </button>
-                  </div>
-
-                  <div onKeyDown={onSheetKeyDown} className="overflow-x-auto border border-slate-400 bg-white">
-                    <table className="min-w-[3200px] w-full text-[10px] text-slate-800 border-collapse">
-                      <thead className="bg-slate-100 font-bold">
-                        <tr>
-                          <th rowSpan={2} className="border border-slate-400 p-1 text-center align-middle w-10">
-                            <div>1</div>
-                            <div>Sl. No.</div>
-                          </th>
-                          {WORK_HEADER_FIELDS.slice(0, 8).map((field) => (
-                            <th key={field.key} rowSpan={2} className="border border-slate-400 p-1 text-center align-middle min-w-[88px]">
-                              <div>{field.no}</div>
-                              <div>{field.label}</div>
-                            </th>
-                          ))}
-                          <th colSpan={2} className="border border-slate-400 p-1 text-center">Earnest Money Deposit</th>
-                          <th colSpan={2} className="border border-slate-400 p-1 text-center">Performance Guarantee</th>
-                          <th colSpan={2} className="border border-slate-400 p-1 text-center">Date of Start</th>
-                          <th colSpan={2} className="border border-slate-400 p-1 text-center">Date Of Completion</th>
-                          <th colSpan={7} className="border border-slate-400 p-1 text-center">Bill Details</th>
-                          <th colSpan={9} className="border border-slate-400 p-1 text-center">Deduction of bill</th>
-                          <th colSpan={2} className="border border-slate-400 p-1 text-center">Payment recerived details</th>
-                          <th colSpan={5} className="border border-slate-400 p-1 text-center">Reimbursement Details</th>
-                          <th rowSpan={2} className="border border-slate-400 p-1 text-center align-middle">
-                            <div>41</div>
-                            <div>Other</div>
-                          </th>
-                          <th rowSpan={2} className="border border-slate-400 p-1 text-center align-middle">
-                            <div>42</div>
-                            <div>Remarks</div>
-                          </th>
-                          <th rowSpan={2} className="border border-slate-400 p-1 w-8" />
-                        </tr>
-                        <tr>
-                          {WORK_HEADER_FIELDS.slice(8).map((field) => (
-                            <th key={field.key} className="border border-slate-400 p-1 text-center min-w-[88px]">
-                              <div>{field.no}</div>
-                              <div>{field.label}</div>
-                            </th>
-                          ))}
-                          {BILL_LINE_FIELDS.map((field) => (
-                            <th key={field.key} className="border border-slate-400 p-1 text-center min-w-[88px]">
-                              <div>{field.no}</div>
-                              <div>{field.label}</div>
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {workPayments.map((line, index) => {
-                          const headerValues: Record<string, string> = {
-                            regRef,
-                            departmentName,
-                            workName,
-                            agreementNo,
-                            awardedDate,
-                            workingDays,
-                            tenderAmount,
-                            estimateCost,
-                            emdAmount,
-                            emdDate,
-                            pgAmount,
-                            pgDate,
-                            startAgreement,
-                            startActual,
-                            completionAgreement,
-                            completionActual,
-                          };
-                          const headerSetters: Record<string, (value: string) => void> = {
-                            regRef: setRegRef,
-                            departmentName: setDepartmentName,
-                            workName: setWorkName,
-                            agreementNo: setAgreementNo,
-                            awardedDate: setAwardedDate,
-                            workingDays: setWorkingDays,
-                            tenderAmount: setTenderAmount,
-                            estimateCost: setEstimateCost,
-                            emdAmount: setEmdAmount,
-                            emdDate: setEmdDate,
-                            pgAmount: setPgAmount,
-                            pgDate: setPgDate,
-                            startAgreement: setStartAgreement,
-                            startActual: setStartActual,
-                            completionAgreement: setCompletionAgreement,
-                            completionActual: setCompletionActual,
-                          };
-                          return (
-                            <tr key={index} className="hover:bg-indigo-50/40">
-                              {index === 0 && (
-                                <>
-                                  <td className="border border-slate-400 p-0 text-center font-mono bg-slate-50" rowSpan={workPayments.length}>
-                                    {editingId ? "—" : ""}
-                                  </td>
-                                  {WORK_HEADER_FIELDS.map((field) => (
-                                    <td key={field.key} className="border border-slate-400 p-0" rowSpan={workPayments.length}>
-                                      {field.type === "date" ? (
-                                        <DateTextInput
-                                          value={headerValues[field.key] || ""}
-                                          onChange={headerSetters[field.key]}
-                                          className={SHEET_INPUT}
-                                        />
-                                      ) : (
-                                        <input
-                                          type={field.type}
-                                          value={headerValues[field.key] || ""}
-                                          onChange={(e) => headerSetters[field.key](e.target.value)}
-                                          className={SHEET_INPUT}
-                                        />
-                                      )}
-                                    </td>
-                                  ))}
-                                </>
-                              )}
-                              {BILL_LINE_FIELDS.map((field) => (
-                                <td key={field.key} className="border border-slate-400 p-0">
-                                  {field.type === "select" ? (
-                                    <select
-                                      value={String(line[field.key] ?? "")}
-                                      onChange={(e) => {
-                                        const value = e.target.value;
-                                        if (value === "Add") {
-                                          setWorkPayments((rows) => [...rows, emptyPayment(nextRaBillNo(rows))]);
-                                          return;
-                                        }
-                                        setWorkPayments((rows) =>
-                                          rows.map((row, i) => (i === index ? { ...row, [field.key]: value } : row)),
-                                        );
-                                      }}
-                                      className={`${SHEET_INPUT} bg-white`}
-                                    >
-                                      <option value="">Select</option>
-                                      {raBillDropdownOptions(workPayments).map((no) => (
-                                        <option key={no} value={no}>{no}</option>
-                                      ))}
-                                      <option value="Add">Add</option>
-                                    </select>
-                                  ) : field.type === "date" ? (
-                                    <DateTextInput
-                                      value={String(line[field.key] ?? "")}
-                                      onChange={(value) =>
-                                        setWorkPayments((rows) =>
-                                          rows.map((row, i) => (i === index ? { ...row, [field.key]: value } : row)),
-                                        )
-                                      }
-                                      className={SHEET_INPUT}
-                                    />
-                                  ) : (
-                                    <input
-                                      type={field.type}
-                                      value={String(line[field.key] ?? "")}
-                                      onChange={(e) =>
-                                        setWorkPayments((rows) =>
-                                          rows.map((row, i) => (i === index ? { ...row, [field.key]: e.target.value } : row)),
-                                        )
-                                      }
-                                      className={SHEET_INPUT}
-                                    />
-                                  )}
-                                </td>
+                  {(() => {
+                    const headerValues: Record<string, string> = {
+                      regRef,
+                      departmentName,
+                      workName,
+                      agreementNo,
+                      awardedDate,
+                      workingDays,
+                      tenderAmount,
+                      estimateCost,
+                      emdAmount,
+                      emdDate,
+                      pgAmount,
+                      pgDate,
+                      startAgreement,
+                      startActual,
+                      completionAgreement,
+                      completionActual,
+                    };
+                    const headerSetters: Record<string, (value: string) => void> = {
+                      regRef: setRegRef,
+                      departmentName: setDepartmentName,
+                      workName: setWorkName,
+                      agreementNo: setAgreementNo,
+                      awardedDate: setAwardedDate,
+                      workingDays: setWorkingDays,
+                      tenderAmount: setTenderAmount,
+                      estimateCost: setEstimateCost,
+                      emdAmount: setEmdAmount,
+                      emdDate: setEmdDate,
+                      pgAmount: setPgAmount,
+                      pgDate: setPgDate,
+                      startAgreement: setStartAgreement,
+                      startActual: setStartActual,
+                      completionAgreement: setCompletionAgreement,
+                      completionActual: setCompletionActual,
+                    };
+                    return (
+                      <div onKeyDown={onSheetKeyDown} className="overflow-x-auto border border-slate-400 bg-white">
+                        <table className="min-w-[3200px] w-max text-[10px] text-slate-800 border-collapse">
+                          <thead className="bg-slate-100 font-bold">
+                            <tr>
+                              <th rowSpan={2} className="border border-slate-400 p-1 text-center align-middle w-10">
+                                <div>1</div>
+                                <div>Sl. No.</div>
+                              </th>
+                              {WORK_HEADER_FIELDS.slice(0, 8).map((field) => (
+                                <th key={field.key} rowSpan={2} className="border border-slate-400 p-1 text-center align-middle min-w-[88px]">
+                                  <div>{field.no}</div>
+                                  <div>{field.label}</div>
+                                </th>
                               ))}
-                              {index === 0 && (
-                                <>
-                                  <td className="border border-slate-400 p-0" rowSpan={workPayments.length}>
-                                    <input type="text" value={otherDetails} onChange={(e) => setOtherDetails(e.target.value)} className={SHEET_INPUT} />
-                                  </td>
-                                  <td className="border border-slate-400 p-0" rowSpan={workPayments.length}>
-                                    <input type="text" value={remarks} onChange={(e) => setRemarks(e.target.value)} className={SHEET_INPUT} />
-                                  </td>
-                                </>
-                              )}
-                              <td className="border border-slate-400 p-0 text-center">
-                                <button
-                                  type="button"
-                                  tabIndex={-1}
-                                  onClick={() =>
-                                    setWorkPayments((rows) => (rows.length === 1 ? [emptyPayment()] : rows.filter((_, i) => i !== index)))
-                                  }
-                                  className="text-rose-600 font-bold px-1"
-                                >
-                                  ×
-                                </button>
-                              </td>
+                              <th colSpan={2} className="border border-slate-400 p-1 text-center">Earnest Money Deposit</th>
+                              <th colSpan={2} className="border border-slate-400 p-1 text-center">Performance Guarantee</th>
+                              <th colSpan={2} className="border border-slate-400 p-1 text-center">Date of Start</th>
+                              <th colSpan={2} className="border border-slate-400 p-1 text-center">Date Of Completion</th>
+                              <th colSpan={7} className="border border-slate-400 p-1 text-center">Bill Details</th>
+                              <th colSpan={9} className="border border-slate-400 p-1 text-center">Deduction of bill</th>
+                              <th colSpan={2} className="border border-slate-400 p-1 text-center">Payment recerived details</th>
+                              <th colSpan={5} className="border border-slate-400 p-1 text-center">Reimbursement Details</th>
+                              <th rowSpan={2} className="border border-slate-400 p-1 text-center align-middle">
+                                <div>41</div>
+                                <div>Other</div>
+                              </th>
+                              <th rowSpan={2} className="border border-slate-400 p-1 text-center align-middle">
+                                <div>42</div>
+                                <div>Remarks</div>
+                              </th>
+                              <th rowSpan={2} className="border border-slate-400 p-1 w-8" />
                             </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
+                            <tr>
+                              {WORK_HEADER_FIELDS.slice(8).map((field) => (
+                                <th key={field.key} className="border border-slate-400 p-1 text-center min-w-[88px]">
+                                  <div>{field.no}</div>
+                                  <div>{field.label}</div>
+                                </th>
+                              ))}
+                              {BILL_LINE_FIELDS.map((field) => (
+                                <th key={field.key} className="border border-slate-400 p-1 text-center min-w-[88px]">
+                                  <div>{field.no}</div>
+                                  <div>{field.label}</div>
+                                </th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {workPayments.map((line, index) => (
+                              <tr key={index} className="hover:bg-indigo-50/40">
+                                {index === 0 && (
+                                  <>
+                                    <td className="border border-slate-400 p-0 text-center font-mono bg-slate-50" rowSpan={workPayments.length}>
+                                      {editingId ? "—" : ""}
+                                    </td>
+                                    {WORK_HEADER_FIELDS.map((field) => (
+                                      <td key={field.key} className="border border-slate-400 p-0" rowSpan={workPayments.length}>
+                                        {field.type === "date" ? (
+                                          <DateTextInput
+                                            value={headerValues[field.key] || ""}
+                                            onChange={headerSetters[field.key]}
+                                            className={SHEET_INPUT}
+                                          />
+                                        ) : (
+                                          <input
+                                            type={field.type}
+                                            value={headerValues[field.key] || ""}
+                                            onChange={(e) => headerSetters[field.key](e.target.value)}
+                                            className={SHEET_INPUT}
+                                          />
+                                        )}
+                                      </td>
+                                    ))}
+                                  </>
+                                )}
+                                {BILL_LINE_FIELDS.map((field) => (
+                                  <td key={field.key} className="border border-slate-400 p-0">
+                                    {field.type === "select" ? (
+                                      <select
+                                        value={String(line[field.key] ?? "")}
+                                        onChange={(e) => {
+                                          const value = e.target.value;
+                                          if (value === "Add") {
+                                            setWorkPayments((rows) => [...rows, emptyPayment(nextRaBillNo(rows))]);
+                                            return;
+                                          }
+                                          setWorkPayments((rows) =>
+                                            rows.map((row, i) => (i === index ? { ...row, [field.key]: value } : row)),
+                                          );
+                                        }}
+                                        className={`${SHEET_INPUT} bg-white`}
+                                      >
+                                        <option value="">Select</option>
+                                        {raBillDropdownOptions(workPayments).map((no) => (
+                                          <option key={no} value={no}>{no}</option>
+                                        ))}
+                                        <option value="Add">Add</option>
+                                      </select>
+                                    ) : field.type === "date" ? (
+                                      <DateTextInput
+                                        value={String(line[field.key] ?? "")}
+                                        onChange={(value) =>
+                                          setWorkPayments((rows) =>
+                                            rows.map((row, i) => (i === index ? { ...row, [field.key]: value } : row)),
+                                          )
+                                        }
+                                        className={SHEET_INPUT}
+                                      />
+                                    ) : (
+                                      <input
+                                        type={field.type}
+                                        value={String(line[field.key] ?? "")}
+                                        onChange={(e) =>
+                                          setWorkPayments((rows) =>
+                                            rows.map((row, i) => (i === index ? { ...row, [field.key]: e.target.value } : row)),
+                                          )
+                                        }
+                                        className={SHEET_INPUT}
+                                      />
+                                    )}
+                                  </td>
+                                ))}
+                                {index === 0 && (
+                                  <>
+                                    <td className="border border-slate-400 p-0" rowSpan={workPayments.length}>
+                                      <input type="text" value={otherDetails} onChange={(e) => setOtherDetails(e.target.value)} className={SHEET_INPUT} />
+                                    </td>
+                                    <td className="border border-slate-400 p-0" rowSpan={workPayments.length}>
+                                      <input type="text" value={remarks} onChange={(e) => setRemarks(e.target.value)} className={SHEET_INPUT} />
+                                    </td>
+                                  </>
+                                )}
+                                <td className="border border-slate-400 p-0 text-center">
+                                  <button
+                                    type="button"
+                                    tabIndex={-1}
+                                    onClick={() =>
+                                      setWorkPayments((rows) =>
+                                        rows.length === 1 ? [emptyPayment()] : rows.filter((_, i) => i !== index),
+                                      )
+                                    }
+                                    className="text-rose-600 font-bold px-1"
+                                  >
+                                    ×
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
 

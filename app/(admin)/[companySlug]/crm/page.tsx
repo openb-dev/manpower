@@ -81,7 +81,7 @@ const BILL_LINE_FIELDS: Array<{ no: number; key: keyof WorkPaymentLine; label: s
   { no: 26, key: "itAmount", label: "Income Tax @ 1% or 2% (TDS IT)", type: "number" },
   { no: 27, key: "gstAmount", label: "GST @2% (TDS GST)", type: "number" },
   { no: 28, key: "labourCess", label: "Labour welfare Cess", type: "number" },
-  { no: 29, key: "eduCess", label: "Edu. Cess", type: "number" },
+  { no: 29, key: "eduCess", label: "Education Cess", type: "number" },
   { no: 30, key: "waterCharge", label: "Water Charge", type: "number" },
   { no: 31, key: "withheldAmount", label: "Withheld Amount", type: "number" },
   { no: 32, key: "withheldReason", label: "withheld reason", type: "text" },
@@ -96,7 +96,7 @@ const BILL_LINE_FIELDS: Array<{ no: number; key: keyof WorkPaymentLine; label: s
 ];
 
 const WORK_HEADER_FIELDS: Array<{ no: number; label: string; key: string; type: "text" | "number" | "date" }> = [
-  { no: 2, label: "Reg. Ref.", key: "regRef", type: "text" },
+  { no: 2, label: "Registered Reference", key: "regRef", type: "text" },
   { no: 3, label: "Department/ Division", key: "departmentName", type: "text" },
   { no: 4, label: "Name of work", key: "workName", type: "text" },
   { no: 5, label: "Agmt./W.O. No.", key: "agreementNo", type: "text" },
@@ -1341,7 +1341,7 @@ export default function CrmPage() {
                         />
                       </th>
                       <th rowSpan={2} className="border border-slate-300 p-1 text-center align-middle whitespace-nowrap">Sl. No.</th>
-                      <th rowSpan={2} className="border border-slate-300 p-1 text-center align-middle whitespace-nowrap">Reg. Ref.</th>
+                      <th rowSpan={2} className="border border-slate-300 p-1 text-center align-middle whitespace-nowrap">Registered Reference</th>
                       <th rowSpan={2} className="border border-slate-300 p-1 text-center align-middle">Department/ Division</th>
                       <th rowSpan={2} className="border border-slate-300 p-1 text-center align-middle min-w-[160px]">Name of work</th>
                       <th rowSpan={2} className="border border-slate-300 p-1 text-center align-middle">Agmt./W.O. No.</th>
@@ -1381,7 +1381,7 @@ export default function CrmPage() {
                       <th className="border border-slate-300 p-1 text-center">Income Tax @ 1% or 2% (TDS IT)</th>
                       <th className="border border-slate-300 p-1 text-center">GST @2% (TDS GST)</th>
                       <th className="border border-slate-300 p-1 text-center">Labour welfare Cess</th>
-                      <th className="border border-slate-300 p-1 text-center">Edu. Cess</th>
+                      <th className="border border-slate-300 p-1 text-center">Education Cess</th>
                       <th className="border border-slate-300 p-1 text-center">Water Charge</th>
                       <th className="border border-slate-300 p-1 text-center">Withheld Amount</th>
                       <th className="border border-slate-300 p-1 text-center">withheld reason</th>

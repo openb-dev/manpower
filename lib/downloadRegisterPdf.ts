@@ -114,7 +114,7 @@ export async function downloadWorkRegisterPdf({
   const pdf = new jsPDF({ unit: "mm", format: [pageW, pageH], orientation: "landscape" });
   const header1 = [
     "1 Sl. No.",
-    "2 Reg. Ref.",
+    "2 Registered Reference",
     "3 Department/ Division",
     "4 Name of work",
     "5 Agmt./W.O. No.",
@@ -141,7 +141,7 @@ export async function downloadWorkRegisterPdf({
     "26 TDS IT",
     "27 TDS GST",
     "28 Labour Cess",
-    "29 Edu. Cess",
+    "29 Education Cess",
     "30 Water Charge",
     "31 Withheld Amount",
     "32 withheld reason",

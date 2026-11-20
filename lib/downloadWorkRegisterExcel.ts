@@ -219,7 +219,7 @@ export async function downloadWorkRegisterExcel({
 
   const groupHeaders: Array<[string, string]> = [
     ["A2", "Sl. No."],
-    ["B2", "Reg. Ref."],
+    ["B2", "Registered Reference"],
     ["C2", "Department/ Division"],
     ["D2", "Name of work"],
     ["E2", "Agmt./W.O. No."],
@@ -262,7 +262,7 @@ export async function downloadWorkRegisterExcel({
     ["Z3", "Income Tax @ 1% or 2% (TDS IT)"],
     ["AA3", "GST @2% (TDS GST)"],
     ["AB3", "Labour welfare Cess"],
-    ["AC3", "Edu. Cess"],
+    ["AC3", "Education Cess"],
     ["AD3", "Water Charge"],
     ["AE3", "Withheld Amount"],
     ["AF3", "withheld reason"],

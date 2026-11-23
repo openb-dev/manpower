@@ -178,6 +178,63 @@ function DateTextInput({
   );
 }
 
+function SheetCell({
+  type = "text",
+  value,
+  onChange,
+  options,
+}: {
+  type?: "text" | "number" | "date" | "select";
+  value: string;
+  onChange: (value: string) => void;
+  options?: Array<{ value: string; label: string }>;
+}) {
+  if (type === "date") return <DateTextInput value={value} onChange={onChange} className={SHEET_INPUT} />;
+  if (type === "select") {
+    return (
+      <select value={value} onChange={(e) => onChange(e.target.value)} className={`${SHEET_INPUT} bg-white`}>
+        {options?.map((opt) => (
+          <option key={opt.value} value={opt.value}>
+            {opt.label}
+          </option>
+        ))}
+      </select>
+    );
+  }
+  return <input type={type} value={value} onChange={(e) => onChange(e.target.value)} className={SHEET_INPUT} />;
+}
+
+const EMD_STATUS_OPTIONS = [
+  { value: "SUBMITTED", label: "Submitted with Bid" },
+  { value: "ACTIVE", label: "Active / Under Evaluation" },
+  { value: "REFUNDED", label: "Refunded to Firm" },
+  { value: "ADJUSTED_TO_PG", label: "Adjusted towards PG" },
+  { value: "ADJUSTED_TO_SD", label: "Adjusted towards SD" },
+  { value: "FORFEITED", label: "Forfeited" },
+];
+
+const EMD_MODE_OPTIONS = [
+  { value: "DEMAND_DRAFT", label: "Demand Draft (DD)" },
+  { value: "FDR", label: "Fixed Deposit Receipt (FDR)" },
+  { value: "BANK_GUARANTEE", label: "Bank Guarantee (BG)" },
+  { value: "ONLINE", label: "Online / RTGS / NEFT" },
+  { value: "CHALLAN", label: "Treasury Challan" },
+];
+
+const PG_STATUS_OPTIONS = [
+  { value: "SUBMITTED", label: "Submitted to Client" },
+  { value: "ACTIVE", label: "Active & Verified" },
+  { value: "RELEASED", label: "Released / Discharged" },
+  { value: "INVOKED", label: "Invoked / Encashment" },
+];
+
+const PG_MODE_OPTIONS = [
+  { value: "BANK_GUARANTEE", label: "Bank Guarantee (BG)" },
+  { value: "FDR", label: "Fixed Deposit Receipt (FDR)" },
+  { value: "DEMAND_DRAFT", label: "Demand Draft (DD)" },
+  { value: "CASH_DEPOSIT", label: "Cash Deposit / Treasury" },
+];
+
 function RegisterField({
   label,
   value,
@@ -1516,7 +1573,7 @@ export default function CrmPage() {
               </div>
 
               <div className="overflow-x-auto">
-                <table className="min-w-[1800px] w-full text-left text-[11px] text-slate-800 border-collapse">
+                <table className="min-w-[2400px] w-max text-left text-[10px] text-slate-800 border-collapse">
                   <thead className="bg-slate-100 text-slate-800 font-bold">
                     <tr>
                       <th rowSpan={2} className="border border-slate-300 p-1.5 text-center align-middle w-8">
@@ -1644,7 +1701,7 @@ export default function CrmPage() {
               </div>
 
               <div className="overflow-x-auto">
-                <table className="min-w-[1800px] w-full text-left text-[11px] text-slate-800 border-collapse">
+                <table className="min-w-[2400px] w-max text-left text-[10px] text-slate-800 border-collapse">
                   <thead className="bg-slate-100 text-slate-800 font-bold">
                     <tr>
                       <th rowSpan={2} className="border border-slate-300 p-1.5 text-center align-middle w-8">
@@ -2036,165 +2093,180 @@ export default function CrmPage() {
 
               {/* SECTION 2: EMD REGISTER */}
               {modalSection === "EMD" && (
-                <div className="space-y-4">
-                  <div className="border-b border-amber-100 pb-2">
-                    <h3 className="text-sm font-bold text-amber-900">EMD Register</h3>
-                    <p className="text-xs text-amber-700">Same fields as the office EMD Register sheet.</p>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                    <RegisterField label="Reg Sl No" value={emdRegdSerialNo} onChange={setEmdRegdSerialNo} placeholder="e.g. 20" mono />
-                    <RegisterField label="Department / Division" value={departmentName} onChange={setDepartmentName} placeholder="Department / Division" />
-                    <RegisterField label="NIT No." value={tenderNo} onChange={setTenderNo} placeholder="Tender / NIT number" mono />
-                    <RegisterField label="Favouring" value={favouring} onChange={setFavouring} placeholder="Favouring" />
-                    <div className="md:col-span-4">
-                      <RegisterField label="Name of Work" value={workName} onChange={setWorkName} placeholder="Name of work" area />
-                    </div>
-                    <RegisterField label="Estimate Cost" value={estimateCost} onChange={setEstimateCost} type="number" />
-                    <RegisterField label="Tender Amount" value={tenderAmount} onChange={setTenderAmount} type="number" />
-                  </div>
-
-                  <div className="rounded-xl border border-amber-200 bg-amber-50/40 p-3 space-y-3">
-                    <div className="text-xs font-black text-amber-900">EMD issue Details</div>
-                    <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
-                      <RegisterField label="FD No." value={emdFdNo} onChange={setEmdFdNo} placeholder="Fixed deposit number" mono />
-                      <RegisterField label="DD No." value={emdInstrumentNo} onChange={setEmdInstrumentNo} placeholder="Demand draft number" mono />
-                      <RegisterField label="Date" value={emdDate} onChange={setEmdDate} type="date" />
-                      <RegisterField label="Amount" value={emdAmount} onChange={setEmdAmount} type="number" />
-                      <RegisterField label="Bank Name" value={emdBankName} onChange={setEmdBankName} placeholder="Issuing bank" />
-                    </div>
-                  </div>
-
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-3">
-                    <div className="text-xs font-black text-slate-800">EMD Maturity details (As per Agreement)</div>
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                      <RegisterField label="FD No." value={emdMaturityFdNo} onChange={setEmdMaturityFdNo} mono />
-                      <RegisterField label="DD No." value={emdMaturityInstrumentNo} onChange={setEmdMaturityInstrumentNo} mono />
-                      <RegisterField label="Date" value={emdMaturityDate} onChange={setEmdMaturityDate} type="date" />
-                      <RegisterField label="Amount" value={emdMaturityAmount} onChange={setEmdMaturityAmount} type="number" />
-                    </div>
-                  </div>
-
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-3">
-                    <div className="text-xs font-black text-slate-800">EMD Release details (As per Actual)</div>
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                      <RegisterField label="FD No." value={emdReleaseFdNo} onChange={setEmdReleaseFdNo} mono />
-                      <RegisterField label="DD No." value={emdRefundRef} onChange={setEmdRefundRef} placeholder="Release DD No." mono />
-                      <RegisterField label="Date" value={emdRefundDate} onChange={setEmdRefundDate} type="date" />
-                      <RegisterField label="Amount" value={emdReleaseAmount} onChange={setEmdReleaseAmount} type="number" />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                    <RegisterField label="Make Agency" value={makeAgency} onChange={setMakeAgency} placeholder="e.g. N.K. Ent." />
-                    <RegisterField label="Applicant Agency" value={applicantAgency} onChange={setApplicantAgency} />
-                    <div className="md:col-span-2">
-                      <RegisterField label="Remark/Status" value={emdRemark} onChange={setEmdRemark} />
-                    </div>
+                <div className="space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <div>
-                      <label className="text-xs font-bold text-slate-700 block mb-1">EMD Current Status</label>
-                      <select value={emdStatus} onChange={(e) => setEmdStatus(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-bold focus:ring-2 focus:ring-amber-500 focus:outline-none bg-white">
-                        <option value="SUBMITTED">Submitted with Bid</option>
-                        <option value="ACTIVE">Active / Under Evaluation</option>
-                        <option value="REFUNDED">Refunded to Firm</option>
-                        <option value="ADJUSTED_TO_PG">Adjusted towards PG</option>
-                        <option value="ADJUSTED_TO_SD">Adjusted towards SD</option>
-                        <option value="FORFEITED">Forfeited</option>
-                      </select>
+                      <h3 className="text-sm font-bold text-amber-900">EMD Register</h3>
+                      <p className="text-xs text-amber-700">
+                        Scroll sideways like Excel. Same 24 columns as the office EMD Register.
+                      </p>
                     </div>
-                    <RegisterField label="Tender Opening Date" value={tenderOpening} onChange={setTenderOpening} type="date" />
-                    <RegisterField label="EMD % of Tender" value={emdPercent} onChange={handleEmdPercentChange} type="number" />
-                    <div>
-                      <label className="text-xs font-bold text-slate-700 block mb-1">EMD Mode</label>
-                      <select value={emdMode} onChange={(e) => setEmdMode(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-amber-500 focus:outline-none bg-white">
-                        <option value="DEMAND_DRAFT">Demand Draft (DD)</option>
-                        <option value="FDR">Fixed Deposit Receipt (FDR)</option>
-                        <option value="BANK_GUARANTEE">Bank Guarantee (BG)</option>
-                        <option value="ONLINE">Online / RTGS / NEFT</option>
-                        <option value="CHALLAN">Treasury Challan</option>
-                      </select>
+                    <div className="text-[11px] text-slate-600">
+                      {[clientName, locationName].filter(Boolean).join(" · ") || "Client & location not filled yet"}
                     </div>
+                  </div>
+                  <div onKeyDown={onSheetKeyDown} className="overflow-x-auto border border-slate-400 bg-white">
+                    <table className="min-w-[2400px] w-max text-[10px] text-slate-800 border-collapse">
+                      <thead className="bg-slate-100 font-bold">
+                        <tr>
+                          <th rowSpan={2} className="border border-slate-400 p-1 text-center align-middle min-w-[56px]">SL NO.</th>
+                          <th rowSpan={2} className="border border-slate-400 p-1 text-center align-middle min-w-[72px]">Reg Sl No</th>
+                          <th rowSpan={2} className="border border-slate-400 p-1 text-center align-middle min-w-[120px]">Department / Division</th>
+                          <th rowSpan={2} className="border border-slate-400 p-1 text-center align-middle min-w-[100px]">NIT No.</th>
+                          <th rowSpan={2} className="border border-slate-400 p-1 text-center align-middle min-w-[180px]">Name of Work</th>
+                          <th rowSpan={2} className="border border-slate-400 p-1 text-center align-middle min-w-[88px]">Estimate Cost</th>
+                          <th rowSpan={2} className="border border-slate-400 p-1 text-center align-middle min-w-[88px]">Tender Amount</th>
+                          <th rowSpan={2} className="border border-slate-400 p-1 text-center align-middle min-w-[100px]">Favouring</th>
+                          <th colSpan={5} className="border border-slate-400 p-1 text-center">EMD issue Details</th>
+                          <th colSpan={4} className="border border-slate-400 p-1 text-center">EMD Maturity details<br />(As per Agreement)</th>
+                          <th colSpan={4} className="border border-slate-400 p-1 text-center">EMD Release details<br />(As per Actual)</th>
+                          <th rowSpan={2} className="border border-slate-400 p-1 text-center align-middle min-w-[100px]">Make Agency</th>
+                          <th rowSpan={2} className="border border-slate-400 p-1 text-center align-middle min-w-[100px]">Applicant Agency</th>
+                          <th rowSpan={2} className="border border-slate-400 p-1 text-center align-middle min-w-[120px]">Remark/Status</th>
+                          <th rowSpan={2} className="border border-slate-400 p-1 text-center align-middle min-w-[120px]">EMD Current Status</th>
+                          <th rowSpan={2} className="border border-slate-400 p-1 text-center align-middle min-w-[88px]">Tender Opening Date</th>
+                          <th rowSpan={2} className="border border-slate-400 p-1 text-center align-middle min-w-[72px]">EMD % of Tender</th>
+                          <th rowSpan={2} className="border border-slate-400 p-1 text-center align-middle min-w-[120px]">EMD Mode</th>
+                        </tr>
+                        <tr>
+                          <th className="border border-slate-400 p-1 text-center min-w-[88px]">FD No.</th>
+                          <th className="border border-slate-400 p-1 text-center min-w-[88px]">DD No.</th>
+                          <th className="border border-slate-400 p-1 text-center min-w-[88px]">Date</th>
+                          <th className="border border-slate-400 p-1 text-center min-w-[88px]">Amount</th>
+                          <th className="border border-slate-400 p-1 text-center min-w-[100px]">Bank Name</th>
+                          <th className="border border-slate-400 p-1 text-center min-w-[88px]">FD No.</th>
+                          <th className="border border-slate-400 p-1 text-center min-w-[88px]">DD No.</th>
+                          <th className="border border-slate-400 p-1 text-center min-w-[88px]">Date</th>
+                          <th className="border border-slate-400 p-1 text-center min-w-[88px]">Amount</th>
+                          <th className="border border-slate-400 p-1 text-center min-w-[88px]">FD No.</th>
+                          <th className="border border-slate-400 p-1 text-center min-w-[88px]">DD No.</th>
+                          <th className="border border-slate-400 p-1 text-center min-w-[88px]">Date</th>
+                          <th className="border border-slate-400 p-1 text-center min-w-[88px]">Amount</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr className="hover:bg-amber-50/40">
+                          <td className="border border-slate-400 p-0 text-center font-mono bg-slate-50">{editingId ? "—" : ""}</td>
+                          <td className="border border-slate-400 p-0"><SheetCell value={emdRegdSerialNo} onChange={setEmdRegdSerialNo} /></td>
+                          <td className="border border-slate-400 p-0"><SheetCell value={departmentName} onChange={setDepartmentName} /></td>
+                          <td className="border border-slate-400 p-0"><SheetCell value={tenderNo} onChange={setTenderNo} /></td>
+                          <td className="border border-slate-400 p-0"><SheetCell value={workName} onChange={setWorkName} /></td>
+                          <td className="border border-slate-400 p-0"><SheetCell type="number" value={estimateCost} onChange={setEstimateCost} /></td>
+                          <td className="border border-slate-400 p-0"><SheetCell type="number" value={tenderAmount} onChange={setTenderAmount} /></td>
+                          <td className="border border-slate-400 p-0"><SheetCell value={favouring} onChange={setFavouring} /></td>
+                          <td className="border border-slate-400 p-0"><SheetCell value={emdFdNo} onChange={setEmdFdNo} /></td>
+                          <td className="border border-slate-400 p-0"><SheetCell value={emdInstrumentNo} onChange={setEmdInstrumentNo} /></td>
+                          <td className="border border-slate-400 p-0"><SheetCell type="date" value={emdDate} onChange={setEmdDate} /></td>
+                          <td className="border border-slate-400 p-0"><SheetCell type="number" value={emdAmount} onChange={setEmdAmount} /></td>
+                          <td className="border border-slate-400 p-0"><SheetCell value={emdBankName} onChange={setEmdBankName} /></td>
+                          <td className="border border-slate-400 p-0"><SheetCell value={emdMaturityFdNo} onChange={setEmdMaturityFdNo} /></td>
+                          <td className="border border-slate-400 p-0"><SheetCell value={emdMaturityInstrumentNo} onChange={setEmdMaturityInstrumentNo} /></td>
+                          <td className="border border-slate-400 p-0"><SheetCell type="date" value={emdMaturityDate} onChange={setEmdMaturityDate} /></td>
+                          <td className="border border-slate-400 p-0"><SheetCell type="number" value={emdMaturityAmount} onChange={setEmdMaturityAmount} /></td>
+                          <td className="border border-slate-400 p-0"><SheetCell value={emdReleaseFdNo} onChange={setEmdReleaseFdNo} /></td>
+                          <td className="border border-slate-400 p-0"><SheetCell value={emdRefundRef} onChange={setEmdRefundRef} /></td>
+                          <td className="border border-slate-400 p-0"><SheetCell type="date" value={emdRefundDate} onChange={setEmdRefundDate} /></td>
+                          <td className="border border-slate-400 p-0"><SheetCell type="number" value={emdReleaseAmount} onChange={setEmdReleaseAmount} /></td>
+                          <td className="border border-slate-400 p-0"><SheetCell value={makeAgency} onChange={setMakeAgency} /></td>
+                          <td className="border border-slate-400 p-0"><SheetCell value={applicantAgency} onChange={setApplicantAgency} /></td>
+                          <td className="border border-slate-400 p-0"><SheetCell value={emdRemark} onChange={setEmdRemark} /></td>
+                          <td className="border border-slate-400 p-0"><SheetCell type="select" value={emdStatus} onChange={setEmdStatus} options={EMD_STATUS_OPTIONS} /></td>
+                          <td className="border border-slate-400 p-0"><SheetCell type="date" value={tenderOpening} onChange={setTenderOpening} /></td>
+                          <td className="border border-slate-400 p-0"><SheetCell type="number" value={emdPercent} onChange={handleEmdPercentChange} /></td>
+                          <td className="border border-slate-400 p-0"><SheetCell type="select" value={emdMode} onChange={setEmdMode} options={EMD_MODE_OPTIONS} /></td>
+                        </tr>
+                      </tbody>
+                    </table>
                   </div>
                 </div>
               )}
 
               {/* SECTION 3: PG REGISTER */}
               {modalSection === "PG" && (
-                <div className="space-y-4">
-                  <div className="border-b border-purple-100 pb-2">
-                    <h3 className="text-sm font-bold text-purple-900">Performance Guarantee(P.G.) Register</h3>
-                    <p className="text-xs text-purple-700">Same fields as the office PG register.</p>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                    <RegisterField label="Reg Sl No" value={pgRegdSerialNo} onChange={setPgRegdSerialNo} placeholder="e.g. 10" mono />
-                    <RegisterField label="Department / Division" value={departmentName} onChange={setDepartmentName} />
-                    <RegisterField label="NIT No." value={tenderNo} onChange={setTenderNo} mono />
-                    <RegisterField label="Favouring" value={favouring} onChange={setFavouring} />
-                    <div className="md:col-span-2">
-                      <RegisterField label="Name of Work" value={workName} onChange={setWorkName} area />
-                    </div>
-                    <RegisterField label="Estimate Cost" value={estimateCost} onChange={setEstimateCost} type="number" />
-                    <RegisterField label="Contract Amount" value={tenderAmount} onChange={setTenderAmount} type="number" />
-                  </div>
-
-                  <div className="rounded-xl border border-purple-200 bg-purple-50/40 p-3 space-y-3">
-                    <div className="text-xs font-black text-purple-900">P.G. Issue Details</div>
-                    <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
-                      <RegisterField label="FD No." value={pgFdNo} onChange={setPgFdNo} mono />
-                      <RegisterField label="BG No." value={pgBgNo} onChange={setPgBgNo} mono />
-                      <RegisterField label="Date" value={pgDate} onChange={setPgDate} type="date" />
-                      <RegisterField label="Amount" value={pgAmount} onChange={setPgAmount} type="number" />
-                      <RegisterField label="Bank Name" value={pgBankName} onChange={setPgBankName} />
-                    </div>
-                  </div>
-
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-3">
-                    <div className="text-xs font-black text-slate-800">P.G. Maturity details (As per Agreement)</div>
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                      <RegisterField label="FD No." value={pgMaturityFdNo} onChange={setPgMaturityFdNo} mono />
-                      <RegisterField label="BG No." value={pgMaturityBgNo} onChange={setPgMaturityBgNo} mono />
-                      <RegisterField label="Date" value={pgExpiryDate} onChange={setPgExpiryDate} type="date" />
-                      <RegisterField label="Amount" value={pgMaturityAmount} onChange={setPgMaturityAmount} type="number" />
-                    </div>
-                  </div>
-
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-3">
-                    <div className="text-xs font-black text-slate-800">P.G. Release details (As per Actual)</div>
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                      <RegisterField label="FD No." value={pgReleaseFdNo} onChange={setPgReleaseFdNo} mono />
-                      <RegisterField label="BG No." value={pgReleaseBgNo} onChange={setPgReleaseBgNo} mono />
-                      <RegisterField label="Date" value={pgReleaseDate} onChange={setPgReleaseDate} type="date" />
-                      <RegisterField label="Amount" value={pgReleaseAmount} onChange={setPgReleaseAmount} type="number" />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                    <RegisterField label="Make Agency" value={makeAgency} onChange={setMakeAgency} placeholder="e.g. N.K. Ent." />
-                    <RegisterField label="Applicant Agency" value={applicantAgency} onChange={setApplicantAgency} />
-                    <div className="md:col-span-2">
-                      <RegisterField label="Remark/Status" value={pgRemark} onChange={setPgRemark} />
-                    </div>
+                <div className="space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <div>
-                      <label className="text-xs font-bold text-slate-700 block mb-1">PG Current Status</label>
-                      <select value={pgStatus} onChange={(e) => setPgStatus(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-bold focus:ring-2 focus:ring-purple-500 focus:outline-none bg-white">
-                        <option value="SUBMITTED">Submitted to Client</option>
-                        <option value="ACTIVE">Active & Verified</option>
-                        <option value="RELEASED">Released / Discharged</option>
-                        <option value="INVOKED">Invoked / Encashment</option>
-                      </select>
+                      <h3 className="text-sm font-bold text-purple-900">Performance Guarantee(P.G.) Register</h3>
+                      <p className="text-xs text-purple-700">
+                        Scroll sideways like Excel. Same columns as the office PG register.
+                      </p>
                     </div>
-                    <div>
-                      <label className="text-xs font-bold text-slate-700 block mb-1">PG Instrument Mode</label>
-                      <select value={pgMode} onChange={(e) => setPgMode(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-purple-500 focus:outline-none bg-white">
-                        <option value="BANK_GUARANTEE">Bank Guarantee (BG)</option>
-                        <option value="FDR">Fixed Deposit Receipt (FDR)</option>
-                        <option value="DEMAND_DRAFT">Demand Draft (DD)</option>
-                        <option value="CASH_DEPOSIT">Cash Deposit / Treasury</option>
-                      </select>
+                    <div className="text-[11px] text-slate-600">
+                      {[clientName, locationName].filter(Boolean).join(" · ") || "Client & location not filled yet"}
                     </div>
-                    <RegisterField label="PG % of Contract Value" value={pgPercent} onChange={handlePgPercentChange} type="number" />
-                    <RegisterField label="Claim Period Expiry Date" value={pgClaimDate} onChange={setPgClaimDate} type="date" />
+                  </div>
+                  <div onKeyDown={onSheetKeyDown} className="overflow-x-auto border border-slate-400 bg-white">
+                    <table className="min-w-[2400px] w-max text-[10px] text-slate-800 border-collapse">
+                      <thead className="bg-slate-100 font-bold">
+                        <tr>
+                          <th rowSpan={2} className="border border-slate-400 p-1 text-center align-middle min-w-[56px]">SL NO.</th>
+                          <th rowSpan={2} className="border border-slate-400 p-1 text-center align-middle min-w-[72px]">Reg Sl No</th>
+                          <th rowSpan={2} className="border border-slate-400 p-1 text-center align-middle min-w-[120px]">Department / Division</th>
+                          <th rowSpan={2} className="border border-slate-400 p-1 text-center align-middle min-w-[100px]">NIT No.</th>
+                          <th rowSpan={2} className="border border-slate-400 p-1 text-center align-middle min-w-[180px]">Name of Work</th>
+                          <th rowSpan={2} className="border border-slate-400 p-1 text-center align-middle min-w-[88px]">Estimate Cost</th>
+                          <th rowSpan={2} className="border border-slate-400 p-1 text-center align-middle min-w-[88px]">Contract Amount</th>
+                          <th rowSpan={2} className="border border-slate-400 p-1 text-center align-middle min-w-[100px]">Favouring</th>
+                          <th colSpan={5} className="border border-slate-400 p-1 text-center">P.G. issue Details</th>
+                          <th colSpan={4} className="border border-slate-400 p-1 text-center">P.G. Maturity details<br />(As per Agreement)</th>
+                          <th colSpan={4} className="border border-slate-400 p-1 text-center">P.G. Release details<br />(As per Actual)</th>
+                          <th rowSpan={2} className="border border-slate-400 p-1 text-center align-middle min-w-[100px]">Make Agency</th>
+                          <th rowSpan={2} className="border border-slate-400 p-1 text-center align-middle min-w-[100px]">Applicant Agency</th>
+                          <th rowSpan={2} className="border border-slate-400 p-1 text-center align-middle min-w-[120px]">Remark/Status</th>
+                          <th rowSpan={2} className="border border-slate-400 p-1 text-center align-middle min-w-[120px]">PG Current Status</th>
+                          <th rowSpan={2} className="border border-slate-400 p-1 text-center align-middle min-w-[120px]">PG Instrument Mode</th>
+                          <th rowSpan={2} className="border border-slate-400 p-1 text-center align-middle min-w-[88px]">PG % of Contract Value</th>
+                          <th rowSpan={2} className="border border-slate-400 p-1 text-center align-middle min-w-[88px]">Claim Period Expiry Date</th>
+                        </tr>
+                        <tr>
+                          <th className="border border-slate-400 p-1 text-center min-w-[88px]">FD No.</th>
+                          <th className="border border-slate-400 p-1 text-center min-w-[88px]">BG No.</th>
+                          <th className="border border-slate-400 p-1 text-center min-w-[88px]">Date</th>
+                          <th className="border border-slate-400 p-1 text-center min-w-[88px]">Amount</th>
+                          <th className="border border-slate-400 p-1 text-center min-w-[100px]">Bank Name</th>
+                          <th className="border border-slate-400 p-1 text-center min-w-[88px]">FD No.</th>
+                          <th className="border border-slate-400 p-1 text-center min-w-[88px]">BG No.</th>
+                          <th className="border border-slate-400 p-1 text-center min-w-[88px]">Date</th>
+                          <th className="border border-slate-400 p-1 text-center min-w-[88px]">Amount</th>
+                          <th className="border border-slate-400 p-1 text-center min-w-[88px]">FD No.</th>
+                          <th className="border border-slate-400 p-1 text-center min-w-[88px]">BG No.</th>
+                          <th className="border border-slate-400 p-1 text-center min-w-[88px]">Date</th>
+                          <th className="border border-slate-400 p-1 text-center min-w-[88px]">Amount</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr className="hover:bg-purple-50/40">
+                          <td className="border border-slate-400 p-0 text-center font-mono bg-slate-50">{editingId ? "—" : ""}</td>
+                          <td className="border border-slate-400 p-0"><SheetCell value={pgRegdSerialNo} onChange={setPgRegdSerialNo} /></td>
+                          <td className="border border-slate-400 p-0"><SheetCell value={departmentName} onChange={setDepartmentName} /></td>
+                          <td className="border border-slate-400 p-0"><SheetCell value={tenderNo} onChange={setTenderNo} /></td>
+                          <td className="border border-slate-400 p-0"><SheetCell value={workName} onChange={setWorkName} /></td>
+                          <td className="border border-slate-400 p-0"><SheetCell type="number" value={estimateCost} onChange={setEstimateCost} /></td>
+                          <td className="border border-slate-400 p-0"><SheetCell type="number" value={tenderAmount} onChange={setTenderAmount} /></td>
+                          <td className="border border-slate-400 p-0"><SheetCell value={favouring} onChange={setFavouring} /></td>
+                          <td className="border border-slate-400 p-0"><SheetCell value={pgFdNo} onChange={setPgFdNo} /></td>
+                          <td className="border border-slate-400 p-0"><SheetCell value={pgBgNo} onChange={setPgBgNo} /></td>
+                          <td className="border border-slate-400 p-0"><SheetCell type="date" value={pgDate} onChange={setPgDate} /></td>
+                          <td className="border border-slate-400 p-0"><SheetCell type="number" value={pgAmount} onChange={setPgAmount} /></td>
+                          <td className="border border-slate-400 p-0"><SheetCell value={pgBankName} onChange={setPgBankName} /></td>
+                          <td className="border border-slate-400 p-0"><SheetCell value={pgMaturityFdNo} onChange={setPgMaturityFdNo} /></td>
+                          <td className="border border-slate-400 p-0"><SheetCell value={pgMaturityBgNo} onChange={setPgMaturityBgNo} /></td>
+                          <td className="border border-slate-400 p-0"><SheetCell type="date" value={pgExpiryDate} onChange={setPgExpiryDate} /></td>
+                          <td className="border border-slate-400 p-0"><SheetCell type="number" value={pgMaturityAmount} onChange={setPgMaturityAmount} /></td>
+                          <td className="border border-slate-400 p-0"><SheetCell value={pgReleaseFdNo} onChange={setPgReleaseFdNo} /></td>
+                          <td className="border border-slate-400 p-0"><SheetCell value={pgReleaseBgNo} onChange={setPgReleaseBgNo} /></td>
+                          <td className="border border-slate-400 p-0"><SheetCell type="date" value={pgReleaseDate} onChange={setPgReleaseDate} /></td>
+                          <td className="border border-slate-400 p-0"><SheetCell type="number" value={pgReleaseAmount} onChange={setPgReleaseAmount} /></td>
+                          <td className="border border-slate-400 p-0"><SheetCell value={makeAgency} onChange={setMakeAgency} /></td>
+                          <td className="border border-slate-400 p-0"><SheetCell value={applicantAgency} onChange={setApplicantAgency} /></td>
+                          <td className="border border-slate-400 p-0"><SheetCell value={pgRemark} onChange={setPgRemark} /></td>
+                          <td className="border border-slate-400 p-0"><SheetCell type="select" value={pgStatus} onChange={setPgStatus} options={PG_STATUS_OPTIONS} /></td>
+                          <td className="border border-slate-400 p-0"><SheetCell type="select" value={pgMode} onChange={setPgMode} options={PG_MODE_OPTIONS} /></td>
+                          <td className="border border-slate-400 p-0"><SheetCell type="number" value={pgPercent} onChange={handlePgPercentChange} /></td>
+                          <td className="border border-slate-400 p-0"><SheetCell type="date" value={pgClaimDate} onChange={setPgClaimDate} /></td>
+                        </tr>
+                      </tbody>
+                    </table>
                   </div>
                 </div>
               )}

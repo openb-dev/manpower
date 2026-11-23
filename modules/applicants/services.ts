@@ -47,6 +47,222 @@ function isSamePost(
   return extraPostKey(row.formData) === extra;
 }
 
+function digitsMobile(value?: string | null) {
+  return String(value || "").replace(/\D/g, "").slice(-10);
+}
+
+function sameApplicantIdentity(
+  left: { candidateAccountId?: string | null; personId?: string | null; mobile?: string | null; fullName?: string | null },
+  right: { candidateAccountId?: string | null; personId?: string | null; mobile?: string | null; fullName?: string | null },
+) {
+  if (left.candidateAccountId && right.candidateAccountId && left.candidateAccountId === right.candidateAccountId) {
+    return true;
+  }
+  if (left.personId && right.personId && left.personId === right.personId) return true;
+  const leftMobile = digitsMobile(left.mobile);
+  const rightMobile = digitsMobile(right.mobile);
+  const leftName = String(left.fullName || "").trim().toLowerCase();
+  const rightName = String(right.fullName || "").trim().toLowerCase();
+  return Boolean(leftMobile && leftMobile === rightMobile && leftName && leftName === rightName);
+}
+
+const LIVE_STATUSES = [ApplicantStatus.NEW, ApplicantStatus.SHORTLISTED, ApplicantStatus.APPROVED] as const;
+
+async function hideConsumedDrafts(companyId: string, ids: string[]) {
+  const unique = [...new Set(ids.filter(Boolean))];
+  if (!unique.length) return;
+  await prisma.applicant.updateMany({
+    where: { companyId, id: { in: unique }, status: ApplicantStatus.DRAFT, deletedAt: null },
+    data: { deletedAt: new Date() },
+  });
+  await prisma.auditLog.createMany({
+    data: unique.map((entityId) => ({
+      companyId,
+      entityType: "APPLICANT",
+      entityId,
+      action: "CONSUME_DRAFT",
+      newValue: { hiddenBecause: "submitted" },
+    })),
+  });
+}
+
+async function consumeMatchingDrafts({
+  companyId,
+  keepId,
+  candidateAccountId,
+  personId,
+  mobile,
+  fullName,
+  jobRoleId,
+  roleCategoryId,
+  extra,
+}: {
+  companyId: string;
+  keepId?: string;
+  candidateAccountId?: string | null;
+  personId?: string | null;
+  mobile?: string | null;
+  fullName?: string | null;
+  jobRoleId: string;
+  roleCategoryId: string;
+  extra: string;
+}) {
+  const or = [
+    ...(candidateAccountId ? [{ candidateAccountId }] : []),
+    ...(personId ? [{ personId }] : []),
+    ...(digitsMobile(mobile) ? [{ mobile: digitsMobile(mobile) }] : []),
+  ];
+  if (!or.length) return;
+  const drafts = await prisma.applicant.findMany({
+    where: {
+      companyId,
+      status: ApplicantStatus.DRAFT,
+      deletedAt: null,
+      ...(keepId ? { NOT: { id: keepId } } : {}),
+      OR: or,
+    },
+  });
+  const identity = { candidateAccountId, personId, mobile, fullName };
+  const leftover = drafts.filter(
+    (row) => sameApplicantIdentity(row, identity) && isSamePost(row, jobRoleId, roleCategoryId, extra),
+  );
+  await hideConsumedDrafts(
+    companyId,
+    leftover.map((row) => row.id),
+  );
+}
+
+async function consumeOrphanDrafts(companyId: string) {
+  const drafts = await prisma.applicant.findMany({
+    where: { companyId, status: ApplicantStatus.DRAFT, deletedAt: null },
+    select: {
+      id: true,
+      candidateAccountId: true,
+      personId: true,
+      mobile: true,
+      fullName: true,
+      jobRoleId: true,
+      roleCategoryId: true,
+      formData: true,
+    },
+  });
+  if (!drafts.length) return;
+  const submitted = await prisma.applicant.findMany({
+    where: { companyId, deletedAt: null, status: { in: [...LIVE_STATUSES] } },
+    select: {
+      candidateAccountId: true,
+      personId: true,
+      mobile: true,
+      fullName: true,
+      jobRoleId: true,
+      roleCategoryId: true,
+      formData: true,
+    },
+  });
+  if (!submitted.length) return;
+  const leftover = drafts.filter((draft) =>
+    submitted.some(
+      (row) =>
+        sameApplicantIdentity(draft, row) &&
+        isSamePost(draft, row.jobRoleId, row.roleCategoryId, extraPostKey(row.formData)),
+    ),
+  );
+  await hideConsumedDrafts(
+    companyId,
+    leftover.map((row) => row.id),
+  );
+}
+
+async function findOpenDraft({
+  companyId,
+  existingId,
+  candidateAccountId,
+  personId,
+  mobile,
+  fullName,
+  jobRoleId,
+  roleCategoryId,
+  extra,
+}: {
+  companyId: string;
+  existingId?: string;
+  candidateAccountId?: string | null;
+  personId?: string | null;
+  mobile?: string | null;
+  fullName?: string | null;
+  jobRoleId: string;
+  roleCategoryId: string;
+  extra: string;
+}) {
+  if (existingId) {
+    const byId = await prisma.applicant.findFirst({
+      where: { id: existingId, companyId, deletedAt: null, status: ApplicantStatus.DRAFT },
+    });
+    if (byId) return byId;
+  }
+  const or = [
+    ...(candidateAccountId ? [{ candidateAccountId }] : []),
+    ...(personId ? [{ personId }] : []),
+    ...(digitsMobile(mobile) ? [{ mobile: digitsMobile(mobile) }] : []),
+  ];
+  if (!or.length) return null;
+  const drafts = await prisma.applicant.findMany({
+    where: {
+      companyId,
+      status: ApplicantStatus.DRAFT,
+      deletedAt: null,
+      jobRoleId,
+      roleCategoryId,
+      OR: or,
+    },
+    orderBy: { createdAt: "asc" },
+  });
+  const identity = { candidateAccountId, personId, mobile, fullName };
+  return (
+    drafts.find((row) => sameApplicantIdentity(row, identity) && extraPostKey(row.formData) === extra) || null
+  );
+}
+
+async function findSubmittedSamePost({
+  companyId,
+  candidateAccountId,
+  personId,
+  mobile,
+  fullName,
+  jobRoleId,
+  roleCategoryId,
+  extra,
+  excludeId,
+}: {
+  companyId: string;
+  candidateAccountId?: string | null;
+  personId?: string | null;
+  mobile?: string | null;
+  fullName?: string | null;
+  jobRoleId: string;
+  roleCategoryId: string;
+  extra: string;
+  excludeId?: string;
+}) {
+  const or = [
+    ...(candidateAccountId ? [{ candidateAccountId }] : []),
+    ...(personId ? [{ personId }] : []),
+    ...(digitsMobile(mobile) ? [{ mobile: digitsMobile(mobile) }] : []),
+  ];
+  if (!or.length) return null;
+  const rows = await prisma.applicant.findMany({
+    where: {
+      companyId,
+      deletedAt: null,
+      status: { in: [...LIVE_STATUSES] },
+      ...(excludeId ? { NOT: { id: excludeId } } : {}),
+      OR: or,
+    },
+  });
+  const identity = { candidateAccountId, personId, mobile, fullName };
+  return rows.find((row) => sameApplicantIdentity(row, identity) && isSamePost(row, jobRoleId, roleCategoryId, extra)) || null;
+}
+
 async function restoreHiddenDifferentRoles(companyId: string) {
   const hidden = await prisma.applicant.findMany({
     where: { companyId, deletedAt: { not: null } },
@@ -58,7 +274,7 @@ async function restoreHiddenDifferentRoles(companyId: string) {
     where: {
       companyId,
       entityType: "APPLICANT",
-      action: "SOFT_DELETE",
+      action: { in: ["SOFT_DELETE", "CONSUME_DRAFT"] },
       entityId: { in: ids },
     },
     select: { entityId: true },
@@ -180,24 +396,19 @@ export async function submitApplicant(
   }
 
   const incomingExtra = extraPostKey(input.formData);
-  const existingSamePerson = await prisma.applicant.findMany({
-    where: {
-      companyId: company.id,
-      deletedAt: null,
-      status: { in: [ApplicantStatus.NEW, ApplicantStatus.SHORTLISTED, ApplicantStatus.APPROVED] },
-      OR: [
-        { personId: person.id },
-        {
-          personId: null,
-          mobile: input.mobile.trim(),
-          fullName: { equals: input.fullName.trim(), mode: "insensitive" },
-        },
-      ],
-    },
+  const identity = {
+    candidateAccountId: input.candidateAccountId || null,
+    personId: person.id,
+    mobile: input.mobile.trim(),
+    fullName: input.fullName.trim(),
+  };
+  const samePost = await findSubmittedSamePost({
+    companyId: company.id,
+    ...identity,
+    jobRoleId: input.jobRoleId,
+    roleCategoryId: input.roleCategoryId,
+    extra: incomingExtra,
   });
-  const samePost = existingSamePerson.find((row) =>
-    isSamePost(row, input.jobRoleId, input.roleCategoryId, incomingExtra),
-  );
   if (samePost && samePost.status !== ApplicantStatus.NEW) {
     throw new Error(
       "You already have an application for this same trade and category. Please choose a different trade or category.",
@@ -252,29 +463,27 @@ export async function submitApplicant(
         },
       },
     });
+    await consumeMatchingDrafts({
+      companyId: company.id,
+      keepId: applicant.id,
+      ...identity,
+      jobRoleId: input.jobRoleId,
+      roleCategoryId: input.roleCategoryId,
+      extra: incomingExtra,
+    });
 
     return { id: applicant.id, applicationNo: applicant.applicationNo, status: applicant.status };
   }
 
-  let draftRow =
-    existingId
-      ? await prisma.applicant.findFirst({
-          where: { id: existingId, companyId: company.id, deletedAt: null, status: ApplicantStatus.DRAFT },
-        })
-      : null;
-  if (!draftRow && input.candidateAccountId) {
-    draftRow = await prisma.applicant.findFirst({
-      where: {
-        companyId: company.id,
-        candidateAccountId: input.candidateAccountId,
-        jobRoleId: input.jobRoleId,
-        roleCategoryId: input.roleCategoryId,
-        status: ApplicantStatus.DRAFT,
-        deletedAt: null,
-      },
-    });
-  }
-  if (draftRow && (existingId || extraPostKey(draftRow.formData) === incomingExtra)) {
+  const draftRow = await findOpenDraft({
+    companyId: company.id,
+    existingId,
+    ...identity,
+    jobRoleId: input.jobRoleId,
+    roleCategoryId: input.roleCategoryId,
+    extra: incomingExtra,
+  });
+  if (draftRow) {
     const applicationNo = draftRow.applicationNo || (await allocateApplicationNo(company));
     const existingForm = (draftRow.formData || {}) as Record<string, any>;
     const applicant = await prisma.applicant.update({
@@ -317,6 +526,14 @@ export async function submitApplicant(
           ...(filledByAdmin ? { filledByAdmin } : {}),
         },
       },
+    });
+    await consumeMatchingDrafts({
+      companyId: company.id,
+      keepId: applicant.id,
+      ...identity,
+      jobRoleId: input.jobRoleId,
+      roleCategoryId: input.roleCategoryId,
+      extra: incomingExtra,
     });
     return { id: applicant.id, applicationNo, status: applicant.status };
   }
@@ -369,6 +586,14 @@ export async function submitApplicant(
     },
   });
 
+  await consumeMatchingDrafts({
+    companyId: company.id,
+    keepId: applicant.id,
+    ...identity,
+    jobRoleId: input.jobRoleId,
+    roleCategoryId: input.roleCategoryId,
+    extra: incomingExtra,
+  });
   return { id: applicant.id, applicationNo, status: applicant.status };
 }
 
@@ -424,18 +649,36 @@ export async function saveApplicantDraft(
   if (existing && existing.status !== ApplicantStatus.DRAFT) {
     throw new Error("This form is already submitted. Use Save changes.");
   }
-  if (!existing && input.candidateAccountId) {
-    const drafts = await prisma.applicant.findMany({
-      where: {
-        companyId: company.id,
-        candidateAccountId: input.candidateAccountId,
-        jobRoleId: input.jobRoleId,
-        roleCategoryId: input.roleCategoryId,
-        status: ApplicantStatus.DRAFT,
-        deletedAt: null,
-      },
+  if (!existing) {
+    existing = await findOpenDraft({
+      companyId: company.id,
+      candidateAccountId: input.candidateAccountId,
+      personId,
+      mobile: input.mobile,
+      fullName: input.fullName,
+      jobRoleId: input.jobRoleId,
+      roleCategoryId: input.roleCategoryId,
+      extra: incomingExtra,
     });
-    existing = drafts.find((row) => extraPostKey(row.formData) === incomingExtra) || null;
+  }
+  if (!existing) {
+    const submittedTwin = await findSubmittedSamePost({
+      companyId: company.id,
+      candidateAccountId: input.candidateAccountId,
+      personId,
+      mobile: input.mobile,
+      fullName: input.fullName,
+      jobRoleId: input.jobRoleId,
+      roleCategoryId: input.roleCategoryId,
+      extra: incomingExtra,
+    });
+    if (submittedTwin) {
+      return {
+        id: submittedTwin.id,
+        applicationNo: submittedTwin.applicationNo,
+        status: submittedTwin.status,
+      };
+    }
   }
 
   const existingForm = ((existing?.formData || {}) as Record<string, any>) || {};
@@ -517,6 +760,7 @@ export async function listApplicants({
   limit?: number;
 }) {
   const tenantDb = getTenantPrisma(companyId);
+  await consumeOrphanDrafts(companyId);
   await ensureApplicantNumbers(companyId);
   await ensurePeople(companyId);
   await restoreHiddenDifferentRoles(companyId);
@@ -985,6 +1229,20 @@ export async function updateApplicant(
       },
     },
   });
+
+  if (wasDraft) {
+    await consumeMatchingDrafts({
+      companyId: company.id,
+      keepId: applicant.id,
+      candidateAccountId: existing.candidateAccountId,
+      personId: person.id,
+      mobile: applicant.mobile,
+      fullName: applicant.fullName,
+      jobRoleId: input.jobRoleId,
+      roleCategoryId: input.roleCategoryId,
+      extra: incomingExtra,
+    });
+  }
 
   return { id: applicant.id, applicationNo: applicant.applicationNo, status: applicant.status };
 }

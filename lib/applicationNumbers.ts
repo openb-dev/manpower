@@ -45,6 +45,8 @@ export async function ensureApplicantNumbers(companyId: string) {
   const pending = await prisma.applicant.findMany({
     where: {
       companyId,
+      deletedAt: null,
+      status: { not: "DRAFT" },
       OR: [{ applicationNo: null }, { applicationNo: "" }],
     },
     orderBy: { createdAt: "asc" },
@@ -52,7 +54,12 @@ export async function ensureApplicantNumbers(companyId: string) {
   });
 
   const numbered = await prisma.applicant.findMany({
-    where: { companyId, applicationNo: { not: null } },
+    where: {
+      companyId,
+      deletedAt: null,
+      status: { not: "DRAFT" },
+      applicationNo: { not: null },
+    },
     select: { applicationNo: true },
   });
   let next = 1;

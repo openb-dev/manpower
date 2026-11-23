@@ -691,6 +691,14 @@ function ApplyPageInner() {
   const handleSaveDraftRef = useRef<(silent?: boolean) => Promise<boolean>>(async () => false);
   const lastSavedFingerprintRef = useRef("");
   const pendingAutoSaveRef = useRef(false);
+  const savedDraftIdRef = useRef("");
+  const submittedLockRef = useRef(false);
+  const draftSavePromiseRef = useRef<Promise<boolean> | null>(null);
+
+  function rememberDraftId(id: string) {
+    savedDraftIdRef.current = id;
+    setSavedDraftId(id);
+  }
   const [myApplications, setMyApplications] = useState<CandidateApplication[]>([]);
   const prefillRef = useRef<ReturnType<typeof initialForm> | null>(null);
 
@@ -843,7 +851,8 @@ function ApplyPageInner() {
             ? personResumeFrom(application.prefill || {})
             : personEditFrom(application.prefill || {}),
         );
-        setSavedDraftId(application.status === "DRAFT" ? application.id : "");
+        rememberDraftId(application.status === "DRAFT" ? application.id : "");
+        submittedLockRef.current = application.status !== "DRAFT";
         setEditingNo(application.applicationNo || "");
         setStep("FORM");
       })
@@ -864,6 +873,7 @@ function ApplyPageInner() {
 
   useEffect(() => {
     if (step !== "FORM") return;
+    if (submittedLockRef.current) return;
     if (editApplicantId && !savedDraftId) return;
     if (!selectedRole?.id || !selectedCategory?.id) return;
     setDraftStatus((prev) => (prev === "saving" ? prev : "dirty"));
@@ -1665,6 +1675,10 @@ function ApplyPageInner() {
       return setError("You must read and accept the official Terms and Conditions.");
     }
 
+    if (draftSavePromiseRef.current) {
+      await draftSavePromiseRef.current;
+    }
+
     setSubmitting(true);
 
     try {
@@ -1771,8 +1785,8 @@ function ApplyPageInner() {
       submitBody.append(
         "payload",
         JSON.stringify({
-          action: editApplicantId && !savedDraftId ? "UPDATE_APPLICATION" : "SUBMIT_APPLICATION",
-          applicantId: editApplicantId || savedDraftId || undefined,
+          action: editApplicantId && !savedDraftIdRef.current ? "UPDATE_APPLICATION" : "SUBMIT_APPLICATION",
+          applicantId: editApplicantId || savedDraftIdRef.current || undefined,
           data: payload,
           fillByAdmin: Boolean(officeAdmin),
           adminFillerName: officeAdmin ? adminFiller.name.trim() : undefined,
@@ -1792,11 +1806,35 @@ function ApplyPageInner() {
 
       const data = await readApiJson(res);
       if (!res.ok) throw new Error(data.error || "The application could not be submitted. Please check the form and try again.");
+      submittedLockRef.current = true;
+      pendingAutoSaveRef.current = false;
+      rememberDraftId("");
       setSubmittedRef(data.applicationNo || data.id);
       setSuccessMsg("");
       setError("");
       if (!officeAdmin) {
         prefillRef.current = personPrefillFrom(form, candidate);
+        setMyApplications((prev) => {
+          const rest = prev.filter((app) => {
+            if (app.id === data.id) return false;
+            if (app.status !== "DRAFT") return true;
+            return app.jobRoleId !== selectedRole?.id || app.roleCategoryId !== selectedCategory?.id;
+          });
+          return [
+            {
+              id: data.id,
+              applicationNo: data.applicationNo || "",
+              status: data.status || "NEW",
+              createdAt: new Date().toISOString(),
+              jobRoleId: selectedRole?.id || "",
+              roleCategoryId: selectedCategory?.id || "",
+              role: selectedRole?.name || "",
+              category: selectedCategory?.name || "",
+              extra: form.otherCategory || form.gemProfile || "",
+            },
+            ...rest,
+          ];
+        });
       }
       setStep("SUCCESS");
     } catch (err: any) {
@@ -1827,7 +1865,8 @@ function ApplyPageInner() {
   }
 
   async function handleSaveDraft(silent = false) {
-    if (editApplicantId && !savedDraftId) return false;
+    if (submittedLockRef.current) return false;
+    if (editApplicantId && !savedDraftIdRef.current) return false;
     if (step !== "FORM") return false;
     if (savingDraft || submitting) {
       if (silent) pendingAutoSaveRef.current = true;
@@ -1880,14 +1919,15 @@ function ApplyPageInner() {
       otherQualFileName: form.otherQualFileName,
       policeFileName: form.policeFileName,
     });
-    if (silent && fingerprint === lastSavedFingerprintRef.current && savedDraftId) {
+    if (silent && fingerprint === lastSavedFingerprintRef.current && savedDraftIdRef.current) {
       setDraftStatus("saved");
       return true;
     }
 
     setSavingDraft(true);
     setDraftStatus("saving");
-    try {
+    const run = (async () => {
+      try {
       const documentsPayload = draftDocuments();
       const preferredSiteName = dutySiteNameFromChoice(form.preferredSiteCode, form.preferredSiteOther);
       const payload = {
@@ -1923,7 +1963,7 @@ function ApplyPageInner() {
         "payload",
         JSON.stringify({
           action: "SAVE_DRAFT",
-          applicantId: editApplicantId || savedDraftId || undefined,
+          applicantId: editApplicantId || savedDraftIdRef.current || undefined,
           data: payload,
           fillByAdmin: Boolean(officeAdmin),
           adminFillerName: officeAdmin ? adminFiller.name.trim() : undefined,
@@ -1942,7 +1982,13 @@ function ApplyPageInner() {
       });
       const data = await readApiJson(res);
       if (!res.ok) throw new Error(data.error || "The draft could not be saved.");
-      setSavedDraftId(data.id);
+      if (data.status && data.status !== "DRAFT") {
+        submittedLockRef.current = true;
+        rememberDraftId("");
+        setDraftStatus("idle");
+        return true;
+      }
+      rememberDraftId(data.id);
       lastSavedFingerprintRef.current = fingerprint;
       setDraftStatus("saved");
       if (!silent) setSuccessMsg("Draft saved. You can continue this form later.");
@@ -1965,20 +2011,23 @@ function ApplyPageInner() {
           ];
         });
       }
+      return true;
     } catch (err: any) {
       setDraftStatus("unsaved");
       if (!silent) setError(err.message || "The draft could not be saved.");
       return false;
     } finally {
       setSavingDraft(false);
-      if (pendingAutoSaveRef.current) {
+      if (pendingAutoSaveRef.current && !submittedLockRef.current) {
         pendingAutoSaveRef.current = false;
         window.setTimeout(() => {
           void handleSaveDraftRef.current(true);
         }, 400);
       }
     }
-    return true;
+    })();
+    draftSavePromiseRef.current = run;
+    return run;
   }
   handleSaveDraftRef.current = handleSaveDraft;
 
@@ -2000,7 +2049,8 @@ function ApplyPageInner() {
       setSelectedRole(role);
       setSelectedCategory(category);
       setForm(personResumeFrom(application.prefill || {}, candidate));
-      setSavedDraftId(application.id);
+      rememberDraftId(application.id);
+      submittedLockRef.current = application.status !== "DRAFT";
       setStep("FORM");
     } catch (err: any) {
       setError(err.message || "This draft could not be opened.");
@@ -4424,6 +4474,8 @@ function ApplyPageInner() {
                       setAdminFiller((prev) => ({ ...prev, confirmed: false }));
                       setSelectedRole(null);
                       setSelectedCategory(null);
+                      submittedLockRef.current = false;
+                      rememberDraftId("");
                       setStep("ROLE");
                       setSubmittedRef("");
                       setForm(

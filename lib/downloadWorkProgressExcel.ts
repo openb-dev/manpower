@@ -32,6 +32,16 @@ function colLetter(n: number) {
   return s;
 }
 
+function dateDot(value: unknown) {
+  const dmy = formatDateDmy(value as string, "");
+  return dmy ? dmy.replace(/\//g, ".") : "";
+}
+
+function titleDash(value: unknown) {
+  const dmy = formatDateDmy(value as string, "");
+  return dmy ? dmy.replace(/\//g, "-") : "……/……/……";
+}
+
 function fillHeader(cell: ExcelJS.Cell, value: string, fill = "FFD9E2F3") {
   cell.value = value;
   cell.font = { name: "Calibri", size: 9, bold: true };
@@ -65,8 +75,10 @@ function addReportSheet(workbook: ExcelJS.Workbook, report: any, index: number) 
   const items = parseProgressItems(report.items);
   const notes = parseRaNotes(report.raNotes);
   const footer = buildProgressFooter(items, report as ProgressReportInput);
-  const reportDate = report.reportDate ? formatDateDmy(report.reportDate, "") : "";
-  const balanceDate = report.balanceDate ? formatDateDmy(report.balanceDate, "") : reportDate;
+  const reportDate = report.reportDate ? titleDash(report.reportDate) : "……/……/……";
+  const balanceDate = report.balanceDate
+    ? formatDateDmy(report.balanceDate, "").replace(/\//g, ".")
+    : "…./…./……";
   const lastCol = 2 + 4 + raBills.length * 3 + 3 + 1;
   const last = colLetter(lastCol);
   const sheetName = `WPR ${index + 1}`.slice(0, 31);
@@ -75,40 +87,70 @@ function addReportSheet(workbook: ExcelJS.Workbook, report: any, index: number) 
   });
 
   sheet.mergeCells(`A1:${last}1`);
-  sheet.getCell("A1").value = `Work Details Report as on ${reportDate || "……/……/……"}`;
+  sheet.getCell("A1").value = `Work Details Report as on ${reportDate}`;
   sheet.getCell("A1").font = { name: "Calibri", size: 14, bold: true };
   sheet.getCell("A1").alignment = { horizontal: "center", vertical: "middle" };
   sheet.getRow(1).height = 22;
 
-  const headerLines: Array<[string, string]> = [
-    ["1 Name of work:", report.nameOfWork || ""],
-    ["2 Department :", report.department || ""],
-    ["3 Situation :", report.situation || ""],
-    ["4 Stipulated date of start:", report.stipulatedStart ? formatDateDmy(report.stipulatedStart, "") : ""],
-    ["5 Actual date of start:", report.actualStart ? formatDateDmy(report.actualStart, "") : ""],
-    ["6 Stipulated date of completion:", report.stipulatedCompletion ? formatDateDmy(report.stipulatedCompletion, "") : ""],
-    ["7 Actual date of completion :", report.actualCompletion ? formatDateDmy(report.actualCompletion, "") : ""],
-    ["8 Work Status:", report.workStatus || ""],
-    ["9 Name of Agency :", report.agencyName || ""],
-  ];
-  headerLines.forEach(([label, value], i) => {
-    const row = i + 2;
+  const writeFullHeader = (row: number, label: string, value: string, tall = false) => {
     sheet.getCell(`A${row}`).value = label;
     sheet.getCell(`A${row}`).font = { name: "Calibri", size: 10, bold: true };
     sheet.mergeCells(`B${row}:${last}${row}`);
     sheet.getCell(`B${row}`).value = value;
     sheet.getCell(`B${row}`).font = { name: "Calibri", size: 10 };
-    sheet.getCell(`B${row}`).alignment = { wrapText: true };
-  });
+    sheet.getCell(`B${row}`).alignment = { wrapText: true, vertical: "middle" };
+    if (tall) sheet.getRow(row).height = 36;
+  };
 
-  const titleRow = 12;
+  const writeSideHeader = (
+    row: number,
+    leftLabel: string,
+    leftValue: string,
+    rightLabel: string,
+    rightValue: string,
+  ) => {
+    // Same value column (B) as other headers; both dates stay close on one line
+    sheet.getCell(`A${row}`).value = leftLabel;
+    sheet.getCell(`A${row}`).font = { name: "Calibri", size: 10, bold: true };
+    sheet.mergeCells(`B${row}:${last}${row}`);
+    const left = String(leftValue || "");
+    const right = `${rightLabel}  ${String(rightValue || "")}`.trim();
+    sheet.getCell(`B${row}`).value = right ? `${left}          ${right}` : left;
+    sheet.getCell(`B${row}`).font = { name: "Calibri", size: 10 };
+    sheet.getCell(`B${row}`).alignment = { vertical: "middle", wrapText: false };
+  };
+
+  writeFullHeader(2, "1 Name of work:", report.nameOfWork || "", true);
+  writeFullHeader(3, "2 Work Order / Agreement No. :", report.workOrderNo || "");
+  writeFullHeader(4, "3 Work Order / Agreement date :", dateDot(report.workOrderDate));
+  writeFullHeader(5, "4 Period :", report.period || "");
+  writeFullHeader(6, "5 Department :", report.department || "");
+  writeFullHeader(7, "6 Situation :", report.situation || "");
+  writeSideHeader(
+    8,
+    "7 Stipulated date of start:",
+    dateDot(report.stipulatedStart),
+    "8 Actual date of start:",
+    dateDot(report.actualStart),
+  );
+  writeSideHeader(
+    9,
+    "9 Stipulated date of completion:",
+    dateDot(report.stipulatedCompletion),
+    "10 Actual date of completion :",
+    dateDot(report.actualCompletion),
+  );
+  writeFullHeader(10, "11 Work Status:", report.workStatus || "");
+  writeFullHeader(11, "12 Name of Agency :", report.agencyName || "");
+
+  const titleRow = 13;
   sheet.mergeCells(`A${titleRow}:${last}${titleRow}`);
-  sheet.getCell(`A${titleRow}`).value = `WORK DETAILS REPORT AS ON DATE ${reportDate || "……/……/……"}`;
+  sheet.getCell(`A${titleRow}`).value = `WORK DETAILS REPORT AS ON DATE ${reportDate === "……/……/……" ? "……/……/…..……." : reportDate}`;
   sheet.getCell(`A${titleRow}`).font = { name: "Calibri", size: 11, bold: true };
   sheet.getCell(`A${titleRow}`).alignment = { horizontal: "center" };
 
-  const h1 = 13;
-  const h2 = 14;
+  const h1 = 14;
+  const h2 = 15;
   fillHeader(sheet.getCell(`A${h1}`), "Sl. No.");
   fillHeader(sheet.getCell(`B${h1}`), "Particulars");
   sheet.mergeCells(`A${h1}:A${h2}`);
@@ -128,20 +170,33 @@ function addReportSheet(workbook: ExcelJS.Workbook, report: any, index: number) 
   });
 
   sheet.mergeCells(h1, col, h1, col + 2);
-  fillHeader(sheet.getCell(h1, col), `BALANCE WORK AS ON\nDATE ${balanceDate || "…./…./……"}`);
+  fillHeader(sheet.getCell(h1, col), `BALANCE WORK AS ON\nDATE ${balanceDate}`);
   ["Qty.", "Rate (Rs.)", "Amount (Rs.)"].forEach((label, i) => fillHeader(sheet.getCell(h2, col + i), label));
   col += 3;
   fillHeader(sheet.getCell(h1, col), "Remarks");
   sheet.mergeCells(h1, col, h2, col);
 
-  sheet.getColumn(1).width = 10;
-  sheet.getColumn(2).width = 48;
-  for (let i = 3; i <= lastCol; i++) sheet.getColumn(i).width = i === lastCol ? 16 : 12;
-  sheet.getRow(h1).height = 28;
+  // Client-like box sizes: narrow Sl No, wide Particulars, compact qty/rate/amount
+  sheet.getColumn(1).width = 7;
+  sheet.getColumn(2).width = 42;
+  for (let i = 3; i <= lastCol; i++) {
+    if (i === lastCol) sheet.getColumn(i).width = 14;
+    else if ((i - 3) % 3 === 1 && i > 6) sheet.getColumn(i).width = 10; // rate in RA/balance
+    else if (i === 4) sheet.getColumn(i).width = 7; // unit
+    else if (i === 5) sheet.getColumn(i).width = 10; // boq rate
+    else if (i === 6 || (i > 6 && (i - 6) % 3 === 0) || i === lastCol - 1) sheet.getColumn(i).width = 12; // amounts / last rate
+    else sheet.getColumn(i).width = 9; // qty
+  }
+  sheet.getRow(h1).height = 32;
   sheet.getRow(h2).height = 18;
 
   const boqItems = items.filter((item) => item.kind !== "EXTRA");
   const extraItems = items.filter((item) => item.kind === "EXTRA");
+
+  function numOrBlank(value: unknown) {
+    const n = Number(String(value).replace(/,/g, ""));
+    return Number.isFinite(n) ? n : "";
+  }
 
   const writeItem = (item: ProgressItem, row: number) => {
     writeText(sheet.getCell(row, 1), item.slNo, { align: "center" });
@@ -162,13 +217,8 @@ function addReportSheet(workbook: ExcelJS.Workbook, report: any, index: number) 
     writeText(sheet.getCell(row, c + 1), itemRate(item), { align: "right" });
     writeAmount(sheet.getCell(row, c + 2), columnAmount(item, "balance", raBills));
     writeText(sheet.getCell(row, c + 3), item.remarks, { wrap: true });
-    sheet.getRow(row).height = Math.min(90, 18 + Math.ceil(String(item.particulars || "").length / 42) * 12);
+    sheet.getRow(row).height = Math.min(96, 18 + Math.ceil(String(item.particulars || "").length / 38) * 12);
   };
-
-  function numOrBlank(value: unknown) {
-    const n = Number(String(value).replace(/,/g, ""));
-    return Number.isFinite(n) ? n : "";
-  }
 
   function writeFooterRow(row: number, label: string, values: Record<string, number>) {
     sheet.mergeCells(row, 1, row, 5);
@@ -187,7 +237,7 @@ function addReportSheet(workbook: ExcelJS.Workbook, report: any, index: number) 
     writeText(sheet.getCell(row, c + 3), "");
   }
 
-  let row = 15;
+  let row = 16;
   boqItems.forEach((item) => {
     writeItem(item, row);
     row += 1;

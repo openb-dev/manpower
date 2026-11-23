@@ -2,7 +2,8 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 
 const REPORT_COLUMNS = Prisma.raw(`
-  id, company_id, name_of_work, department, situation,
+  id, company_id, name_of_work, work_order_no, work_order_date, period,
+  department, situation,
   stipulated_start, actual_start, stipulated_completion, actual_completion,
   work_status, agency_name, report_date, balance_date,
   less_percent, adjust_kind, sd_percent, it_percent, gst_percent, labour_cess_percent,
@@ -30,6 +31,9 @@ function mapReport(row: any) {
     id: row.id,
     companyId: row.company_id,
     nameOfWork: row.name_of_work || "",
+    workOrderNo: row.work_order_no || "",
+    workOrderDate: row.work_order_date,
+    period: row.period || "",
     department: row.department || "",
     situation: row.situation || "",
     stipulatedStart: row.stipulated_start,
@@ -84,6 +88,9 @@ export async function saveWorkProgressReport(
   data: {
     id?: string;
     nameOfWork?: string;
+    workOrderNo?: string;
+    workOrderDate?: Date | null;
+    period?: string;
     department?: string;
     situation?: string;
     stipulatedStart?: Date | null;
@@ -113,7 +120,8 @@ export async function saveWorkProgressReport(
   const id = data.id || crypto.randomUUID();
   const rows = await prisma.$queryRaw<any[]>`
     INSERT INTO work_progress_reports (
-      id, company_id, name_of_work, department, situation,
+      id, company_id, name_of_work, work_order_no, work_order_date, period,
+      department, situation,
       stipulated_start, actual_start, stipulated_completion, actual_completion,
       work_status, agency_name, report_date, balance_date,
       less_percent, adjust_kind, sd_percent, it_percent, gst_percent, labour_cess_percent,
@@ -122,6 +130,9 @@ export async function saveWorkProgressReport(
       ${id},
       ${companyId},
       ${data.nameOfWork || ""},
+      ${data.workOrderNo || ""},
+      ${data.workOrderDate ?? null},
+      ${data.period || ""},
       ${data.department || ""},
       ${data.situation || ""},
       ${data.stipulatedStart ?? null},
@@ -147,6 +158,9 @@ export async function saveWorkProgressReport(
     )
     ON CONFLICT (id) DO UPDATE SET
       name_of_work = EXCLUDED.name_of_work,
+      work_order_no = EXCLUDED.work_order_no,
+      work_order_date = EXCLUDED.work_order_date,
+      period = EXCLUDED.period,
       department = EXCLUDED.department,
       situation = EXCLUDED.situation,
       stipulated_start = EXCLUDED.stipulated_start,

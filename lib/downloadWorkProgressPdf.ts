@@ -28,14 +28,33 @@ async function loadJsPdf() {
   return jsPDF;
 }
 
-function cell(pdf: any, x: number, y: number, w: number, h: number, text: string, opts?: { bold?: boolean; size?: number; align?: "left" | "center" | "right" }) {
+function dateDot(value: unknown) {
+  const dmy = formatDateDmy(value as string, "");
+  return dmy ? dmy.replace(/\//g, ".") : "";
+}
+
+function titleDash(value: unknown) {
+  const dmy = formatDateDmy(value as string, "");
+  return dmy ? dmy.replace(/\//g, "-") : "……/……/……";
+}
+
+function cell(
+  pdf: any,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  text: string,
+  opts?: { bold?: boolean; size?: number; align?: "left" | "center" | "right"; maxLines?: number },
+) {
   pdf.rect(x, y, w, h);
   pdf.setFont("helvetica", opts?.bold ? "bold" : "normal");
   pdf.setFontSize(opts?.size || 6);
+  const maxLines = opts?.maxLines ?? 8;
   const lines = pdf.splitTextToSize(String(text || ""), Math.max(w - 1.2, 2));
   const align = opts?.align || "left";
   const tx = align === "center" ? x + w / 2 : align === "right" ? x + w - 0.6 : x + 0.6;
-  pdf.text(lines.slice(0, 6), tx, y + 2.1, { align });
+  pdf.text(lines.slice(0, maxLines), tx, y + 2.1, { align });
 }
 
 export async function downloadWorkProgressPdf({
@@ -47,7 +66,7 @@ export async function downloadWorkProgressPdf({
 }) {
   const jsPDF = await loadJsPdf();
   const pageW = 420;
-  const pageH = 210;
+  const pageH = 297;
   const pdf = new jsPDF({ unit: "mm", format: [pageW, pageH], orientation: "landscape" });
   const list = rows.length ? rows : [];
 
@@ -57,47 +76,85 @@ export async function downloadWorkProgressPdf({
     const items = parseProgressItems(report.items);
     const notes = parseRaNotes(report.raNotes);
     const footer = buildProgressFooter(items, report);
-    const reportDate = report.reportDate ? formatDateDmy(report.reportDate, "") : "";
-    const balanceDate = report.balanceDate ? formatDateDmy(report.balanceDate, "") : reportDate;
+    const reportDate = report.reportDate ? titleDash(report.reportDate) : "……/……/……";
+    const balanceDate = report.balanceDate
+      ? formatDateDmy(report.balanceDate, "").replace(/\//g, ".")
+      : "…./…./……";
     const margin = 6;
     let y = 8;
     pdf.setFont("helvetica", "bold");
     pdf.setFontSize(12);
-    pdf.text(`Work Details Report as on ${reportDate || "……/……/……"}`, pageW / 2, y, { align: "center" });
-    y += 5;
+    pdf.text(`Work Details Report as on ${reportDate}`, pageW / 2, y, { align: "center" });
+    y += 6;
     pdf.setFontSize(8);
-    const heads = [
-      ["1 Name of work:", report.nameOfWork || ""],
-      ["2 Department :", report.department || ""],
-      ["3 Situation :", report.situation || ""],
-      ["4 Stipulated date of start:", report.stipulatedStart ? formatDateDmy(report.stipulatedStart, "") : ""],
-      ["5 Actual date of start:", report.actualStart ? formatDateDmy(report.actualStart, "") : ""],
-      ["6 Stipulated date of completion:", report.stipulatedCompletion ? formatDateDmy(report.stipulatedCompletion, "") : ""],
-      ["7 Actual date of completion :", report.actualCompletion ? formatDateDmy(report.actualCompletion, "") : ""],
-      ["8 Work Status:", report.workStatus || ""],
-      ["9 Name of Agency :", report.agencyName || ""],
-    ];
-    heads.forEach(([label, value]) => {
+    // Same value indent for every header line (incl. dates)
+    const labelW = 62;
+    const valueX = margin + labelW;
+    const valueW = pageW - margin * 2 - labelW;
+    const rightLabelX = valueX + 30;
+    const rightValueX = rightLabelX + 58;
+
+    const writeHeadLine = (label: string, value: string, wrapLines = 2) => {
       pdf.setFont("helvetica", "bold");
       pdf.text(label, margin, y);
       pdf.setFont("helvetica", "normal");
-      const lines = pdf.splitTextToSize(String(value || ""), pageW - margin * 2 - 55);
-      pdf.text(lines.slice(0, 2), margin + 55, y);
-      y += Math.max(4, lines.slice(0, 2).length * 3.4);
-    });
+      const lines = pdf.splitTextToSize(String(value || ""), valueW);
+      const shown = lines.slice(0, wrapLines);
+      pdf.text(shown, valueX, y);
+      y += Math.max(4.4, shown.length * 3.5);
+    };
+
+    /** Both dates on one line; values share the same indent as other header fields. */
+    const writeDatePair = (
+      leftLabel: string,
+      leftValue: string,
+      rightLabel: string,
+      rightValue: string,
+    ) => {
+      pdf.setFont("helvetica", "bold");
+      pdf.text(leftLabel, margin, y);
+      pdf.setFont("helvetica", "normal");
+      pdf.text(String(leftValue || ""), valueX, y);
+      pdf.setFont("helvetica", "bold");
+      pdf.text(rightLabel, rightLabelX, y);
+      pdf.setFont("helvetica", "normal");
+      pdf.text(String(rightValue || ""), rightValueX, y);
+      y += 4.6;
+    };
+
+    writeHeadLine("1 Name of work:", report.nameOfWork || "", 3);
+    writeHeadLine("2 Work Order / Agreement No. :", report.workOrderNo || "");
+    writeHeadLine("3 Work Order / Agreement date :", dateDot(report.workOrderDate));
+    writeHeadLine("4 Period :", report.period || "");
+    writeHeadLine("5 Department :", report.department || "");
+    writeHeadLine("6 Situation :", report.situation || "");
+    writeDatePair(
+      "7 Stipulated date of start:",
+      dateDot(report.stipulatedStart),
+      "8 Actual date of start:",
+      dateDot(report.actualStart),
+    );
+    writeDatePair(
+      "9 Stipulated date of completion:",
+      dateDot(report.stipulatedCompletion),
+      "10 Actual date of completion :",
+      dateDot(report.actualCompletion),
+    );
+    writeHeadLine("11 Work Status:", report.workStatus || "");
+    writeHeadLine("12 Name of Agency :", report.agencyName || "");
     y += 2;
     pdf.setFont("helvetica", "bold");
     pdf.setFontSize(9);
-    pdf.text(`WORK DETAILS REPORT AS ON DATE ${reportDate || "……/……/……"}`, pageW / 2, y, { align: "center" });
-    y += 3;
+    pdf.text(`WORK DETAILS REPORT AS ON DATE ${reportDate}`, pageW / 2, y, { align: "center" });
+    y += 4;
 
     const innerW = pageW - margin * 2;
-    const widths = [10, 62, 14, 12, 16, 18, ...raBills.flatMap(() => [14, 16, 18]), 14, 16, 18, 22];
+    // Box proportions close to client sheet: narrow Sl, wide Particulars, compact money cols
+    const widths = [8, 58, 12, 10, 14, 16, ...raBills.flatMap(() => [12, 14, 16]), 12, 14, 16, 18];
     const totalW = widths.reduce((s, w) => s + w, 0);
     const scaled = widths.map((w) => (w / totalW) * innerW);
-    const rowH = 7.2;
 
-    const drawRow = (values: string[], bold = false, height = rowH) => {
+    const drawRow = (values: string[], bold = false, height = 7.2, maxLines = 6) => {
       if (y + height > pageH - margin) {
         pdf.addPage([pageW, pageH], "landscape");
         y = margin;
@@ -105,23 +162,26 @@ export async function downloadWorkProgressPdf({
       let x = margin;
       values.forEach((value, i) => {
         const w = scaled[i] || 12;
-        const align = i === 1 || i === values.length - 1 || i === 0 || i === 3 ? (i === 0 || i === 3 ? "center" : "left") : "right";
-        cell(pdf, x, y, w, height, value, { bold, size: 5.5, align: i === 1 ? "left" : align });
+        const align =
+          i === 1 ? "left" : i === 0 || i === 3 ? "center" : i === values.length - 1 ? "left" : "right";
+        cell(pdf, x, y, w, height, value, { bold, size: 5.4, align, maxLines });
         x += w;
       });
       y += height;
     };
 
-    const group = (label: string, span: number) => ({ label, span });
     const groups = [
-      group("Sl. No.", 1),
-      group("Particulars", 1),
-      group("AS PER BOQ", 4),
-      ...raBills.map((raNo) => group(`AS PER ${String(raNo).toUpperCase()} R.A. BILL${notes[raNo] ? `\n${notes[raNo]}` : ""}`, 3)),
-      group(`BALANCE WORK AS ON DATE ${balanceDate || "…./…./……"}`, 3),
-      group("Remarks", 1),
+      { label: "Sl. No.", span: 1 },
+      { label: "Particulars", span: 1 },
+      { label: "AS PER BOQ", span: 4 },
+      ...raBills.map((raNo) => ({
+        label: `AS PER ${String(raNo).toUpperCase()} R.A. BILL${notes[raNo] ? `\n${notes[raNo]}` : ""}`,
+        span: 3,
+      })),
+      { label: `BALANCE WORK AS ON\nDATE ${balanceDate}`, span: 3 },
+      { label: "Remarks", span: 1 },
     ];
-    if (y + 14 > pageH - margin) {
+    if (y + 16 > pageH - margin) {
       pdf.addPage([pageW, pageH], "landscape");
       y = margin;
     }
@@ -129,15 +189,28 @@ export async function downloadWorkProgressPdf({
     let idx = 0;
     groups.forEach((g) => {
       const w = scaled.slice(idx, idx + g.span).reduce((s, n) => s + n, 0);
-      cell(pdf, x, y, w, 8, g.label, { bold: true, size: 5.5, align: "center" });
+      cell(pdf, x, y, w, 9, g.label, { bold: true, size: 5.4, align: "center", maxLines: 3 });
       x += w;
       idx += g.span;
     });
-    y += 8;
+    y += 9;
     drawRow(
-      ["", "", "Qty.", "Unit", "Rate (Rs.)", "Amount (Rs.)", ...raBills.flatMap(() => ["Qty.", "Rate (Rs.)", "Amount (Rs.)"]), "Qty.", "Rate (Rs.)", "Amount (Rs.)", ""],
+      [
+        "",
+        "",
+        "Qty.",
+        "Unit",
+        "Rate (Rs.)",
+        "Amount (Rs.)",
+        ...raBills.flatMap(() => ["Qty.", "Rate (Rs.)", "Amount (Rs.)"]),
+        "Qty.",
+        "Rate (Rs.)",
+        "Amount (Rs.)",
+        "",
+      ],
       true,
-      6.2,
+      6,
+      1,
     );
 
     const itemRow = (item: (typeof items)[number]) => [
@@ -172,14 +245,30 @@ export async function downloadWorkProgressPdf({
       "",
     ];
 
-    items.filter((item) => item.kind !== "EXTRA").forEach((item) => drawRow(itemRow(item), false, Math.min(18, 6 + Math.ceil(String(item.particulars || "").length / 55) * 3)));
+    items
+      .filter((item) => item.kind !== "EXTRA")
+      .forEach((item) =>
+        drawRow(
+          itemRow(item),
+          false,
+          Math.min(28, 6.5 + Math.ceil(String(item.particulars || "").length / 48) * 3.2),
+          8,
+        ),
+      );
     drawRow(moneyRow("Total=", footer.total), true);
     drawRow(moneyRow(adjustRowLabel(footer.adjustKind, footer.lessPct), footer.less), true);
     drawRow(moneyRow("(A) Sub-Total=", footer.subA), true);
     const extras = items.filter((item) => item.kind === "EXTRA");
     if (extras.length) {
       drawRow(["", "Extra Items", "", "", "", "", ...raBills.flatMap(() => ["", "", ""]), "", "", "", ""], true);
-      extras.forEach((item) => drawRow(itemRow(item), false, Math.min(18, 6 + Math.ceil(String(item.particulars || "").length / 55) * 3)));
+      extras.forEach((item) =>
+        drawRow(
+          itemRow(item),
+          false,
+          Math.min(28, 6.5 + Math.ceil(String(item.particulars || "").length / 48) * 3.2),
+          8,
+        ),
+      );
     }
     drawRow(moneyRow("(B) Sub-Total=", footer.extra), true);
     drawRow(moneyRow("(A+B) Grand Total=", footer.grand), true);
@@ -192,6 +281,10 @@ export async function downloadWorkProgressPdf({
     drawRow(moneyRow("Net Payable Amount=", footer.net), true);
     if (report.note) {
       y += 3;
+      if (y > pageH - margin - 10) {
+        pdf.addPage([pageW, pageH], "landscape");
+        y = margin;
+      }
       pdf.setFont("helvetica", "normal");
       pdf.setFontSize(8);
       const noteLines = pdf.splitTextToSize(`Note:- ${report.note}`, innerW);

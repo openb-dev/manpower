@@ -662,6 +662,9 @@ model WorkProgressReport {
   id                     String    @id @default(uuid())
   companyId              String    @map("company_id")
   nameOfWork             String    @default("") @map("name_of_work")
+  workOrderNo            String    @default("") @map("work_order_no")
+  workOrderDate          DateTime? @map("work_order_date") @db.Date
+  period                 String    @default("") @map("period")
   department             String    @default("")
   situation              String    @default("")
   stipulatedStart        DateTime? @map("stipulated_start") @db.Date

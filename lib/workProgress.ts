@@ -23,6 +23,9 @@ export type ProgressItem = {
 
 export type ProgressReportInput = {
   nameOfWork?: string;
+  workOrderNo?: string;
+  workOrderDate?: string | null;
+  period?: string;
   department?: string;
   situation?: string;
   stipulatedStart?: string | null;
@@ -150,19 +153,27 @@ export function parseRaNotes(raw: unknown): Record<string, string> {
 }
 
 export function nextExtraSl(items: ProgressItem[]) {
-  const nums = items
-    .filter((item) => item.kind === "EXTRA")
-    .map((item) => Number(String(item.slNo || "").replace(/\D/g, "")))
-    .filter((n) => n > 0);
-  return `E-${nums.length ? Math.max(...nums) + 1 : 1}`;
+  const count = items.filter((item) => item.kind === "EXTRA").length;
+  return `E-${count + 1}`;
 }
 
 export function nextBoqSl(items: ProgressItem[]) {
-  const nums = items
-    .filter((item) => item.kind !== "EXTRA")
-    .map((item) => Number(String(item.slNo || "").replace(/\D/g, "")))
-    .filter((n) => n > 0);
-  return String(nums.length ? Math.max(...nums) + 1 : 1);
+  const count = items.filter((item) => item.kind !== "EXTRA").length;
+  return String(count + 1);
+}
+
+/** Running row numbers 1,2,3… for BOQ and E-1,E-2… for extras. */
+export function renumberProgressItems(items: ProgressItem[]) {
+  let boq = 0;
+  let extra = 0;
+  return items.map((item) => {
+    if (item.kind === "EXTRA") {
+      extra += 1;
+      return { ...item, slNo: `E-${extra}` };
+    }
+    boq += 1;
+    return { ...item, slNo: String(boq) };
+  });
 }
 
 export type ProgressColumnKey = "boq" | "balance" | string;
@@ -173,8 +184,12 @@ export function sumColumn(items: ProgressItem[], kind: ProgressItemKind | "ALL",
     .reduce((sum, item) => sum + columnAmount(item, col, raBills), 0);
 }
 
+/** Commercial half-up to 2 decimals (matches office Excel). */
 export function round2(value: number) {
-  return Math.round(value * 100) / 100;
+  const n = Number(value);
+  if (!Number.isFinite(n)) return 0;
+  const sign = n < 0 ? -1 : 1;
+  return (sign * Math.round(Math.abs(n) * 100 + Number.EPSILON)) / 100;
 }
 
 export function progressColumns(raBills: string[]): ProgressColumnKey[] {
@@ -199,9 +214,12 @@ export function adjustKindOf(value: unknown): "LESS" | "ADD" {
 
 export function adjustRowLabel(kind: "LESS" | "ADD", pct: number) {
   const how = `${pct}%`;
-  return kind === "ADD"
-    ? `Unconditional revert/added (Add ${how})=`
-    : `Unconditional revert/added (Less ${how})=`;
+  return kind === "ADD" ? `Add (+${how})=` : `Less (-${how})=`;
+}
+
+/** Client sheet rounds (A) Sub-Total to whole rupees before recoveries. */
+export function roundRupee(value: number) {
+  return Math.round(value);
 }
 
 export function buildProgressFooter(items: ProgressItem[], report: ProgressReportInput) {
@@ -226,7 +244,8 @@ export function buildProgressFooter(items: ProgressItem[], report: ProgressRepor
   const net: Record<string, number> = {};
   for (const col of cols) {
     less[col] = round2((total[col] * lessPct) / 100);
-    subA[col] = round2(adjustKind === "ADD" ? total[col] + less[col] : total[col] - less[col]);
+    const rawSub = adjustKind === "ADD" ? total[col] + less[col] : total[col] - less[col];
+    subA[col] = roundRupee(rawSub);
     grand[col] = round2(subA[col] + extra[col]);
     sd[col] = recoveryLine(grand[col], sdPct);
     it[col] = recoveryLine(grand[col], itPct);

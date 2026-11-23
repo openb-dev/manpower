@@ -1,10 +1,10 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { loadProgressBook } from "../actions";
 import { friendlyPublicError, readApiJson } from "@/lib/publicErrors";
-import { formatDateDmy, maskDmyInput } from "@/lib/applicantFormFields";
+import { formatDateDmy, maskDmyInput, parseDateValue } from "@/lib/applicantFormFields";
 import { downloadWorkProgressExcel } from "@/lib/downloadWorkProgressExcel";
 import { downloadWorkProgressPdf } from "@/lib/downloadWorkProgressPdf";
 import {
@@ -20,6 +20,7 @@ import {
   nextBoqSl,
   nextExtraSl,
   nextProgressRa,
+  renumberProgressItems,
   sortProgressRa,
   parseProgressItems,
   parseRaNotes,
@@ -36,10 +37,12 @@ function DateTextInput({
   value,
   onChange,
   className = FIELD,
+  required = false,
 }: {
   value: string;
   onChange: (value: string) => void;
   className?: string;
+  required?: boolean;
 }) {
   return (
     <input
@@ -50,6 +53,7 @@ function DateTextInput({
       value={value}
       onChange={(e) => onChange(maskDmyInput(e.target.value))}
       className={className}
+      aria-required={required || undefined}
     />
   );
 }
@@ -58,20 +62,27 @@ function Field({
   no,
   label,
   children,
+  required = false,
 }: {
   no?: number;
   label: string;
   children: React.ReactNode;
+  required?: boolean;
 }) {
   return (
     <div>
       <label className="text-xs font-bold text-slate-700 block mb-1">
         {no != null ? <span className="text-slate-400 mr-1">{no}.</span> : null}
         {label}
+        {required ? <span className="text-rose-600 ml-0.5">*</span> : null}
       </label>
       {children}
     </div>
   );
+}
+
+function isCompleteDate(value: string) {
+  return Boolean(parseDateValue(value));
 }
 
 type Report = any;
@@ -86,9 +97,17 @@ export default function WorkProgressPage() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [editingId, setEditingId] = useState("");
+  const editingIdRef = useRef("");
+  const lastSavedFingerprintRef = useRef("");
+  const skipAutosaveRef = useRef(true);
+  const savingRef = useRef(false);
 
   const [nameOfWork, setNameOfWork] = useState("");
+  const [workOrderNo, setWorkOrderNo] = useState("");
+  const [workOrderDate, setWorkOrderDate] = useState("");
+  const [period, setPeriod] = useState("");
   const [department, setDepartment] = useState("");
   const [situation, setSituation] = useState("");
   const [stipulatedStart, setStipulatedStart] = useState("");
@@ -132,9 +151,20 @@ export default function WorkProgressPage() {
     if (companySlug) loadData();
   }, [companySlug]);
 
+  function rememberEditingId(id: string) {
+    editingIdRef.current = id;
+    setEditingId(id);
+  }
+
   function resetForm() {
-    setEditingId("");
+    rememberEditingId("");
+    lastSavedFingerprintRef.current = "";
+    skipAutosaveRef.current = true;
+    setSaveStatus("idle");
     setNameOfWork("");
+    setWorkOrderNo("");
+    setWorkOrderDate("");
+    setPeriod("");
     setDepartment("");
     setSituation("");
     setStipulatedStart("");
@@ -143,7 +173,7 @@ export default function WorkProgressPage() {
     setActualCompletion("");
     setWorkStatus("Under progress");
     setAgencyName(company?.legalName || "M/s. N.K. Enterprise");
-    setReportDate(formatDateDmy(new Date().toISOString(), ""));
+    setReportDate("");
     setBalanceDate("");
     setLessPercent("0.96");
     setAdjustKind("LESS");
@@ -168,8 +198,13 @@ export default function WorkProgressPage() {
   }
 
   function openEdit(row: Report) {
-    setEditingId(row.id);
+    skipAutosaveRef.current = true;
+    rememberEditingId(row.id);
+    setSaveStatus("idle");
     setNameOfWork(row.nameOfWork || "");
+    setWorkOrderNo(row.workOrderNo || "");
+    setWorkOrderDate(dateIn(row.workOrderDate));
+    setPeriod(row.period || "");
     setDepartment(row.department || "");
     setSituation(row.situation || "");
     setStipulatedStart(dateIn(row.stipulatedStart));
@@ -189,58 +224,180 @@ export default function WorkProgressPage() {
     setRaBills(sortProgressRa(defaultRaBills(row.raBills)));
     setNewRaBill("");
     setRaNotes(parseRaNotes(row.raNotes));
-    setItems(parseProgressItems(row.items));
+    setItems(renumberProgressItems(parseProgressItems(row.items)));
     setNote(row.note || "");
     setShowModal(true);
   }
 
-  const payload = () => ({
-    id: editingId || undefined,
-    nameOfWork,
-    department,
-    situation,
-    stipulatedStart,
-    actualStart,
-    stipulatedCompletion,
-    actualCompletion,
-    workStatus,
-    agencyName,
-    reportDate,
-    balanceDate,
-    lessPercent,
-    adjustKind,
-    sdPercent,
-    itPercent,
-    gstPercent,
-    labourCessPercent,
-    raBills,
-    raNotes,
-    items,
-    note,
+  const formSnapshot = useMemo(
+    () => ({
+      nameOfWork,
+      workOrderNo,
+      workOrderDate,
+      period,
+      department,
+      situation,
+      stipulatedStart,
+      actualStart,
+      stipulatedCompletion,
+      actualCompletion,
+      workStatus,
+      agencyName,
+      reportDate,
+      balanceDate,
+      lessPercent,
+      adjustKind,
+      sdPercent,
+      itPercent,
+      gstPercent,
+      labourCessPercent,
+      raBills,
+      raNotes,
+      items,
+      note,
+    }),
+    [
+      nameOfWork,
+      workOrderNo,
+      workOrderDate,
+      period,
+      department,
+      situation,
+      stipulatedStart,
+      actualStart,
+      stipulatedCompletion,
+      actualCompletion,
+      workStatus,
+      agencyName,
+      reportDate,
+      balanceDate,
+      lessPercent,
+      adjustKind,
+      sdPercent,
+      itPercent,
+      gstPercent,
+      labourCessPercent,
+      raBills,
+      raNotes,
+      items,
+      note,
+    ],
+  );
+
+  const payload = (id = editingIdRef.current) => ({
+    id: id || undefined,
+    ...formSnapshot,
+    items: renumberProgressItems(items),
   });
 
-  async function handleSave(e: React.FormEvent) {
-    e.preventDefault();
-    setSaving(true);
+  function missingRequiredDates() {
+    const checks: { label: string; value: string }[] = [
+      { label: "Work Order / Agreement date", value: workOrderDate },
+      { label: "Stipulated date of start", value: stipulatedStart },
+      { label: "Actual date of start", value: actualStart },
+      { label: "Stipulated date of completion", value: stipulatedCompletion },
+      { label: "Report as on date", value: reportDate },
+      { label: "Balance work as on date", value: balanceDate },
+    ];
+    return checks.filter((row) => !isCompleteDate(row.value)).map((row) => row.label);
+  }
+
+  function hasAutosaveContent() {
+    if (editingIdRef.current) return true;
+    if (nameOfWork.trim() || workOrderNo.trim() || period.trim() || department.trim() || situation.trim()) return true;
+    if (workOrderDate || stipulatedStart || actualStart || stipulatedCompletion || actualCompletion || reportDate || balanceDate) {
+      return true;
+    }
+    if (note.trim()) return true;
+    return items.some((row) => String(row.particulars || "").trim() || String(row.boqQty || "").trim());
+  }
+
+  async function persistReport(opts: { silent?: boolean; close?: boolean } = {}) {
+    const { silent = false, close = false } = opts;
+    if (savingRef.current) {
+      if (silent) return false;
+      for (let i = 0; i < 25 && savingRef.current; i += 1) {
+        await new Promise((resolve) => window.setTimeout(resolve, 100));
+      }
+      if (savingRef.current) return false;
+    }
+    const fingerprint = JSON.stringify(formSnapshot);
+    if (silent && fingerprint === lastSavedFingerprintRef.current && editingIdRef.current) {
+      setSaveStatus("saved");
+      return true;
+    }
+    if (silent && !hasAutosaveContent()) return false;
+
+    if (!silent) {
+      const missing = missingRequiredDates();
+      if (missing.length) {
+        alert(`Please fill these dates before saving:\n• ${missing.join("\n• ")}`);
+        return false;
+      }
+      if (actualCompletion.trim() && !isCompleteDate(actualCompletion)) {
+        alert("Please enter Actual date of completion as dd/mm/yyyy, or leave it blank.");
+        return false;
+      }
+    }
+
+    savingRef.current = true;
+    if (!silent) setSaving(true);
+    setSaveStatus("saving");
     try {
+      const currentId = editingIdRef.current;
       const res = await fetch(`/api/admin/${companySlug}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          action: editingId ? "UPDATE_PROGRESS_REPORT" : "CREATE_PROGRESS_REPORT",
-          ...payload(),
+          action: currentId ? "UPDATE_PROGRESS_REPORT" : "CREATE_PROGRESS_REPORT",
+          ...payload(currentId),
         }),
       });
       const data = await readApiJson(res);
       if (!res.ok) throw new Error(data?.error || "Could not save the report.");
-      setShowModal(false);
-      loadData();
+      if (data?.id) rememberEditingId(data.id);
+      lastSavedFingerprintRef.current = fingerprint;
+      setSaveStatus("saved");
+      if (close) {
+        setShowModal(false);
+        loadData();
+      } else if (!silent) {
+        loadData();
+      } else if (data) {
+        setReports((rows) => {
+          const mapped = rows.filter((row) => row.id !== data.id);
+          return [data, ...mapped];
+        });
+      }
+      return true;
     } catch (err: any) {
-      alert(friendlyPublicError(err.message || "Could not save the report."));
+      setSaveStatus("error");
+      if (!silent) alert(friendlyPublicError(err.message || "Could not save the report."));
+      return false;
     } finally {
-      setSaving(false);
+      savingRef.current = false;
+      if (!silent) setSaving(false);
     }
   }
+
+  async function handleSave(e: React.FormEvent) {
+    e.preventDefault();
+    await persistReport({ close: true });
+  }
+
+  useEffect(() => {
+    if (!showModal) return;
+    if (skipAutosaveRef.current) {
+      skipAutosaveRef.current = false;
+      lastSavedFingerprintRef.current = JSON.stringify(formSnapshot);
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      void persistReport({ silent: true });
+    }, 1200);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- autosave on form edits while modal open
+  }, [showModal, formSnapshot]);
 
   async function handleDelete(id: string) {
     if (!confirm("Delete this work progress report?")) return;
@@ -258,8 +415,16 @@ export default function WorkProgressPage() {
   }
 
   function downloadRows(rows: Report[]) {
-    const picked = rows.filter((row) => selectedIds.includes(row.id));
-    return picked.length ? picked : rows;
+    return rows.filter((row) => selectedIds.includes(row.id));
+  }
+
+  function requireSelectedRows(rows: Report[]) {
+    const picked = downloadRows(rows);
+    if (!picked.length) {
+      alert("Please select at least one work progress report to download.");
+      return null;
+    }
+    return picked;
   }
 
   function allRowsSelected(rows: Report[]) {
@@ -342,16 +507,24 @@ export default function WorkProgressPage() {
               </button>
               <button
                 type="button"
-                onClick={() => downloadWorkProgressExcel({ companyName: companyLabel, rows: downloadRows(reports) })}
-                disabled={!reports.length}
+                onClick={() => {
+                  const picked = requireSelectedRows(reports);
+                  if (!picked) return;
+                  void downloadWorkProgressExcel({ companyName: companyLabel, rows: picked });
+                }}
+                disabled={!pickedCount}
                 className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white text-[11px] font-bold rounded-lg disabled:opacity-50"
               >
                 Download Excel
               </button>
               <button
                 type="button"
-                onClick={() => void downloadWorkProgressPdf({ companyName: companyLabel, rows: downloadRows(reports) })}
-                disabled={!reports.length}
+                onClick={() => {
+                  const picked = requireSelectedRows(reports);
+                  if (!picked) return;
+                  void downloadWorkProgressPdf({ companyName: companyLabel, rows: picked });
+                }}
+                disabled={!pickedCount}
                 className="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white text-[11px] font-bold rounded-lg disabled:opacity-50"
               >
                 Download PDF
@@ -359,7 +532,7 @@ export default function WorkProgressPage() {
               {pickedCount ? (
                 <span className="text-[11px] font-semibold text-slate-500">{pickedCount} selected</span>
               ) : (
-                <span className="text-[11px] text-slate-400">No row selected — downloads all</span>
+                <span className="text-[11px] text-slate-400">Select a report to download</span>
               )}
             </div>
           </div>
@@ -454,35 +627,48 @@ export default function WorkProgressPage() {
                     <textarea rows={2} value={nameOfWork} onChange={(e) => setNameOfWork(e.target.value)} className={FIELD} />
                   </Field>
                 </div>
-                <Field no={2} label="Department">
+                <Field no={2} label="Work Order / Agreement No.">
+                  <input value={workOrderNo} onChange={(e) => setWorkOrderNo(e.target.value)} className={FIELD} />
+                </Field>
+                <Field no={3} label="Work Order / Agreement date" required>
+                  <DateTextInput value={workOrderDate} onChange={setWorkOrderDate} required />
+                </Field>
+                <Field no={4} label="Period">
+                  <input value={period} onChange={(e) => setPeriod(e.target.value)} className={FIELD} placeholder="e.g. 6 Month 5 Days" />
+                </Field>
+                <Field no={5} label="Department">
                   <input value={department} onChange={(e) => setDepartment(e.target.value)} className={FIELD} />
                 </Field>
-                <Field no={3} label="Situation">
+                <Field no={6} label="Situation">
                   <input value={situation} onChange={(e) => setSituation(e.target.value)} className={FIELD} />
                 </Field>
-                <Field no={4} label="Stipulated date of start">
-                  <DateTextInput value={stipulatedStart} onChange={setStipulatedStart} />
-                </Field>
-                <Field no={5} label="Actual date of start">
-                  <DateTextInput value={actualStart} onChange={setActualStart} />
-                </Field>
-                <Field no={6} label="Stipulated date of completion">
-                  <DateTextInput value={stipulatedCompletion} onChange={setStipulatedCompletion} />
-                </Field>
-                <Field no={7} label="Actual date of completion">
-                  <DateTextInput value={actualCompletion} onChange={setActualCompletion} />
-                </Field>
-                <Field no={8} label="Work Status">
+                <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <Field no={7} label="Stipulated date of start" required>
+                    <DateTextInput value={stipulatedStart} onChange={setStipulatedStart} required />
+                  </Field>
+                  <Field no={8} label="Actual date of start" required>
+                    <DateTextInput value={actualStart} onChange={setActualStart} required />
+                  </Field>
+                </div>
+                <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <Field no={9} label="Stipulated date of completion" required>
+                    <DateTextInput value={stipulatedCompletion} onChange={setStipulatedCompletion} required />
+                  </Field>
+                  <Field no={10} label="Actual date of completion">
+                    <DateTextInput value={actualCompletion} onChange={setActualCompletion} />
+                  </Field>
+                </div>
+                <Field no={11} label="Work Status">
                   <input value={workStatus} onChange={(e) => setWorkStatus(e.target.value)} className={FIELD} placeholder="Under progress" />
                 </Field>
-                <Field no={9} label="Name of Agency">
+                <Field no={12} label="Name of Agency">
                   <input value={agencyName} onChange={(e) => setAgencyName(e.target.value)} className={FIELD} />
                 </Field>
-                <Field label="Report as on date">
-                  <DateTextInput value={reportDate} onChange={setReportDate} />
+                <Field label="Report as on date" required>
+                  <DateTextInput value={reportDate} onChange={setReportDate} required />
                 </Field>
-                <Field label="Balance work as on date">
-                  <DateTextInput value={balanceDate} onChange={setBalanceDate} />
+                <Field label="Balance work as on date" required>
+                  <DateTextInput value={balanceDate} onChange={setBalanceDate} required />
                 </Field>
               </div>
 
@@ -536,17 +722,28 @@ export default function WorkProgressPage() {
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
-                  onClick={() => setItems((rows) => [...rows, emptyProgressItem("BOQ", nextBoqSl(rows))])}
+                  onClick={() =>
+                    setItems((rows) => renumberProgressItems([...rows, emptyProgressItem("BOQ", nextBoqSl(rows))]))
+                  }
                   className="px-2.5 py-1 bg-slate-800 hover:bg-slate-900 text-white text-[11px] font-bold rounded-lg"
                 >
                   Add item
                 </button>
                 <button
                   type="button"
-                  onClick={() => setItems((rows) => [...rows, emptyProgressItem("EXTRA", nextExtraSl(rows))])}
+                  onClick={() =>
+                    setItems((rows) => renumberProgressItems([...rows, emptyProgressItem("EXTRA", nextExtraSl(rows))]))
+                  }
                   className="px-2.5 py-1 bg-amber-700 hover:bg-amber-800 text-white text-[11px] font-bold rounded-lg"
                 >
                   Add extra item
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setItems((rows) => renumberProgressItems(rows))}
+                  className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 text-[11px] font-bold rounded-lg"
+                >
+                  Renumber 1, 2, 3…
                 </button>
               </div>
 
@@ -637,7 +834,13 @@ export default function WorkProgressPage() {
                         <td className="border border-slate-400 p-0 text-center">
                           <button
                             type="button"
-                            onClick={() => setItems((rows) => (rows.length === 1 ? [emptyProgressItem()] : rows.filter((_, i) => i !== index)))}
+                            onClick={() =>
+                              setItems((rows) =>
+                                renumberProgressItems(
+                                  rows.length === 1 ? [emptyProgressItem()] : rows.filter((_, i) => i !== index),
+                                ),
+                              )
+                            }
                             className="text-rose-600 font-bold px-1"
                           >
                             ×
@@ -661,7 +864,6 @@ export default function WorkProgressPage() {
                     <tr className="font-bold">
                       <td className="border border-slate-400 p-1 text-right" colSpan={5}>
                         <div className="flex flex-wrap items-center justify-end gap-1.5">
-                          <span>Unconditional revert/added</span>
                           <select
                             value={adjustKind}
                             onChange={(e) => setAdjustKind(e.target.value === "ADD" ? "ADD" : "LESS")}
@@ -670,13 +872,13 @@ export default function WorkProgressPage() {
                             <option value="LESS">Less</option>
                             <option value="ADD">Add</option>
                           </select>
-                          <span>How much</span>
+                          <span>(-</span>
                           <input
                             value={lessPercent}
                             onChange={(e) => setLessPercent(e.target.value)}
                             className="w-14 px-1 border border-slate-300 rounded text-[11px]"
                           />
-                          <span>%</span>
+                          <span>%)</span>
                         </div>
                       </td>
                       <td className="border border-slate-400 p-1 text-right font-mono">{moneyText(footer.less.boq)}</td>
@@ -704,7 +906,7 @@ export default function WorkProgressPage() {
                       <td className="border border-slate-400 p-1" colSpan={2} />
                     </tr>
                     <tr className="bg-amber-50 font-bold">
-                      <td className="border border-slate-400 p-1 text-right" colSpan={5}>(B) Extra items Sub-Total=</td>
+                      <td className="border border-slate-400 p-1 text-right" colSpan={5}>(B) Sub-Total=</td>
                       <td className="border border-slate-400 p-1 text-right font-mono">{moneyText(footer.extra.boq)}</td>
                       {raBills.map((raNo) => (
                         <React.Fragment key={raNo}>
@@ -831,13 +1033,24 @@ export default function WorkProgressPage() {
                 <textarea rows={2} value={note} onChange={(e) => setNote(e.target.value)} className={FIELD} placeholder="The above list is prepared as on..." />
               </Field>
 
-              <div className="flex justify-end gap-2 pt-2">
-                <button type="button" onClick={() => setShowModal(false)} className="px-4 py-2 border border-slate-300 rounded-lg text-sm font-bold">
-                  Cancel
-                </button>
-                <button type="submit" disabled={saving} className="px-4 py-2 bg-indigo-700 hover:bg-indigo-800 text-white rounded-lg text-sm font-bold disabled:opacity-50">
-                  {saving ? "Saving..." : "Save report"}
-                </button>
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
+                <p className="text-[11px] text-slate-500">
+                  {saveStatus === "saving"
+                    ? "Saving automatically..."
+                    : saveStatus === "saved"
+                      ? "Saved automatically. Fill all required dates (*) before Save report."
+                      : saveStatus === "error"
+                        ? "Could not auto-save. Check your connection and try again."
+                        : "Dates marked * are required to save. Work is auto-saved as you type."}
+                </p>
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => setShowModal(false)} className="px-4 py-2 border border-slate-300 rounded-lg text-sm font-bold">
+                    Close
+                  </button>
+                  <button type="submit" disabled={saving} className="px-4 py-2 bg-indigo-700 hover:bg-indigo-800 text-white rounded-lg text-sm font-bold disabled:opacity-50">
+                    {saving ? "Saving..." : "Save report"}
+                  </button>
+                </div>
               </div>
             </form>
           </div>

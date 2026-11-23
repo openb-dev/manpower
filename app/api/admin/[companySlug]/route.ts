@@ -483,6 +483,9 @@ export async function POST(
       const report = await saveWorkProgressReport(company.id, {
         id: body.action === "UPDATE_PROGRESS_REPORT" ? body.id : undefined,
         nameOfWork: body.nameOfWork || "",
+        workOrderNo: body.workOrderNo || "",
+        workOrderDate: parseDateValue(body.workOrderDate),
+        period: body.period || "",
         department: body.department || "",
         situation: body.situation || "",
         stipulatedStart: parseDateValue(body.stipulatedStart),

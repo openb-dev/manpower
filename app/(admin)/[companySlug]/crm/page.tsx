@@ -1010,8 +1010,16 @@ export default function CrmPage() {
   const companyLabel = company?.legalName || company?.shortName || "M/s N.K. Enterprise";
 
   function downloadRows(rows: Contract[]) {
-    const picked = rows.filter((row) => selectedIds.includes(row.id));
-    return picked.length ? picked : rows;
+    return rows.filter((row) => selectedIds.includes(row.id));
+  }
+
+  function requireSelectedRows(rows: Contract[]) {
+    const picked = downloadRows(rows);
+    if (!picked.length) {
+      alert("Please select at least one row to download.");
+      return null;
+    }
+    return picked;
   }
 
   function allRowsSelected(rows: Contract[]) {
@@ -1049,16 +1057,24 @@ export default function CrmPage() {
         </button>
         <button
           type="button"
-          onClick={() => onExcel(downloadRows(rows))}
-          disabled={!rows.length}
+          onClick={() => {
+            const picked = requireSelectedRows(rows);
+            if (!picked) return;
+            onExcel(picked);
+          }}
+          disabled={!pickedCount}
           className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white text-[11px] font-bold rounded-lg disabled:opacity-50"
         >
           Download Excel
         </button>
         <button
           type="button"
-          onClick={() => void onPdf(downloadRows(rows))}
-          disabled={!rows.length}
+          onClick={() => {
+            const picked = requireSelectedRows(rows);
+            if (!picked) return;
+            void onPdf(picked);
+          }}
+          disabled={!pickedCount}
           className="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white text-[11px] font-bold rounded-lg disabled:opacity-50"
         >
           Download PDF
@@ -1066,7 +1082,7 @@ export default function CrmPage() {
         {pickedCount ? (
           <span className="text-[11px] font-semibold text-slate-500">{pickedCount} selected</span>
         ) : (
-          <span className="text-[11px] text-slate-400">No row selected — downloads all</span>
+          <span className="text-[11px] text-slate-400">Select a row to download</span>
         )}
       </div>
     );

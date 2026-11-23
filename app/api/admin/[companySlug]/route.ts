@@ -7,6 +7,11 @@ import { approveApplicantAndCreateEmployee, assignEmployeeSite, listEmployees, s
 import { bulkMarkAttendance, getMonthlyAttendanceSummary, lockMonthAttendance } from "@/modules/attendance/services";
 import { publicCatchMessage } from "@/lib/publicErrors";
 import { parseDateValue } from "@/lib/applicantFormFields";
+import {
+  deleteWorkProgressReport,
+  listWorkProgressReports,
+  saveWorkProgressReport,
+} from "@/modules/workProgress/services";
 
 async function verifyTenantSession(companySlug: string) {
   const session = await auth();
@@ -74,6 +79,11 @@ export async function GET(
         siteId,
       });
       return NextResponse.json(data);
+    }
+
+    if (module === "progress") {
+      const reports = await listWorkProgressReports(company.id);
+      return NextResponse.json({ reports });
     }
 
     if (module === "crm") {
@@ -466,6 +476,39 @@ export async function POST(
         where: { id: body.id, companyId: company.id },
         data: { deletedAt: new Date() },
       });
+      return NextResponse.json({ success: true });
+    }
+
+    if (body.action === "CREATE_PROGRESS_REPORT" || body.action === "UPDATE_PROGRESS_REPORT") {
+      const report = await saveWorkProgressReport(company.id, {
+        id: body.action === "UPDATE_PROGRESS_REPORT" ? body.id : undefined,
+        nameOfWork: body.nameOfWork || "",
+        department: body.department || "",
+        situation: body.situation || "",
+        stipulatedStart: parseDateValue(body.stipulatedStart),
+        actualStart: parseDateValue(body.actualStart),
+        stipulatedCompletion: parseDateValue(body.stipulatedCompletion),
+        actualCompletion: parseDateValue(body.actualCompletion),
+        workStatus: body.workStatus || "Under progress",
+        agencyName: body.agencyName || "",
+        reportDate: parseDateValue(body.reportDate),
+        balanceDate: parseDateValue(body.balanceDate),
+        lessPercent: body.lessPercent === "" || body.lessPercent == null ? 0.96 : Number(body.lessPercent),
+        adjustKind: String(body.adjustKind || "LESS").toUpperCase() === "ADD" ? "ADD" : "LESS",
+        sdPercent: body.sdPercent === "" || body.sdPercent == null ? 2.5 : Number(body.sdPercent),
+        itPercent: body.itPercent === "" || body.itPercent == null ? 2 : Number(body.itPercent),
+        gstPercent: body.gstPercent === "" || body.gstPercent == null ? 2 : Number(body.gstPercent),
+        labourCessPercent: body.labourCessPercent === "" || body.labourCessPercent == null ? 1 : Number(body.labourCessPercent),
+        raBills: Array.isArray(body.raBills) ? body.raBills.filter(Boolean) : [],
+        raNotes: body.raNotes && typeof body.raNotes === "object" ? body.raNotes : {},
+        items: Array.isArray(body.items) ? body.items : [],
+        note: body.note || null,
+      });
+      return NextResponse.json(report);
+    }
+
+    if (body.action === "DELETE_PROGRESS_REPORT") {
+      await deleteWorkProgressReport(company.id, body.id);
       return NextResponse.json({ success: true });
     }
 

@@ -14,6 +14,7 @@ import {
   ShoppingBag,
   Wallet,
   BarChart3,
+  FileSpreadsheet,
   ExternalLink,
   Menu,
   X,
@@ -61,6 +62,7 @@ export default function Sidebar({ company, user }: SidebarProps) {
 
   const businessLinks = [
     { href: `/${slug}/crm`, label: "Work & sites", icon: Briefcase },
+    { href: `/${slug}/progress`, label: "Work progress report", icon: FileSpreadsheet },
     { href: `/${slug}/accounts`, label: "Bills", icon: Receipt },
     { href: `/${slug}/procurement`, label: "Purchases", icon: ShoppingBag },
     { href: `/${slug}/finance`, label: "Money", icon: Wallet },

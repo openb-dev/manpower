@@ -270,6 +270,16 @@ export async function lockAttendanceMonth(companySlug: string, monthKey: string)
   });
 }
 
+export async function loadProgressBook(companySlug: string) {
+  const { company } = await requireCompany(companySlug);
+  const { listWorkProgressReports } = await import("@/modules/workProgress/services");
+  const reports = await listWorkProgressReports(company.id);
+  return toClientJson({
+    company: { legalName: company.legalName, shortName: company.shortName, slug: company.slug },
+    reports,
+  });
+}
+
 export async function loadCrmBook(companySlug: string) {
   const { company } = await requireCompany(companySlug);
   const contracts = await prisma.contract.findMany({

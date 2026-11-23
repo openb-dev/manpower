@@ -90,6 +90,7 @@ model Company {
   invoices         Invoice[]
   purchases        Purchase[]
   ledgerEntries    LedgerEntry[]
+  workProgressReports WorkProgressReport[]
 
   @@map("companies")
 }
@@ -655,4 +656,38 @@ model LedgerEntry {
 
   @@index([companyId])
   @@map("ledger_entries")
+}
+
+model WorkProgressReport {
+  id                     String    @id @default(uuid())
+  companyId              String    @map("company_id")
+  nameOfWork             String    @default("") @map("name_of_work")
+  department             String    @default("")
+  situation              String    @default("")
+  stipulatedStart        DateTime? @map("stipulated_start") @db.Date
+  actualStart            DateTime? @map("actual_start") @db.Date
+  stipulatedCompletion   DateTime? @map("stipulated_completion") @db.Date
+  actualCompletion       DateTime? @map("actual_completion") @db.Date
+  workStatus             String    @default("Under progress") @map("work_status")
+  agencyName             String    @default("") @map("agency_name")
+  reportDate             DateTime? @map("report_date") @db.Date
+  balanceDate            DateTime? @map("balance_date") @db.Date
+  lessPercent            Decimal?  @default(0.96) @map("less_percent") @db.Decimal(8, 4)
+  adjustKind             String    @default("LESS") @map("adjust_kind")
+  sdPercent              Decimal?  @default(2.5) @map("sd_percent") @db.Decimal(8, 4)
+  itPercent              Decimal?  @default(2) @map("it_percent") @db.Decimal(8, 4)
+  gstPercent             Decimal?  @default(2) @map("gst_percent") @db.Decimal(8, 4)
+  labourCessPercent      Decimal?  @default(1) @map("labour_cess_percent") @db.Decimal(8, 4)
+  raBills                Json?     @map("ra_bills")
+  raNotes                Json?     @map("ra_notes")
+  items                  Json?
+  note                   String?
+  deletedAt              DateTime? @map("deleted_at")
+  createdAt              DateTime  @default(now()) @map("created_at")
+  updatedAt              DateTime  @updatedAt @map("updated_at")
+
+  company                Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@map("work_progress_reports")
 }

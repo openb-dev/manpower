@@ -10,6 +10,7 @@ import {
   Users,
   CalendarCheck,
   Briefcase,
+  FileSpreadsheet,
   Receipt,
   ShoppingBag,
   Wallet,
@@ -60,6 +61,7 @@ export default function DashboardPage() {
   ];
   const officeLinks = [
     { href: `/${companySlug}/crm`, label: "Work & sites", note: "Tender, EMD, PG, work register", icon: Briefcase },
+    { href: `/${companySlug}/progress`, label: "Work progress report", note: "BOQ, R.A. bills and balance work", icon: FileSpreadsheet },
     { href: `/${companySlug}/accounts`, label: "Bills", note: "GeM tax invoice / wage bill", icon: Receipt },
     { href: `/${companySlug}/procurement`, label: "Purchases", note: "Materials bought for work", icon: ShoppingBag },
     { href: `/${companySlug}/finance`, label: "Money", note: "Cash, online, bank, cheque ledger", icon: Wallet },

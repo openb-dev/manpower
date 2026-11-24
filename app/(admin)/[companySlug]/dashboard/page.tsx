@@ -10,7 +10,7 @@ import {
   Users,
   CalendarCheck,
   Briefcase,
-  FileSpreadsheet,
+  ListTree,
   Receipt,
   ShoppingBag,
   Wallet,
@@ -60,8 +60,7 @@ export default function DashboardPage() {
     { href: `/${companySlug}/attendance`, label: "Attendance", note: "Daily muster and wages", icon: CalendarCheck },
   ];
   const officeLinks = [
-    { href: `/${companySlug}/crm`, label: "Work & sites", note: "Tender, EMD, PG, work register", icon: Briefcase },
-    { href: `/${companySlug}/progress`, label: "Work progress report", note: "BOQ, R.A. bills and balance work", icon: FileSpreadsheet },
+    { href: `/${companySlug}/work-list`, label: "Work List", note: "Manpower / Construction → register, progress, expenditure", icon: ListTree },
     { href: `/${companySlug}/accounts`, label: "Bills", note: "GeM tax invoice / wage bill", icon: Receipt },
     { href: `/${companySlug}/procurement`, label: "Purchases", note: "Materials bought for work", icon: ShoppingBag },
     { href: `/${companySlug}/finance`, label: "Money", note: "Cash, online, bank, cheque ledger", icon: Wallet },
@@ -144,8 +143,8 @@ export default function DashboardPage() {
             <section className="bg-white border border-slate-200 rounded-xl overflow-hidden">
               <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
                 <h2 className="text-sm font-bold text-slate-900">Latest works</h2>
-                <Link href={`/${companySlug}/crm`} className="text-xs font-bold text-blue-700">
-                  Open list
+                <Link href={`/${companySlug}/work-list`} className="text-xs font-bold text-blue-700">
+                  Open Work List
                 </Link>
               </div>
               <div className="divide-y divide-slate-100">

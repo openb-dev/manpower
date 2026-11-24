@@ -789,8 +789,17 @@ function ApplyPageInner() {
         if (!user?.id) return;
         const role = String(user.role || "");
         const sameCompany = user.companySlug === companySlug || !user.companySlug;
-        if (role !== "SUPER_ADMIN" && role !== "COMPANY_ADMIN") return;
-        if (role === "COMPANY_ADMIN" && user.companySlug && user.companySlug !== companySlug) return;
+        const officeRoles = [
+          "SUPER_ADMIN",
+          "COMPANY_ADMIN",
+          "ACCOUNTS",
+          "BACK_OFFICE",
+          "SUPERVISOR",
+          "GROUND_STAFF",
+          "TECHNICAL_STAFF",
+        ];
+        if (!officeRoles.includes(role)) return;
+        if (role !== "SUPER_ADMIN" && user.companySlug && user.companySlug !== companySlug) return;
         if (!sameCompany && role !== "SUPER_ADMIN") return;
         const adminName = String(user.name || "Admin");
         setOfficeAdmin({

@@ -97,8 +97,11 @@ export async function getMonthlyAttendanceSummary({
       siteId: true,
       divisorDays: true,
       basicRate: true,
+      uan: true,
+      esicNo: true,
       site: { select: { name: true } },
       jobRole: { select: { name: true } },
+      roleCategory: { select: { name: true } },
       attendances: {
         where: {
           nominalDate: { gte: startDate, lt: endDate },
@@ -141,6 +144,9 @@ export async function getMonthlyAttendanceSummary({
       siteId: emp.siteId,
       siteName: emp.site?.name || "Unassigned",
       jobRole: emp.jobRole.name,
+      designation: emp.roleCategory?.name || emp.jobRole.name,
+      uan: emp.uan || "",
+      esicNo: emp.esicNo || "",
       presentDays,
       halfDays,
       absentDays: emp.attendances.filter((att) => att.status === AttendanceStatus.ABSENT).length,

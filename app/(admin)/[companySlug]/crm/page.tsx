@@ -1,8 +1,10 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { useParams } from "next/navigation";
+import Link from "next/link";
+import { useParams, useSearchParams } from "next/navigation";
 import { loadCrmBook } from "../actions";
+import { isWorkListTrack, workListTrackLabel } from "@/lib/workList";
 import { friendlyPublicError, readApiJson } from "@/lib/publicErrors";
 import { formatDateDmy, maskDmyInput } from "@/lib/applicantFormFields";
 import {
@@ -384,7 +386,10 @@ type Contract = {
 
 export default function CrmPage() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const companySlug = params?.companySlug as string;
+  const workTrack = searchParams?.get("track");
+  const trackLabel = isWorkListTrack(workTrack) ? workListTrackLabel(workTrack) : null;
 
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [sites, setSites] = useState<any[]>([]);
@@ -1160,16 +1165,29 @@ export default function CrmPage() {
       {/* Top Header */}
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
         <div>
+          {trackLabel ? (
+            <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 mb-2">
+              <Link href={`/${companySlug}/work-list`} className="font-semibold text-blue-700 hover:underline">
+                Work List
+              </Link>
+              <span>/</span>
+              <Link href={`/${companySlug}/work-list/${workTrack}`} className="font-semibold text-blue-700 hover:underline">
+                {trackLabel}
+              </Link>
+              <span>/</span>
+              <span className="font-bold text-slate-700">Work Register</span>
+            </div>
+          ) : null}
           <div className="flex items-center gap-2">
             <span className="text-xs uppercase font-extrabold tracking-wider bg-indigo-50 text-indigo-700 px-2.5 py-1 rounded-md border border-indigo-100">
-              Work & sites
+              Work Register
             </span>
             <span className="text-xs font-semibold bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-md border border-emerald-100">
-              Work list
+              Work List
             </span>
           </div>
           <h1 className="text-2xl font-black text-slate-900 mt-2 tracking-tight">
-            Work, sites and deposits
+            Work Register{trackLabel ? ` — ${trackLabel}` : ""}
           </h1>
           <p className="text-sm text-slate-500 mt-1 max-w-3xl leading-relaxed">
             Add a work here. Tender money is the amount you give when applying. Bank guarantee is the amount you give after winning.

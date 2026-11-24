@@ -1,10 +1,12 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { useParams } from "next/navigation";
+import Link from "next/link";
+import { useParams, useSearchParams } from "next/navigation";
 import { loadProgressBook } from "../actions";
 import { friendlyPublicError, readApiJson } from "@/lib/publicErrors";
 import { formatDateDmy, maskDmyInput, parseDateValue } from "@/lib/applicantFormFields";
+import { isWorkListTrack, workListTrackLabel } from "@/lib/workList";
 import { downloadWorkProgressExcel } from "@/lib/downloadWorkProgressExcel";
 import { downloadWorkProgressPdf } from "@/lib/downloadWorkProgressPdf";
 import {
@@ -89,7 +91,10 @@ type Report = any;
 
 export default function WorkProgressPage() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const companySlug = params?.companySlug as string;
+  const workTrack = searchParams?.get("track");
+  const trackLabel = isWorkListTrack(workTrack) ? workListTrackLabel(workTrack) : null;
   const [company, setCompany] = useState<any>(null);
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
@@ -472,11 +477,26 @@ export default function WorkProgressPage() {
     <div className="space-y-5">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
+          {trackLabel ? (
+            <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 mb-2">
+              <Link href={`/${companySlug}/work-list`} className="font-semibold text-blue-700 hover:underline">
+                Work List
+              </Link>
+              <span>/</span>
+              <Link href={`/${companySlug}/work-list/${workTrack}`} className="font-semibold text-blue-700 hover:underline">
+                {trackLabel}
+              </Link>
+              <span>/</span>
+              <span className="font-bold text-slate-700">Work Progress Report</span>
+            </div>
+          ) : null}
           <span className="inline-flex items-center gap-1.5 text-[11px] uppercase font-extrabold tracking-wider bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-md">
             <FileSpreadsheet className="h-3.5 w-3.5" strokeWidth={2} aria-hidden />
             Work progress report
           </span>
-          <h1 className="text-2xl font-bold text-slate-900 mt-2">Work Details Report</h1>
+          <h1 className="text-2xl font-bold text-slate-900 mt-2">
+            Work Details Report{trackLabel ? ` — ${trackLabel}` : ""}
+          </h1>
           <p className="text-sm text-slate-500">Same format as the office Excel: BOQ, R.A. bills, extra items, recoveries.</p>
         </div>
         <button

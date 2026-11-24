@@ -194,7 +194,16 @@ export async function loadProcurementBook(companySlug: string) {
     where: { companyId: company.id, deletedAt: null },
     select: { id: true, clientName: true, workName: true },
   });
-  return toClientJson({ purchases, contracts });
+  return toClientJson({
+    company: {
+      id: company.id,
+      slug: company.slug,
+      shortName: company.shortName,
+      legalName: company.legalName,
+    },
+    purchases,
+    contracts,
+  });
 }
 
 export async function loadFinanceBook(companySlug: string) {
@@ -228,7 +237,11 @@ export async function loadAttendanceBook(companySlug: string, monthKey: string) 
     }),
     loadDutySites(company.id),
   ]);
-  return toClientJson({ ...data, sites });
+  return toClientJson({
+    ...data,
+    sites,
+    companyName: company.legalName || company.shortName,
+  });
 }
 
 export async function saveAttendanceDay(

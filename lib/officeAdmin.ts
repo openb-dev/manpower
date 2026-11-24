@@ -1,6 +1,6 @@
-import { Role } from "@prisma/client";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { canEnterCompany, isOfficeStaffRole } from "@/lib/access";
 
 export type OfficeAdmin = {
   id: string;
@@ -13,14 +13,14 @@ export async function currentOfficeAdmin(companySlug: string): Promise<OfficeAdm
   const session = await auth();
   const user = session?.user as any;
   if (!user?.id) return null;
-  if (user.role !== Role.SUPER_ADMIN && user.role !== Role.COMPANY_ADMIN) return null;
+  if (!isOfficeStaffRole(user.role)) return null;
 
   const company = await prisma.company.findUnique({
     where: { slug: companySlug },
     select: { id: true },
   });
   if (!company) return null;
-  if (user.role !== Role.SUPER_ADMIN && user.companyId !== company.id) return null;
+  if (!canEnterCompany(user, company.id)) return null;
 
   return {
     id: String(user.id),

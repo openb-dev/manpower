@@ -9,12 +9,11 @@ import {
   ClipboardList,
   Users,
   CalendarCheck,
-  Briefcase,
   Receipt,
   ShoppingBag,
   Wallet,
   BarChart3,
-  FileSpreadsheet,
+  ListTree,
   ExternalLink,
   Menu,
   X,
@@ -23,6 +22,7 @@ import {
 } from "lucide-react";
 import NkLogo from "@/components/NkLogo";
 import { isNkCompany } from "@/lib/nkLogo";
+import { canAccessModule, officeRoleLabel, type OfficeModule } from "@/lib/officeRoles";
 
 interface CompanyInfo {
   id: string;
@@ -52,22 +52,25 @@ export default function Sidebar({ company, user }: SidebarProps) {
     setOpen(false);
   }, [pathname]);
 
-  const homeLinks = [{ href: `/${slug}/dashboard`, label: "Dashboard", icon: LayoutDashboard }];
+  const homeLinks = [
+    { href: `/${slug}/dashboard`, label: "Dashboard", icon: LayoutDashboard, module: "dashboard" as OfficeModule },
+  ];
 
   const hrmLinks = [
-    { href: `/${slug}/applicants`, label: "New applicant", icon: ClipboardList },
-    { href: `/${slug}/employees`, label: "Employees", icon: Users },
-    { href: `/${slug}/attendance`, label: "Attendance", icon: CalendarCheck },
-  ];
+    { href: `/${slug}/applicants`, label: "New applicant", icon: ClipboardList, module: "applicants" as OfficeModule },
+    { href: `/${slug}/employees`, label: "Employees", icon: Users, module: "employees" as OfficeModule },
+    { href: `/${slug}/attendance`, label: "Attendance", icon: CalendarCheck, module: "attendance" as OfficeModule },
+  ].filter((link) => canAccessModule(user.role, link.module));
 
   const businessLinks = [
-    { href: `/${slug}/crm`, label: "Work & sites", icon: Briefcase },
-    { href: `/${slug}/progress`, label: "Work progress report", icon: FileSpreadsheet },
-    { href: `/${slug}/accounts`, label: "Bills", icon: Receipt },
-    { href: `/${slug}/procurement`, label: "Purchases", icon: ShoppingBag },
-    { href: `/${slug}/finance`, label: "Money", icon: Wallet },
-    { href: `/${slug}/reports`, label: "Reports", icon: BarChart3 },
-  ];
+    { href: `/${slug}/work-list`, label: "Work List", icon: ListTree, module: "work-list" as OfficeModule },
+    { href: `/${slug}/accounts`, label: "Bills", icon: Receipt, module: "accounts" as OfficeModule },
+    { href: `/${slug}/procurement`, label: "Purchases", icon: ShoppingBag, module: "procurement" as OfficeModule },
+    { href: `/${slug}/finance`, label: "Money", icon: Wallet, module: "finance" as OfficeModule },
+    { href: `/${slug}/reports`, label: "Reports", icon: BarChart3, module: "reports" as OfficeModule },
+  ].filter((link) => canAccessModule(user.role, link.module));
+
+  const visibleHome = homeLinks.filter((link) => canAccessModule(user.role, link.module));
 
   function navLink(link: { href: string; label: string; icon: LucideIcon }) {
     const active = pathname === link.href || pathname?.startsWith(`${link.href}/`);
@@ -159,23 +162,27 @@ export default function Sidebar({ company, user }: SidebarProps) {
         </div>
 
         <nav className="flex-1 overflow-y-auto min-h-0 p-3 space-y-4 text-xs font-medium">
-          <div className="space-y-0.5">{homeLinks.map(navLink)}</div>
-          <div>
-            <div className="flex items-center justify-between px-2 pb-1.5 text-[10px] uppercase font-extrabold tracking-wider text-slate-400">
-              <span className="flex items-center gap-1.5 text-blue-600">
-                <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
-                PEOPLE
-              </span>
+          <div className="space-y-0.5">{visibleHome.map(navLink)}</div>
+          {hrmLinks.length ? (
+            <div>
+              <div className="flex items-center justify-between px-2 pb-1.5 text-[10px] uppercase font-extrabold tracking-wider text-slate-400">
+                <span className="flex items-center gap-1.5 text-blue-600">
+                  <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
+                  PEOPLE
+                </span>
+              </div>
+              <div className="space-y-0.5 mt-1 pl-1 border-l-2 border-blue-200 ml-2">{hrmLinks.map(navLink)}</div>
             </div>
-            <div className="space-y-0.5 mt-1 pl-1 border-l-2 border-blue-200 ml-2">{hrmLinks.map(navLink)}</div>
-          </div>
+          ) : null}
 
-          <div>
-            <div className="px-2 pb-1.5 text-[10px] uppercase font-extrabold tracking-wider text-slate-400">
-              OFFICE WORK
+          {businessLinks.length ? (
+            <div>
+              <div className="px-2 pb-1.5 text-[10px] uppercase font-extrabold tracking-wider text-slate-400">
+                OFFICE WORK
+              </div>
+              <div className="space-y-0.5 mt-1">{businessLinks.map(navLink)}</div>
             </div>
-            <div className="space-y-0.5 mt-1">{businessLinks.map(navLink)}</div>
-          </div>
+          ) : null}
 
           <div>
             <div className="px-2 pb-1 text-[10px] uppercase font-extrabold tracking-wider text-slate-400">
@@ -202,7 +209,7 @@ export default function Sidebar({ company, user }: SidebarProps) {
               <div className="text-[11px] text-slate-500 truncate leading-tight mt-0.5">{user.email}</div>
               <div className="flex items-center justify-between mt-1">
                 <span className="text-[9px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-white text-slate-600 border border-slate-200">
-                  {user.role === "SUPER_ADMIN" ? "All companies" : "This company"}
+                  {user.role === "SUPER_ADMIN" ? "All companies" : officeRoleLabel(user.role)}
                 </span>
                 <a href="/logout" className="inline-flex items-center gap-1 text-[10px] text-rose-600 font-semibold hover:underline">
                   <LogOut className="h-3 w-3" strokeWidth={2} aria-hidden />

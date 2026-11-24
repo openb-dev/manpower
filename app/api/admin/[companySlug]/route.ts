@@ -521,19 +521,41 @@ export async function POST(
       return NextResponse.json(invoice);
     }
 
-    if (body.action === "CREATE_PURCHASE") {
+    if (body.action === "CREATE_PURCHASE" || body.action === "UPDATE_PURCHASE") {
+      const data = {
+        contractId: body.contractId || null,
+        itemName: String(body.itemName || body.remarks || body.vendorName || "Purchase"),
+        vendorName: String(body.vendorName || ""),
+        supplierGstin: body.supplierGstin ? String(body.supplierGstin).trim().toUpperCase() : null,
+        amount: Number(body.amount || 0),
+        taxableAmount:
+          body.taxableAmount === "" || body.taxableAmount == null ? null : Number(body.taxableAmount),
+        igst: body.igst === "" || body.igst == null ? null : Number(body.igst),
+        cgst: body.cgst === "" || body.cgst == null ? null : Number(body.cgst),
+        sgst: body.sgst === "" || body.sgst == null ? null : Number(body.sgst),
+        invoiceNo: body.invoiceNo || null,
+        purchaseDate: body.purchaseDate ? new Date(body.purchaseDate) : new Date(),
+        remarks: body.remarks ? String(body.remarks) : null,
+      };
+      if (body.action === "UPDATE_PURCHASE") {
+        const purchase = await prisma.purchase.update({
+          where: { id: body.id, companyId: company.id },
+          data,
+        });
+        return NextResponse.json(purchase);
+      }
       const purchase = await prisma.purchase.create({
-        data: {
-          companyId: company.id,
-          contractId: body.contractId || null,
-          itemName: body.itemName,
-          vendorName: body.vendorName,
-          amount: Number(body.amount),
-          invoiceNo: body.invoiceNo || null,
-          purchaseDate: body.purchaseDate ? new Date(body.purchaseDate) : new Date(),
-        },
+        data: { companyId: company.id, ...data },
       });
       return NextResponse.json(purchase);
+    }
+
+    if (body.action === "DELETE_PURCHASE") {
+      await prisma.purchase.update({
+        where: { id: body.id, companyId: company.id },
+        data: { deletedAt: new Date() },
+      });
+      return NextResponse.json({ success: true });
     }
 
     if (body.action === "CREATE_LEDGER_ENTRY") {

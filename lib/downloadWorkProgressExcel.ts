@@ -44,7 +44,7 @@ function titleDash(value: unknown) {
 
 function fillHeader(cell: ExcelJS.Cell, value: string, fill = "FFD9E2F3") {
   cell.value = value;
-  cell.font = { name: "Calibri", size: 9, bold: true };
+  cell.font = { name: "Calibri", size: 10, bold: true };
   cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
   cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: fill } };
   cell.border = thin;
@@ -53,14 +53,14 @@ function fillHeader(cell: ExcelJS.Cell, value: string, fill = "FFD9E2F3") {
 function writeAmount(cell: ExcelJS.Cell, value: number, bold = false) {
   cell.value = value || 0;
   cell.numFmt = "#,##0.00";
-  cell.font = { name: "Calibri", size: 9, bold };
+  cell.font = { name: "Calibri", size: 10, bold };
   cell.alignment = { horizontal: "right", vertical: "middle" };
   cell.border = thin;
 }
 
 function writeText(cell: ExcelJS.Cell, value: unknown, opts?: { bold?: boolean; wrap?: boolean; align?: ExcelJS.Alignment["horizontal"] }) {
   cell.value = value == null || value === "" ? "" : value;
-  cell.font = { name: "Calibri", size: 9, bold: Boolean(opts?.bold) };
+  cell.font = { name: "Calibri", size: 10, bold: Boolean(opts?.bold) };
   cell.alignment = { horizontal: opts?.align || "left", vertical: "middle", wrapText: Boolean(opts?.wrap) };
   cell.border = thin;
 }
@@ -176,15 +176,14 @@ function addReportSheet(workbook: ExcelJS.Workbook, report: any, index: number) 
   fillHeader(sheet.getCell(h1, col), "Remarks");
   sheet.mergeCells(h1, col, h2, col);
 
-  // Client-like box sizes: narrow Sl No, wide Particulars, compact qty/rate/amount
-  sheet.getColumn(1).width = 7;
-  sheet.getColumn(2).width = 42;
+  // Compact columns — avoid oversized empty cells in qty/rate/amount
+  sheet.getColumn(1).width = 6;
+  sheet.getColumn(2).width = 36;
   for (let i = 3; i <= lastCol; i++) {
-    if (i === lastCol) sheet.getColumn(i).width = 14;
-    else if ((i - 3) % 3 === 1 && i > 6) sheet.getColumn(i).width = 10; // rate in RA/balance
+    if (i === lastCol) sheet.getColumn(i).width = 12;
     else if (i === 4) sheet.getColumn(i).width = 7; // unit
-    else if (i === 5) sheet.getColumn(i).width = 10; // boq rate
-    else if (i === 6 || (i > 6 && (i - 6) % 3 === 0) || i === lastCol - 1) sheet.getColumn(i).width = 12; // amounts / last rate
+    else if (i === 5 || ((i - 3) % 3 === 1 && i > 6)) sheet.getColumn(i).width = 11; // rates
+    else if (i === 6 || (i > 6 && (i - 6) % 3 === 0) || i === lastCol - 1) sheet.getColumn(i).width = 13; // amounts
     else sheet.getColumn(i).width = 9; // qty
   }
   sheet.getRow(h1).height = 32;

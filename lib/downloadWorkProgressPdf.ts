@@ -48,13 +48,14 @@ function cell(
   opts?: { bold?: boolean; size?: number; align?: "left" | "center" | "right"; maxLines?: number },
 ) {
   pdf.rect(x, y, w, h);
+  const size = opts?.size || 7;
   pdf.setFont("helvetica", opts?.bold ? "bold" : "normal");
-  pdf.setFontSize(opts?.size || 6);
+  pdf.setFontSize(size);
   const maxLines = opts?.maxLines ?? 8;
-  const lines = pdf.splitTextToSize(String(text || ""), Math.max(w - 1.2, 2));
+  const lines = pdf.splitTextToSize(String(text || ""), Math.max(w - 1.4, 2));
   const align = opts?.align || "left";
-  const tx = align === "center" ? x + w / 2 : align === "right" ? x + w - 0.6 : x + 0.6;
-  pdf.text(lines.slice(0, maxLines), tx, y + 2.1, { align });
+  const tx = align === "center" ? x + w / 2 : align === "right" ? x + w - 0.7 : x + 0.7;
+  pdf.text(lines.slice(0, maxLines), tx, y + Math.min(2.6, h * 0.35), { align, lineHeightFactor: 1.15 });
 }
 
 export async function downloadWorkProgressPdf({
@@ -149,12 +150,27 @@ export async function downloadWorkProgressPdf({
     y += 4;
 
     const innerW = pageW - margin * 2;
-    // Box proportions close to client sheet: narrow Sl, wide Particulars, compact money cols
-    const widths = [8, 58, 12, 10, 14, 16, ...raBills.flatMap(() => [12, 14, 16]), 12, 14, 16, 18];
+    const bodySize = 7;
+    const headSize = 6.5;
+    // Compact fixed mm widths — only shrink to fit; never stretch (avoids empty gaps in cells)
+    const widths = [
+      8,
+      72,
+      14,
+      10,
+      16,
+      20,
+      ...raBills.flatMap(() => [14, 16, 20]),
+      14,
+      16,
+      20,
+      16,
+    ];
     const totalW = widths.reduce((s, w) => s + w, 0);
-    const scaled = widths.map((w) => (w / totalW) * innerW);
+    const scale = totalW > innerW ? innerW / totalW : 1;
+    const scaled = widths.map((w) => w * scale);
 
-    const drawRow = (values: string[], bold = false, height = 7.2, maxLines = 6) => {
+    const drawRow = (values: string[], bold = false, height = 8, maxLines = 6) => {
       if (y + height > pageH - margin) {
         pdf.addPage([pageW, pageH], "landscape");
         y = margin;
@@ -164,10 +180,17 @@ export async function downloadWorkProgressPdf({
         const w = scaled[i] || 12;
         const align =
           i === 1 ? "left" : i === 0 || i === 3 ? "center" : i === values.length - 1 ? "left" : "right";
-        cell(pdf, x, y, w, height, value, { bold, size: 5.4, align, maxLines });
+        cell(pdf, x, y, w, height, value, { bold, size: bodySize, align, maxLines });
         x += w;
       });
       y += height;
+    };
+
+    const itemHeight = (particulars: string) => {
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(bodySize);
+      const lines = pdf.splitTextToSize(String(particulars || ""), Math.max(scaled[1] - 1.4, 2));
+      return Math.min(34, Math.max(8.5, 2.8 + Math.min(lines.length, 8) * 3.4));
     };
 
     const groups = [
@@ -189,11 +212,11 @@ export async function downloadWorkProgressPdf({
     let idx = 0;
     groups.forEach((g) => {
       const w = scaled.slice(idx, idx + g.span).reduce((s, n) => s + n, 0);
-      cell(pdf, x, y, w, 9, g.label, { bold: true, size: 5.4, align: "center", maxLines: 3 });
+      cell(pdf, x, y, w, 10, g.label, { bold: true, size: headSize, align: "center", maxLines: 3 });
       x += w;
       idx += g.span;
     });
-    y += 9;
+    y += 10;
     drawRow(
       [
         "",
@@ -209,7 +232,7 @@ export async function downloadWorkProgressPdf({
         "",
       ],
       true,
-      6,
+      7,
       1,
     );
 
@@ -247,28 +270,14 @@ export async function downloadWorkProgressPdf({
 
     items
       .filter((item) => item.kind !== "EXTRA")
-      .forEach((item) =>
-        drawRow(
-          itemRow(item),
-          false,
-          Math.min(28, 6.5 + Math.ceil(String(item.particulars || "").length / 48) * 3.2),
-          8,
-        ),
-      );
+      .forEach((item) => drawRow(itemRow(item), false, itemHeight(item.particulars || ""), 8));
     drawRow(moneyRow("Total=", footer.total), true);
     drawRow(moneyRow(adjustRowLabel(footer.adjustKind, footer.lessPct), footer.less), true);
     drawRow(moneyRow("(A) Sub-Total=", footer.subA), true);
     const extras = items.filter((item) => item.kind === "EXTRA");
     if (extras.length) {
       drawRow(["", "Extra Items", "", "", "", "", ...raBills.flatMap(() => ["", "", ""]), "", "", "", ""], true);
-      extras.forEach((item) =>
-        drawRow(
-          itemRow(item),
-          false,
-          Math.min(28, 6.5 + Math.ceil(String(item.particulars || "").length / 48) * 3.2),
-          8,
-        ),
-      );
+      extras.forEach((item) => drawRow(itemRow(item), false, itemHeight(item.particulars || ""), 8));
     }
     drawRow(moneyRow("(B) Sub-Total=", footer.extra), true);
     drawRow(moneyRow("(A+B) Grand Total=", footer.grand), true);
@@ -286,8 +295,8 @@ export async function downloadWorkProgressPdf({
         y = margin;
       }
       pdf.setFont("helvetica", "normal");
-      pdf.setFontSize(8);
-      const noteLines = pdf.splitTextToSize(`Note:- ${report.note}`, innerW);
+      pdf.setFontSize(9);
+      const noteLines = pdf.splitTextToSize(`Note:- ${report.note}`, Math.min(innerW, scaled.reduce((s, w) => s + w, 0)));
       pdf.text(noteLines, margin, y);
     }
   });

@@ -76,6 +76,8 @@ function withMark(row: any, day: number, status: string | null) {
   };
 }
 
+type MarkStatus = (typeof CYCLE)[number];
+
 export default function AttendancePage() {
   const params = useParams();
   const companySlug = params?.companySlug as string;
@@ -86,6 +88,8 @@ export default function AttendancePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState("");
+  /** Selected mark from P/H/A/L/W — click a day box to fill it. */
+  const [paintStatus, setPaintStatus] = useState<Exclude<MarkStatus, null>>("PRESENT");
 
   const rows = data?.rows || [];
   const days = Array.from({ length: data?.daysInMonth || 0 }, (_, i) => i + 1);
@@ -116,14 +120,16 @@ export default function AttendancePage() {
     loadBook();
   }, [companySlug, monthKey]);
 
-  async function cycleDay(row: any, day: number) {
+  async function setDay(row: any, day: number, next: MarkStatus) {
     if (data?.locked) return;
     if (!row.siteId) {
       setError(`${row.fullName} has no duty site from shortlist.`);
       return;
     }
     const date = `${monthKey}-${String(day).padStart(2, "0")}`;
-    const status = nextStatus(row.marks?.[String(day)]);
+    const current = row.marks?.[String(day)] || null;
+    // Same mark again clears the box
+    const status: MarkStatus = current === next ? null : next;
     setData((prev: any) => {
       if (!prev) return prev;
       return {
@@ -148,6 +154,14 @@ export default function AttendancePage() {
     } finally {
       setBusy("");
     }
+  }
+
+  function markDay(row: any, day: number) {
+    if (paintStatus) {
+      void setDay(row, day, paintStatus);
+      return;
+    }
+    void setDay(row, day, nextStatus(row.marks?.[String(day)]));
   }
 
   async function fillMonth() {
@@ -244,12 +258,50 @@ export default function AttendancePage() {
         <Kpi title="Salary estimate" value={money(totals.wages)} />
       </div>
 
-      <div className="flex flex-wrap gap-2 text-[11px] text-slate-600">
-        <Legend code="P" label="Came" className={STATUS_STYLE.PRESENT} />
-        <Legend code="H" label="Half day" className={STATUS_STYLE.HALF_DAY} />
-        <Legend code="A" label="Did not come" className={STATUS_STYLE.ABSENT} />
-        <Legend code="L" label="Leave" className={STATUS_STYLE.LEAVE} />
-        <Legend code="W" label="Holiday / off" className={STATUS_STYLE.WEEK_OFF} />
+      <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+        <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+          Mark with
+        </div>
+        <div className="flex flex-wrap gap-2 text-[11px] text-slate-600">
+          <Legend
+            code="P"
+            label="Came"
+            className={STATUS_STYLE.PRESENT}
+            active={paintStatus === "PRESENT"}
+            onClick={() => setPaintStatus("PRESENT")}
+          />
+          <Legend
+            code="H"
+            label="Half day"
+            className={STATUS_STYLE.HALF_DAY}
+            active={paintStatus === "HALF_DAY"}
+            onClick={() => setPaintStatus("HALF_DAY")}
+          />
+          <Legend
+            code="A"
+            label="Did not come"
+            className={STATUS_STYLE.ABSENT}
+            active={paintStatus === "ABSENT"}
+            onClick={() => setPaintStatus("ABSENT")}
+          />
+          <Legend
+            code="L"
+            label="Leave"
+            className={STATUS_STYLE.LEAVE}
+            active={paintStatus === "LEAVE"}
+            onClick={() => setPaintStatus("LEAVE")}
+          />
+          <Legend
+            code="W"
+            label="Holiday / off"
+            className={STATUS_STYLE.WEEK_OFF}
+            active={paintStatus === "WEEK_OFF"}
+            onClick={() => setPaintStatus("WEEK_OFF")}
+          />
+        </div>
+        <p className="text-[11px] text-slate-500 sm:ml-auto">
+          Selected: <span className="font-bold text-slate-800">{shortStatus(paintStatus)}</span> — click day boxes to fill. Click same mark again to clear.
+        </p>
       </div>
 
       {error ? <div className="p-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl">{error}</div> : null}
@@ -323,7 +375,7 @@ export default function AttendancePage() {
                           <button
                             type="button"
                             disabled={data?.locked || busy === `${row.employeeId}-${day}`}
-                            onClick={() => cycleDay(row, day)}
+                            onClick={() => markDay(row, day)}
                             className={`w-7 h-7 rounded text-[11px] font-bold ${
                               status ? STATUS_STYLE[status] : "bg-slate-50 text-slate-400"
                             } disabled:opacity-60`}
@@ -338,7 +390,7 @@ export default function AttendancePage() {
                                 ? "Leave"
                                 : status === "WEEK_OFF"
                                 ? "Holiday / off"
-                                : "Not marked. Click to change."
+                                : `Click to mark ${shortStatus(paintStatus)}`
                             }
                           >
                             {shortStatus(status)}
@@ -371,11 +423,31 @@ function Kpi({ title, value }: { title: string; value: string }) {
   );
 }
 
-function Legend({ code, label, className }: { code: string; label: string; className: string }) {
+function Legend({
+  code,
+  label,
+  className,
+  active,
+  onClick,
+}: {
+  code: string;
+  label: string;
+  className: string;
+  active?: boolean;
+  onClick?: () => void;
+}) {
   return (
-    <span className="inline-flex items-center gap-1">
+    <button
+      type="button"
+      onClick={onClick}
+      className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-lg border transition ${
+        active ? "border-blue-500 ring-2 ring-blue-200 bg-blue-50" : "border-slate-200 bg-white hover:bg-slate-50"
+      }`}
+      aria-pressed={active}
+      title={`Use ${code} to fill day boxes`}
+    >
       <span className={`w-5 h-5 rounded text-[10px] font-bold flex items-center justify-center ${className}`}>{code}</span>
-      {label}
-    </span>
+      <span className="font-semibold text-slate-700">{label}</span>
+    </button>
   );
 }

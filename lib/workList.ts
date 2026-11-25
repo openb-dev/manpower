@@ -49,7 +49,7 @@ export function workListExpenditureItems(companySlug: string, track: WorkListTra
     {
       id: "purchase",
       label: "Items Purchase",
-      note: "Purchase Register (GSTR-2B) — inward supplies",
+      note: "Item, qty, shop, bill, payment and delivery — client sheet",
       href: `${base}/purchase`,
     },
     {
@@ -67,8 +67,8 @@ export function workListExpenditureItems(companySlug: string, track: WorkListTra
     {
       id: "attendance",
       label: "Labour Attendance",
-      note: "Daily muster used for labour payment",
-      href: `/${companySlug}/attendance?${q}`,
+      note: "Work attendance sheet — Name of work, days P/H/A",
+      href: `${base}/attendance`,
     },
     {
       id: "office-admin",

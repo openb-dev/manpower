@@ -522,12 +522,23 @@ export async function POST(
     }
 
     if (body.action === "CREATE_PURCHASE" || body.action === "UPDATE_PURCHASE") {
+      const qty = body.quantity === "" || body.quantity == null ? null : Number(body.quantity);
+      const rate = body.rate === "" || body.rate == null ? null : Number(body.rate);
+      const amountFromQty =
+        qty != null && rate != null && Number.isFinite(qty) && Number.isFinite(rate) ? qty * rate : null;
+      const paymentThrough = String(body.paymentThrough || "")
+        .trim()
+        .toUpperCase();
       const data = {
         contractId: body.contractId || null,
-        itemName: String(body.itemName || body.remarks || body.vendorName || "Purchase"),
+        itemName: String(body.itemName || body.remarks || "Item"),
+        quantity: qty,
+        unit: body.unit ? String(body.unit) : null,
+        rate,
         vendorName: String(body.vendorName || ""),
+        purchaseLocation: body.purchaseLocation ? String(body.purchaseLocation) : null,
         supplierGstin: body.supplierGstin ? String(body.supplierGstin).trim().toUpperCase() : null,
-        amount: Number(body.amount || 0),
+        amount: Number(body.amount ?? amountFromQty ?? 0),
         taxableAmount:
           body.taxableAmount === "" || body.taxableAmount == null ? null : Number(body.taxableAmount),
         igst: body.igst === "" || body.igst == null ? null : Number(body.igst),
@@ -535,6 +546,10 @@ export async function POST(
         sgst: body.sgst === "" || body.sgst == null ? null : Number(body.sgst),
         invoiceNo: body.invoiceNo || null,
         purchaseDate: body.purchaseDate ? new Date(body.purchaseDate) : new Date(),
+        paymentThrough: ["ONLINE", "CASH", "UPI"].includes(paymentThrough) ? paymentThrough : null,
+        paymentMadeBy: body.paymentMadeBy ? String(body.paymentMadeBy) : null,
+        deliveryPlace: body.deliveryPlace ? String(body.deliveryPlace) : null,
+        deliveryDate: body.deliveryDate ? new Date(body.deliveryDate) : null,
         remarks: body.remarks ? String(body.remarks) : null,
       };
       if (body.action === "UPDATE_PURCHASE") {

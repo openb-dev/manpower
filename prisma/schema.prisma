@@ -649,26 +649,34 @@ model InvoiceLine {
 }
 
 model Purchase {
-  id              String        @id @default(uuid())
-  companyId       String        @map("company_id")
-  contractId      String?       @map("contract_id")
-  itemName        String        @map("item_name")
-  vendorName      String        @map("vendor_name")
-  supplierGstin   String?       @map("supplier_gstin")
-  amount          Decimal       @db.Decimal(14, 2) // invoice value
-  taxableAmount   Decimal?      @map("taxable_amount") @db.Decimal(14, 2)
-  igst            Decimal?      @db.Decimal(14, 2)
-  cgst            Decimal?      @db.Decimal(14, 2)
-  sgst            Decimal?      @db.Decimal(14, 2)
-  invoiceNo       String?       @map("invoice_no")
-  purchaseDate    DateTime      @default(now()) @map("purchase_date")
-  remarks         String?
-  deletedAt       DateTime?     @map("deleted_at")
-  createdAt       DateTime      @default(now()) @map("created_at")
-  updatedAt       DateTime      @updatedAt @map("updated_at")
+  id                String        @id @default(uuid())
+  companyId         String        @map("company_id")
+  contractId        String?       @map("contract_id")
+  itemName          String        @map("item_name") // Item / Description
+  quantity          Decimal?      @db.Decimal(14, 3)
+  unit              String?
+  rate              Decimal?      @db.Decimal(14, 2)
+  vendorName        String        @map("vendor_name") // Shop Name (Purchase From)
+  purchaseLocation  String?       @map("purchase_location")
+  supplierGstin     String?       @map("supplier_gstin") // GST No. (If Any)
+  amount            Decimal       @db.Decimal(14, 2)
+  taxableAmount     Decimal?      @map("taxable_amount") @db.Decimal(14, 2)
+  igst              Decimal?      @db.Decimal(14, 2)
+  cgst              Decimal?      @db.Decimal(14, 2)
+  sgst              Decimal?      @db.Decimal(14, 2)
+  invoiceNo         String?       @map("invoice_no") // Bill No
+  purchaseDate      DateTime      @default(now()) @map("purchase_date") // Bill Date
+  paymentThrough    String?       @map("payment_through") // ONLINE / CASH / UPI
+  paymentMadeBy     String?       @map("payment_made_by")
+  deliveryPlace     String?       @map("delivery_place")
+  deliveryDate      DateTime?     @map("delivery_date") @db.Date
+  remarks           String?
+  deletedAt         DateTime?     @map("deleted_at")
+  createdAt         DateTime      @default(now()) @map("created_at")
+  updatedAt         DateTime      @updatedAt @map("updated_at")
 
-  company         Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  contract        Contract?     @relation(fields: [contractId], references: [id], onDelete: SetNull)
+  company           Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  contract          Contract?     @relation(fields: [contractId], references: [id], onDelete: SetNull)
 
   @@index([companyId])
   @@map("purchases")

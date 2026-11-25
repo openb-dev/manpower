@@ -12,6 +12,11 @@ import {
   listWorkProgressReports,
   saveWorkProgressReport,
 } from "@/modules/workProgress/services";
+import {
+  deleteClientDetail,
+  listClientDetails,
+  saveClientDetail,
+} from "@/modules/clientDetails/services";
 
 async function verifyTenantSession(companySlug: string) {
   const session = await auth();
@@ -134,6 +139,11 @@ export async function GET(
       const totalCredit = entries.reduce((acc, curr) => acc + Number(curr.creditAmount), 0);
       const totalDebit = entries.reduce((acc, curr) => acc + Number(curr.debitAmount), 0);
       return NextResponse.json({ entries, totalCredit, totalDebit, balance: totalCredit - totalDebit });
+    }
+
+    if (module === "clients") {
+      const rows = await listClientDetails(company.id);
+      return NextResponse.json({ rows });
     }
 
     return NextResponse.json({ error: "Invalid module." }, { status: 400 });
@@ -596,6 +606,31 @@ export async function POST(
         )
       `;
       return NextResponse.json({ id: entryId, paymentMode, chequeNo: paymentMode === "CHEQUE" ? chequeNo : null });
+    }
+
+    if (body.action === "CREATE_CLIENT_DETAIL" || body.action === "UPDATE_CLIENT_DETAIL") {
+      const row = await saveClientDetail(company.id, {
+        id: body.action === "UPDATE_CLIENT_DETAIL" ? body.id : undefined,
+        departmentName: body.departmentName,
+        officerName: body.officerName,
+        designation: body.designation,
+        contactOfficial: body.contactOfficial,
+        contactPersonal: body.contactPersonal,
+        whatsappNumber: body.whatsappNumber,
+        emailOfficial: body.emailOfficial,
+        emailPersonal: body.emailPersonal,
+        websiteLink: body.websiteLink,
+        officeAddress: body.officeAddress,
+        location: body.location,
+        remarks: body.remarks,
+        sortOrder: body.sortOrder,
+      });
+      return NextResponse.json(row);
+    }
+
+    if (body.action === "DELETE_CLIENT_DETAIL") {
+      await deleteClientDetail(company.id, body.id);
+      return NextResponse.json({ success: true });
     }
 
     return NextResponse.json({ error: "Invalid action." }, { status: 400 });

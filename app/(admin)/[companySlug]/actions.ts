@@ -308,6 +308,21 @@ export async function loadCrmBook(companySlug: string) {
   });
 }
 
+export async function loadClientDetailsBook(companySlug: string) {
+  const { company } = await requireCompany(companySlug);
+  const { listClientDetails } = await import("@/modules/clientDetails/services");
+  const rows = await listClientDetails(company.id);
+  return toClientJson({
+    company: {
+      id: company.id,
+      slug: company.slug,
+      legalName: company.legalName,
+      shortName: company.shortName,
+    },
+    rows,
+  });
+}
+
 export async function loadDashboard(companySlug: string) {
   const { company } = await requireCompany(companySlug);
   const [

@@ -18,6 +18,7 @@ export type OfficeModule =
   | "employees"
   | "attendance"
   | "work-list"
+  | "clients"
   | "accounts"
   | "procurement"
   | "finance"
@@ -29,6 +30,7 @@ const ALL_MODULES: OfficeModule[] = [
   "employees",
   "attendance",
   "work-list",
+  "clients",
   "accounts",
   "procurement",
   "finance",
@@ -82,15 +84,15 @@ export function modulesForRole(role: string): OfficeModule[] {
     case Role.COMPANY_ADMIN:
       return [...ALL_MODULES];
     case Role.ACCOUNTS:
-      return ["dashboard", "accounts", "finance", "reports"];
+      return ["dashboard", "accounts", "finance", "clients", "reports"];
     case Role.BACK_OFFICE:
-      return ["dashboard", "applicants", "employees", "work-list", "reports"];
+      return ["dashboard", "applicants", "employees", "work-list", "clients", "reports"];
     case Role.SUPERVISOR:
-      return ["dashboard", "employees", "attendance", "work-list"];
+      return ["dashboard", "employees", "attendance", "work-list", "clients"];
     case Role.GROUND_STAFF:
       return ["dashboard", "attendance", "work-list"];
     case Role.TECHNICAL_STAFF:
-      return ["dashboard", "work-list", "procurement", "reports"];
+      return ["dashboard", "work-list", "procurement", "clients", "reports"];
     default:
       return ["dashboard"];
   }

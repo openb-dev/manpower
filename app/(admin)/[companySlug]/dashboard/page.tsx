@@ -11,6 +11,7 @@ import {
   CalendarCheck,
   Briefcase,
   ListTree,
+  Contact,
   Receipt,
   ShoppingBag,
   Wallet,
@@ -61,6 +62,7 @@ export default function DashboardPage() {
   ];
   const officeLinks = [
     { href: `/${companySlug}/work-list`, label: "Work List", note: "Manpower / Construction → register, progress, expenditure", icon: ListTree },
+    { href: `/${companySlug}/clients`, label: "Clients Details", note: "Department officers, contacts, emails, addresses", icon: Contact },
     { href: `/${companySlug}/accounts`, label: "Bills", note: "GeM tax invoice / wage bill", icon: Receipt },
     { href: `/${companySlug}/procurement`, label: "Purchases", note: "Materials bought for work", icon: ShoppingBag },
     { href: `/${companySlug}/finance`, label: "Money", note: "Cash, online, bank, cheque ledger", icon: Wallet },

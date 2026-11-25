@@ -14,6 +14,7 @@ import {
   Wallet,
   BarChart3,
   ListTree,
+  Contact,
   ExternalLink,
   Menu,
   X,
@@ -64,6 +65,7 @@ export default function Sidebar({ company, user }: SidebarProps) {
 
   const businessLinks = [
     { href: `/${slug}/work-list`, label: "Work List", icon: ListTree, module: "work-list" as OfficeModule },
+    { href: `/${slug}/clients`, label: "Clients Details", icon: Contact, module: "clients" as OfficeModule },
     { href: `/${slug}/accounts`, label: "Bills", icon: Receipt, module: "accounts" as OfficeModule },
     { href: `/${slug}/procurement`, label: "Purchases", icon: ShoppingBag, module: "procurement" as OfficeModule },
     { href: `/${slug}/finance`, label: "Money", icon: Wallet, module: "finance" as OfficeModule },

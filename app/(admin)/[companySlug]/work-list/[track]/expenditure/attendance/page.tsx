@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, notFound } from "next/navigation";
-import { CalendarCheck } from "lucide-react";
+import { CalendarCheck, Plus, Trash2 } from "lucide-react";
 import {
   loadAttendanceBook,
   loadCrmBook,
@@ -11,16 +11,26 @@ import {
 } from "../../../../actions";
 import { friendlyPublicError } from "@/lib/publicErrors";
 import { isWorkListTrack, workListTrackLabel, type WorkListTrack } from "@/lib/workList";
+import {
+  LABOUR_MARK_OPTIONS,
+  dayUnitsForAttendance,
+  markStyle,
+  markToStatusAndUnits,
+  statusToLabourMark,
+} from "@/lib/attendanceMarks";
 
-const CYCLE = [null, "PRESENT", "HALF_DAY", "ABSENT", "LEAVE", "WEEK_OFF"] as const;
-type MarkStatus = (typeof CYCLE)[number];
-
-const STATUS_STYLE: Record<string, string> = {
-  PRESENT: "bg-emerald-100 text-emerald-800",
-  HALF_DAY: "bg-amber-100 text-amber-800",
-  ABSENT: "bg-rose-100 text-rose-800",
-  LEAVE: "bg-slate-200 text-slate-700",
-  WEEK_OFF: "bg-sky-100 text-sky-800",
+type SheetRow = {
+  rowKey: string;
+  employeeId: string;
+  siteId: string;
+  fullName: string;
+  designation: string;
+  markCodes: Record<string, string>;
+  presentDays: number;
+  absentDays: number;
+  payableDays: number;
+  totalWorkingDay: number;
+  totalPresent: number;
 };
 
 function currentMonthKey() {
@@ -28,46 +38,50 @@ function currentMonthKey() {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 }
 
-function shortStatus(status?: string | null) {
-  if (status === "PRESENT") return "P";
-  if (status === "HALF_DAY") return "H";
-  if (status === "ABSENT") return "A";
-  if (status === "LEAVE") return "L";
-  if (status === "WEEK_OFF") return "W";
-  return "";
+function newEmptyRow(): SheetRow {
+  return {
+    rowKey: `row-${crypto.randomUUID()}`,
+    employeeId: "",
+    siteId: "",
+    fullName: "",
+    designation: "",
+    markCodes: {},
+    presentDays: 0,
+    absentDays: 0,
+    payableDays: 0,
+    totalWorkingDay: 0,
+    totalPresent: 0,
+  };
 }
 
-function withMark(row: any, day: number, status: string | null) {
-  const marks = { ...(row.marks || {}) };
-  if (status) marks[String(day)] = status;
-  else delete marks[String(day)];
+function totalsFromMarks(markCodes: Record<string, string>) {
   let presentDays = 0;
-  let halfDays = 0;
   let absentDays = 0;
-  let leaveDays = 0;
-  let weekOffDays = 0;
-  for (const st of Object.values(marks) as string[]) {
-    if (st === "PRESENT") presentDays += 1;
-    else if (st === "HALF_DAY") halfDays += 0.5;
-    else if (st === "ABSENT") absentDays += 1;
-    else if (st === "LEAVE") leaveDays += 1;
-    else if (st === "WEEK_OFF") weekOffDays += 1;
+  let payableDays = 0;
+  for (const code of Object.values(markCodes)) {
+    const mapped = markToStatusAndUnits(code);
+    const units = dayUnitsForAttendance(mapped.status, mapped.overtimeHours);
+    if (code === "A") {
+      absentDays += 1;
+      continue;
+    }
+    presentDays += units;
+    payableDays += units;
   }
-  const totalWorkingDay = presentDays + halfDays + leaveDays + weekOffDays + absentDays;
-  const totalPresent = presentDays + halfDays;
-  const payableDays = presentDays + halfDays + leaveDays + weekOffDays;
   return {
-    ...row,
-    marks,
     presentDays,
-    halfDays,
     absentDays,
-    leaveDays,
-    weekOffDays,
-    totalWorkingDay,
-    totalPresent,
     payableDays,
+    totalWorkingDay: presentDays + absentDays,
+    totalPresent: presentDays,
   };
+}
+
+function recomputeMarks(row: SheetRow, day: number, mark: string): SheetRow {
+  const markCodes = { ...row.markCodes };
+  if (mark) markCodes[String(day)] = mark;
+  else delete markCodes[String(day)];
+  return { ...row, markCodes, ...totalsFromMarks(markCodes) };
 }
 
 export default function WorkExpenditureAttendancePage() {
@@ -82,15 +96,16 @@ export default function WorkExpenditureAttendancePage() {
   const [department, setDepartment] = useState("");
   const [location, setLocation] = useState("");
   const [contracts, setContracts] = useState<any[]>([]);
-  const [data, setData] = useState<any>(null);
+  const [employees, setEmployees] = useState<any[]>([]);
+  const [rows, setRows] = useState<SheetRow[]>([newEmptyRow()]);
+  const [daysInMonth, setDaysInMonth] = useState(31);
+  const [locked, setLocked] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState("");
-  const [paintStatus, setPaintStatus] = useState<Exclude<MarkStatus, null>>("PRESENT");
   const [companyName, setCompanyName] = useState("M/s. N.K. Enterprise");
 
-  const days = Array.from({ length: data?.daysInMonth || 31 }, (_, i) => i + 1);
-  const rows = data?.rows || [];
+  const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
 
   const monthLabel = useMemo(() => {
     const [y, m] = monthKey.split("-").map(Number);
@@ -111,27 +126,41 @@ export default function WorkExpenditureAttendancePage() {
     setLoading(true);
     Promise.all([loadAttendanceBook(companySlug, monthKey), loadCrmBook(companySlug).catch(() => null)])
       .then(([attendance, crm]) => {
-        setData({
-          ...attendance,
-          rows: (attendance.rows || []).map((row: any) => {
-            let presentDays = Number(row.presentDays || 0);
-            let halfDays = Number(row.halfDays || 0);
-            let absentDays = Number(row.absentDays || 0);
-            let leaveDays = Number(row.leaveDays || 0);
-            let weekOffDays = Number(row.weekOffDays || 0);
-            return {
-              ...row,
-              totalWorkingDay: presentDays + halfDays + leaveDays + weekOffDays + absentDays,
-              totalPresent: presentDays + halfDays,
-            };
-          }),
-        });
+        const catalog = attendance.rows || [];
+        setEmployees(catalog);
+        setDaysInMonth(attendance.daysInMonth || 31);
+        setLocked(Boolean(attendance.locked));
         if (attendance.companyName) setCompanyName(attendance.companyName);
         setContracts(crm?.contracts || []);
+
+        // Keep sheet blank for typing — only restore rows that already have marks this month
+        const withMarks = catalog
+          .filter((row: any) => Object.keys(row.marks || row.markCodes || {}).length > 0)
+          .map((row: any) => {
+            const markCodes: Record<string, string> = { ...(row.markCodes || {}) };
+            if (!row.markCodes) {
+              for (const [day, status] of Object.entries(row.marks || {})) {
+                markCodes[day] = statusToLabourMark(status as string, 0);
+              }
+            }
+            return {
+              rowKey: `emp-${row.employeeId}`,
+              employeeId: row.employeeId,
+              siteId: row.siteId || "",
+              // Restored from saved marks — new Add row lines stay blank for typing
+              fullName: row.fullName || "",
+              designation: row.designation || row.jobRole || "",
+              markCodes,
+              ...totalsFromMarks(markCodes),
+            } satisfies SheetRow;
+          });
+
+        setRows(withMarks.length ? withMarks : [newEmptyRow()]);
         setError("");
       })
       .catch((err: any) => {
-        setData(null);
+        setEmployees([]);
+        setRows([newEmptyRow()]);
         setError(friendlyPublicError(err.message || "Attendance could not be loaded."));
       })
       .finally(() => setLoading(false));
@@ -141,31 +170,55 @@ export default function WorkExpenditureAttendancePage() {
     loadBook();
   }, [companySlug, monthKey]);
 
-  async function setDay(row: any, day: number, next: MarkStatus) {
-    if (data?.locked) return;
-    if (!row.siteId) {
-      setError(`${row.fullName} has no duty site.`);
+  function patchRow(rowKey: string, patch: Partial<SheetRow>) {
+    setRows((prev) => prev.map((r) => (r.rowKey === rowKey ? { ...r, ...patch } : r)));
+  }
+
+  function onNameChange(row: SheetRow, value: string) {
+    const match = employees.find(
+      (e) => String(e.fullName || "").trim().toLowerCase() === value.trim().toLowerCase(),
+    );
+    patchRow(row.rowKey, {
+      fullName: value,
+      employeeId: match?.employeeId || "",
+      siteId: match?.siteId || "",
+      // Designation stays whatever user typed — do not auto-fill
+    });
+  }
+
+  function addRow() {
+    setRows((prev) => [...prev, newEmptyRow()]);
+  }
+
+  function removeRow(rowKey: string) {
+    setRows((prev) => {
+      const next = prev.filter((r) => r.rowKey !== rowKey);
+      return next.length ? next : [newEmptyRow()];
+    });
+  }
+
+  async function onMarkChange(row: SheetRow, day: number, mark: string) {
+    if (locked) return;
+    if (!row.fullName.trim()) {
+      setError("Enter the employee name first.");
       return;
     }
+    if (!row.employeeId || !row.siteId) {
+      setError(
+        `"${row.fullName.trim()}" is not in Employees yet, or has no duty site. Pick a name from the list (or add them under Employees first).`,
+      );
+      return;
+    }
+
     const date = `${monthKey}-${String(day).padStart(2, "0")}`;
-    const current = row.marks?.[String(day)] || null;
-    const status: MarkStatus = current === next ? null : next;
-    setData((prev: any) => {
-      if (!prev) return prev;
-      return {
-        ...prev,
-        rows: (prev.rows || []).map((item: any) =>
-          item.employeeId === row.employeeId ? withMark(item, day, status) : item,
-        ),
-      };
-    });
-    setBusy(`${row.employeeId}-${day}`);
+    setRows((prev) => prev.map((r) => (r.rowKey === row.rowKey ? recomputeMarks(r, day, mark) : r)));
+    setBusy(`${row.rowKey}-${day}`);
     try {
       await saveAttendanceDay(companySlug, {
         employeeId: row.employeeId,
         siteId: row.siteId,
         nominalDate: date,
-        status,
+        mark: mark || null,
       });
       setError("");
     } catch (err: any) {
@@ -178,7 +231,7 @@ export default function WorkExpenditureAttendancePage() {
 
   const totals = useMemo(() => {
     return rows.reduce(
-      (acc: any, row: any) => {
+      (acc, row) => {
         acc.working += Number(row.totalWorkingDay || 0);
         acc.present += Number(row.totalPresent || 0);
         acc.absent += Number(row.absentDays || 0);
@@ -191,33 +244,43 @@ export default function WorkExpenditureAttendancePage() {
 
   return (
     <div className="space-y-5">
-      <div>
-        <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 mb-2">
-          <Link href={`/${companySlug}/work-list`} className="font-semibold text-blue-700 hover:underline">
-            Work List
-          </Link>
-          <span>/</span>
-          <Link href={`/${companySlug}/work-list/${track}`} className="font-semibold text-blue-700 hover:underline">
-            {workListTrackLabel(track)}
-          </Link>
-          <span>/</span>
-          <Link
-            href={`/${companySlug}/work-list/${track}/expenditure`}
-            className="font-semibold text-blue-700 hover:underline"
-          >
-            Work Expenditure
-          </Link>
-          <span>/</span>
-          <span className="font-bold text-slate-700">Labour Attendance</span>
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
+        <div>
+          <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 mb-2">
+            <Link href={`/${companySlug}/work-list`} className="font-semibold text-blue-700 hover:underline">
+              Work List
+            </Link>
+            <span>/</span>
+            <Link href={`/${companySlug}/work-list/${track}`} className="font-semibold text-blue-700 hover:underline">
+              {workListTrackLabel(track)}
+            </Link>
+            <span>/</span>
+            <Link
+              href={`/${companySlug}/work-list/${track}/expenditure`}
+              className="font-semibold text-blue-700 hover:underline"
+            >
+              Work Expenditure
+            </Link>
+            <span>/</span>
+            <span className="font-bold text-slate-700">Labour Attendance</span>
+          </div>
+          <span className="inline-flex items-center gap-1.5 text-[11px] uppercase font-extrabold tracking-wider bg-emerald-50 text-emerald-800 border border-emerald-200 px-2 py-0.5 rounded-md">
+            <CalendarCheck className="h-3.5 w-3.5" strokeWidth={2} aria-hidden />
+            Labour Attendance
+          </span>
+          <h1 className="text-xl font-bold text-slate-900 mt-2">{companyName}</h1>
+          <p className="text-sm text-slate-500">
+            Attendance sheet for the month of {monthLabel} (From {fromTo.from} To {fromTo.to})
+          </p>
         </div>
-        <span className="inline-flex items-center gap-1.5 text-[11px] uppercase font-extrabold tracking-wider bg-emerald-50 text-emerald-800 border border-emerald-200 px-2 py-0.5 rounded-md">
-          <CalendarCheck className="h-3.5 w-3.5" strokeWidth={2} aria-hidden />
-          Labour Attendance
-        </span>
-        <h1 className="text-xl font-bold text-slate-900 mt-2">{companyName}</h1>
-        <p className="text-sm text-slate-500">
-          Attendance sheet for the month of {monthLabel} (From {fromTo.from} To {fromTo.to})
-        </p>
+        <button
+          type="button"
+          onClick={addRow}
+          className="inline-flex items-center gap-1.5 px-3 py-2 bg-emerald-700 hover:bg-emerald-800 text-white text-[11px] font-bold rounded-lg"
+        >
+          <Plus className="h-3.5 w-3.5" aria-hidden />
+          Add row
+        </button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3 bg-white border border-slate-200 rounded-xl p-4">
@@ -230,7 +293,7 @@ export default function WorkExpenditureAttendancePage() {
             className="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
           />
         </label>
-        <label className="text-xs font-bold text-slate-700 block md:col-span-1 xl:col-span-1">
+        <label className="text-xs font-bold text-slate-700 block">
           Name Of Work
           <input
             list="work-names"
@@ -263,37 +326,18 @@ export default function WorkExpenditureAttendancePage() {
         </label>
       </div>
 
-      <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
-        <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Mark with</div>
-        <div className="flex flex-wrap gap-2">
-          {(
-            [
-              ["PRESENT", "P", "Came"],
-              ["HALF_DAY", "H", "Half day"],
-              ["ABSENT", "A", "Absent"],
-              ["LEAVE", "L", "Leave"],
-              ["WEEK_OFF", "W", "Off"],
-            ] as const
-          ).map(([status, code, label]) => (
-            <button
-              key={status}
-              type="button"
-              onClick={() => setPaintStatus(status)}
-              className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-lg border text-[11px] ${
-                paintStatus === status
-                  ? "border-blue-500 ring-2 ring-blue-200 bg-blue-50"
-                  : "border-slate-200 bg-white"
-              }`}
-            >
-              <span className={`w-5 h-5 rounded text-[10px] font-bold flex items-center justify-center ${STATUS_STYLE[status]}`}>
-                {code}
-              </span>
-              <span className="font-semibold text-slate-700">{label}</span>
-            </button>
-          ))}
-        </div>
-        <p className="text-[11px] text-slate-500 sm:ml-auto">
-          Click day boxes to fill <span className="font-bold">{shortStatus(paintStatus)}</span>. Same mark again clears.
+      <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-600">
+        <span className="font-bold uppercase tracking-wider text-slate-500">Marks</span>
+        {LABOUR_MARK_OPTIONS.filter((o) => o.value).map((o) => (
+          <span
+            key={o.value}
+            className={`inline-flex items-center px-2 py-0.5 rounded border border-slate-200 font-bold ${markStyle(o.value)}`}
+          >
+            {o.label}
+          </span>
+        ))}
+        <p className="text-slate-500 sm:ml-auto">
+          Type Name / Designation, then choose a mark in each day box. Use Add row for more people.
         </p>
       </div>
 
@@ -309,10 +353,10 @@ export default function WorkExpenditureAttendancePage() {
                 <th rowSpan={2} className="border border-slate-400 p-1.5 text-center align-middle min-w-[48px]">
                   Sl No.
                 </th>
-                <th rowSpan={2} className="border border-slate-400 p-1.5 text-center align-middle min-w-[150px]">
+                <th rowSpan={2} className="border border-slate-400 p-1.5 text-center align-middle min-w-[160px]">
                   Name
                 </th>
-                <th rowSpan={2} className="border border-slate-400 p-1.5 text-center align-middle min-w-[120px]">
+                <th rowSpan={2} className="border border-slate-400 p-1.5 text-center align-middle min-w-[130px]">
                   Designation
                 </th>
                 <th colSpan={days.length} className="border border-slate-400 p-1.5 text-center">
@@ -330,62 +374,85 @@ export default function WorkExpenditureAttendancePage() {
                 <th rowSpan={2} className="border border-slate-400 p-1.5 text-center align-middle min-w-[64px]">
                   Total Absent
                 </th>
+                <th rowSpan={2} className="border border-slate-400 p-1.5 text-center align-middle min-w-[44px]">
+                 {" "}
+                </th>
               </tr>
               <tr className="bg-slate-50">
                 {days.map((day) => (
-                  <th key={day} className="border border-slate-400 p-1 text-center min-w-[28px] font-mono">
+                  <th key={day} className="border border-slate-400 p-1 text-center min-w-[52px] font-mono">
                     {day}
                   </th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {rows.length === 0 ? (
-                <tr>
-                  <td colSpan={3 + days.length + 4} className="border border-slate-400 p-8 text-center text-slate-400">
-                    No employees found.
+              {rows.map((row, i) => (
+                <tr key={row.rowKey} className="hover:bg-emerald-50/30">
+                  <td className="border border-slate-400 p-1 text-center">{i + 1}</td>
+                  <td className="border border-slate-400 p-0.5">
+                    <input
+                      list="employee-names"
+                      value={row.fullName}
+                      onChange={(e) => onNameChange(row, e.target.value)}
+                      placeholder="Employee name"
+                      className="w-full min-w-[140px] px-1.5 py-1 border-0 bg-transparent text-[10px] font-semibold focus:outline-none focus:ring-1 focus:ring-emerald-400 rounded"
+                    />
+                  </td>
+                  <td className="border border-slate-400 p-0.5">
+                    <input
+                      value={row.designation}
+                      onChange={(e) => patchRow(row.rowKey, { designation: e.target.value })}
+                      placeholder="Designation"
+                      className="w-full min-w-[110px] px-1.5 py-1 border-0 bg-transparent text-[10px] focus:outline-none focus:ring-1 focus:ring-emerald-400 rounded"
+                    />
+                  </td>
+                  {days.map((day) => {
+                    const mark = row.markCodes?.[String(day)] || "";
+                    const cellBusy = busy === `${row.rowKey}-${day}`;
+                    return (
+                      <td key={day} className="border border-slate-400 p-0.5 text-center">
+                        <select
+                          value={mark}
+                          disabled={locked || cellBusy}
+                          onChange={(e) => void onMarkChange(row, day, e.target.value)}
+                          className={`w-full min-w-[48px] h-7 rounded text-[10px] font-bold border border-slate-300 cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-400 disabled:opacity-50 ${markStyle(mark)}`}
+                          aria-label={`Day ${day}`}
+                        >
+                          {LABOUR_MARK_OPTIONS.map((opt) => (
+                            <option key={opt.value || "empty"} value={opt.value}>
+                              {opt.label}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                    );
+                  })}
+                  <td className="border border-slate-400 p-1 text-center font-mono font-bold">
+                    {row.payableDays || 0}
+                  </td>
+                  <td className="border border-slate-400 p-1 text-center font-mono font-bold">
+                    {row.totalWorkingDay || 0}
+                  </td>
+                  <td className="border border-slate-400 p-1 text-center font-mono text-emerald-700">
+                    {row.totalPresent || 0}
+                  </td>
+                  <td className="border border-slate-400 p-1 text-center font-mono text-rose-700">
+                    {row.absentDays || 0}
+                  </td>
+                  <td className="border border-slate-400 p-1 text-center">
+                    <button
+                      type="button"
+                      onClick={() => removeRow(row.rowKey)}
+                      className="inline-flex text-rose-600 hover:text-rose-800"
+                      aria-label="Remove row"
+                      title="Remove row"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
                   </td>
                 </tr>
-              ) : (
-                rows.map((row: any, i: number) => (
-                  <tr key={row.employeeId} className="hover:bg-emerald-50/30">
-                    <td className="border border-slate-400 p-1 text-center">{i + 1}</td>
-                    <td className="border border-slate-400 p-1 font-semibold whitespace-nowrap">{row.fullName}</td>
-                    <td className="border border-slate-400 p-1 whitespace-nowrap">
-                      {row.designation || row.jobRole || "—"}
-                    </td>
-                    {days.map((day) => {
-                      const status = row.marks?.[String(day)];
-                      return (
-                        <td key={day} className="border border-slate-400 p-0.5 text-center">
-                          <button
-                            type="button"
-                            disabled={data?.locked || busy === `${row.employeeId}-${day}`}
-                            onClick={() => void setDay(row, day, paintStatus)}
-                            className={`w-6 h-6 rounded text-[10px] font-bold ${
-                              status ? STATUS_STYLE[status] : "bg-white text-slate-300"
-                            } disabled:opacity-50`}
-                          >
-                            {shortStatus(status) || "·"}
-                          </button>
-                        </td>
-                      );
-                    })}
-                    <td className="border border-slate-400 p-1 text-center font-mono font-bold">
-                      {row.payableDays || 0}
-                    </td>
-                    <td className="border border-slate-400 p-1 text-center font-mono font-bold">
-                      {row.totalWorkingDay || 0}
-                    </td>
-                    <td className="border border-slate-400 p-1 text-center font-mono text-emerald-700">
-                      {row.totalPresent || 0}
-                    </td>
-                    <td className="border border-slate-400 p-1 text-center font-mono text-rose-700">
-                      {row.absentDays || 0}
-                    </td>
-                  </tr>
-                ))
-              )}
+              ))}
               <tr className="bg-emerald-50 font-bold">
                 <td className="border border-slate-400 p-1.5 text-right" colSpan={3 + days.length}>
                   Total =
@@ -394,9 +461,15 @@ export default function WorkExpenditureAttendancePage() {
                 <td className="border border-slate-400 p-1.5 text-center font-mono">{totals.working}</td>
                 <td className="border border-slate-400 p-1.5 text-center font-mono">{totals.present}</td>
                 <td className="border border-slate-400 p-1.5 text-center font-mono">{totals.absent}</td>
+                <td className="border border-slate-400 p-1.5" />
               </tr>
             </tbody>
           </table>
+          <datalist id="employee-names">
+            {employees.map((e) => (
+              <option key={e.employeeId} value={e.fullName || ""} />
+            ))}
+          </datalist>
         </div>
       )}
     </div>

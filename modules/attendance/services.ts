@@ -1,5 +1,10 @@
 import { prisma, getTenantPrisma } from "../../lib/db/index.ts";
 import { AttendanceStatus, Prisma, ShiftType } from "@prisma/client";
+import {
+  dayUnitsForAttendance,
+  markToStatusAndUnits,
+  statusToLabourMark,
+} from "@/lib/attendanceMarks";
 
 export interface AttendanceEntry {
   employeeId: string;
@@ -117,25 +122,37 @@ export async function getMonthlyAttendanceSummary({
     let halfDays = 0;
     let leaveDays = 0;
     let weekOffDays = 0;
+    let payableDays = 0;
     let totalOvertimeHours = 0;
+    let absentDays = 0;
+
+    const marks: Record<string, AttendanceStatus> = {};
+    const markCodes: Record<string, string> = {};
+    const dayUnits: Record<string, number> = {};
 
     for (const att of emp.attendances) {
-      if (att.status === AttendanceStatus.PRESENT) presentDays++;
-      else if (att.status === AttendanceStatus.HALF_DAY) halfDays += 0.5;
-      else if (att.status === AttendanceStatus.LEAVE) leaveDays++;
-      else if (att.status === AttendanceStatus.WEEK_OFF) weekOffDays++;
-      totalOvertimeHours += Number(att.overtimeHours || 0);
+      const day = String(new Date(att.nominalDate).getUTCDate());
+      const ot = Number(att.overtimeHours || 0);
+      const units = dayUnitsForAttendance(att.status, ot);
+      marks[day] = att.status;
+      markCodes[day] = statusToLabourMark(att.status, ot);
+      dayUnits[day] = units;
+      totalOvertimeHours += ot;
+
+      if (att.status === AttendanceStatus.ABSENT) {
+        absentDays += 1;
+        continue;
+      }
+      payableDays += units;
+      if (att.status === AttendanceStatus.HALF_DAY) halfDays += 0.5;
+      else if (att.status === AttendanceStatus.LEAVE) leaveDays += 1;
+      else if (att.status === AttendanceStatus.WEEK_OFF) weekOffDays += 1;
+      else if (att.status === AttendanceStatus.PRESENT) presentDays += units;
     }
 
-    const payableDays = presentDays + halfDays + leaveDays + weekOffDays;
     const divisor = emp.divisorDays || 26;
     const ratePerDay = emp.basicRate ? Number(emp.basicRate) / divisor : 0;
     const grossWages = Math.round(payableDays * ratePerDay);
-    const marks: Record<string, AttendanceStatus> = {};
-    for (const att of emp.attendances) {
-      const day = new Date(att.nominalDate).getUTCDate();
-      marks[String(day)] = att.status;
-    }
 
     return {
       employeeId: emp.id,
@@ -149,7 +166,7 @@ export async function getMonthlyAttendanceSummary({
       esicNo: emp.esicNo || "",
       presentDays,
       halfDays,
-      absentDays: emp.attendances.filter((att) => att.status === AttendanceStatus.ABSENT).length,
+      absentDays,
       leaveDays,
       weekOffDays,
       payableDays,
@@ -159,6 +176,8 @@ export async function getMonthlyAttendanceSummary({
       ratePerDay: Number(ratePerDay.toFixed(2)),
       estimatedGrossWages: grossWages,
       marks,
+      markCodes,
+      dayUnits,
     };
   });
 
@@ -181,13 +200,18 @@ export async function setAttendanceDay({
   siteId,
   nominalDate,
   status,
+  mark,
+  overtimeHours,
 }: {
   companyId: string;
   markedBy: string;
   employeeId: string;
   siteId?: string | null;
   nominalDate: string;
-  status: AttendanceStatus | null;
+  status?: AttendanceStatus | null;
+  /** Labour sheet mark: P, P/0.5, P/1.5, P/2, A — overrides status when set. */
+  mark?: string | null;
+  overtimeHours?: number;
 }) {
   const monthKey = nominalDate.slice(0, 7);
   const locked = await prisma.monthLock.findUnique({
@@ -207,7 +231,16 @@ export async function setAttendanceDay({
   }
   if (!resolvedSiteId) throw new Error("Assign a site before marking attendance.");
 
-  if (!status) {
+  let nextStatus: AttendanceStatus | null =
+    status === undefined ? null : status;
+  let nextOt = Number(overtimeHours || 0);
+  if (mark !== undefined) {
+    const mapped = markToStatusAndUnits(mark);
+    nextStatus = mapped.status;
+    nextOt = mapped.overtimeHours;
+  }
+
+  if (!nextStatus) {
     await prisma.attendance.deleteMany({
       where: { companyId, employeeId, nominalDate: dateObj },
     });
@@ -220,7 +253,8 @@ export async function setAttendanceDay({
     },
     update: {
       siteId: resolvedSiteId,
-      status,
+      status: nextStatus,
+      overtimeHours: new Prisma.Decimal(nextOt),
       markedBy,
     },
     create: {
@@ -228,7 +262,8 @@ export async function setAttendanceDay({
       employeeId,
       siteId: resolvedSiteId,
       nominalDate: dateObj,
-      status,
+      status: nextStatus,
+      overtimeHours: new Prisma.Decimal(nextOt),
       markedBy,
     },
   });

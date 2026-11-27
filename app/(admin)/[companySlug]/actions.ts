@@ -250,7 +250,9 @@ export async function saveAttendanceDay(
     employeeId: string;
     siteId?: string | null;
     nominalDate: string;
-    status: AttendanceStatus | null;
+    status?: AttendanceStatus | null;
+    mark?: string | null;
+    overtimeHours?: number;
   },
 ) {
   const { user, company } = await requireCompany(companySlug);
@@ -261,6 +263,8 @@ export async function saveAttendanceDay(
     siteId: input.siteId,
     nominalDate: input.nominalDate,
     status: input.status,
+    mark: input.mark,
+    overtimeHours: input.overtimeHours,
   });
 }
 

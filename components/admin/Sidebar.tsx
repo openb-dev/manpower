@@ -132,8 +132,8 @@ export default function Sidebar({ company, user }: SidebarProps) {
 
       <aside
         className={`no-print fixed md:sticky top-0 left-0 z-50 md:z-10 h-dvh w-[min(18rem,88vw)] bg-white text-slate-700 flex flex-col border-r border-slate-200 shadow-sm select-none transition-transform duration-200 ${
-          open ? "translate-x-0" : "-translate-x-full"
-        } md:translate-x-0 md:w-64 md:h-screen`}
+          open ? "translate-x-0 pointer-events-auto" : "-translate-x-full pointer-events-none"
+        } md:translate-x-0 md:pointer-events-auto md:w-64 md:h-screen`}
       >
         <div className="p-4 border-b border-slate-100 bg-slate-50/70 shrink-0 flex items-start justify-between gap-2">
           <div className="min-w-0">

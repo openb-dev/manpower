@@ -27,7 +27,13 @@ export default function PwaRegister({ showButton = false }: { showButton?: boole
 
   useEffect(() => {
     if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("/sw.js").catch(() => {});
+      navigator.serviceWorker
+        .register("/sw.js")
+        .then((reg) => {
+          // Pick up new SW immediately after deploy
+          reg.update().catch(() => {});
+        })
+        .catch(() => {});
     }
 
     if (isStandaloneApp()) return;

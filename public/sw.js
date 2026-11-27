@@ -1,4 +1,4 @@
-const CACHE_NAME = "nk-manpower-cache-v1";
+const CACHE_NAME = "nk-manpower-cache-v2";
 const PRECACHE_ASSETS = [
   "/login",
   "/icons/icon-192.png",
@@ -37,7 +37,19 @@ self.addEventListener("fetch", (event) => {
 
   const url = new URL(event.request.url);
   if (url.origin !== self.location.origin) return;
-  if (url.pathname.startsWith("/api/")) return;
+
+  // Never cache API, Next internals, or RSC/flight — always network
+  if (
+    url.pathname.startsWith("/api/") ||
+    url.pathname.startsWith("/_next/") ||
+    url.pathname.includes("attendance") ||
+    event.request.headers.get("rsc") === "1" ||
+    event.request.headers.get("next-router-state-tree") ||
+    event.request.headers.get("next-action")
+  ) {
+    return;
+  }
+
   if (url.pathname.startsWith("/_next/webpack-hmr")) return;
 
   if (event.request.mode === "navigate" || event.request.headers.get("accept")?.includes("text/html")) {
@@ -45,7 +57,7 @@ self.addEventListener("fetch", (event) => {
       fetch(event.request)
         .then((response) => {
           const copy = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy)).catch(() => {});
           return response;
         })
         .catch(() =>
@@ -55,33 +67,16 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  if (event.request.destination === "style" || event.request.destination === "script") {
-    event.respondWith(
-      fetch(event.request)
-        .then((networkResponse) => {
-          if (networkResponse && networkResponse.status === 200) {
-            const copy = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
-          }
-          return networkResponse;
-        })
-        .catch(() => caches.match(event.request)),
-    );
-    return;
-  }
-
+  // Icons / static only — network first
   event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      const fetchPromise = fetch(event.request)
-        .then((networkResponse) => {
-          if (networkResponse && networkResponse.status === 200) {
-            const copy = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
-          }
-          return networkResponse;
-        })
-        .catch(() => cachedResponse);
-      return cachedResponse || fetchPromise;
-    }),
+    fetch(event.request)
+      .then((networkResponse) => {
+        if (networkResponse && networkResponse.status === 200) {
+          const copy = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy)).catch(() => {});
+        }
+        return networkResponse;
+      })
+      .catch(() => caches.match(event.request)),
   );
 });

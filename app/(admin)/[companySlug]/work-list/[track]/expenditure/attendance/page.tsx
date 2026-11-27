@@ -318,6 +318,9 @@ export default function WorkExpenditureAttendancePage() {
                 <th colSpan={days.length} className="border border-slate-400 p-1.5 text-center">
                   Date
                 </th>
+                <th rowSpan={2} className="border border-slate-400 p-1.5 text-center align-middle min-w-[64px]">
+                  Total Days
+                </th>
                 <th rowSpan={2} className="border border-slate-400 p-1.5 text-center align-middle min-w-[72px]">
                   Total Working Day
                 </th>
@@ -326,9 +329,6 @@ export default function WorkExpenditureAttendancePage() {
                 </th>
                 <th rowSpan={2} className="border border-slate-400 p-1.5 text-center align-middle min-w-[64px]">
                   Total Absent
-                </th>
-                <th rowSpan={2} className="border border-slate-400 p-1.5 text-center align-middle min-w-[64px]">
-                  Total Days
                 </th>
               </tr>
               <tr className="bg-slate-50">
@@ -372,6 +372,9 @@ export default function WorkExpenditureAttendancePage() {
                       );
                     })}
                     <td className="border border-slate-400 p-1 text-center font-mono font-bold">
+                      {row.payableDays || 0}
+                    </td>
+                    <td className="border border-slate-400 p-1 text-center font-mono font-bold">
                       {row.totalWorkingDay || 0}
                     </td>
                     <td className="border border-slate-400 p-1 text-center font-mono text-emerald-700">
@@ -380,9 +383,6 @@ export default function WorkExpenditureAttendancePage() {
                     <td className="border border-slate-400 p-1 text-center font-mono text-rose-700">
                       {row.absentDays || 0}
                     </td>
-                    <td className="border border-slate-400 p-1 text-center font-mono font-bold">
-                      {row.payableDays || 0}
-                    </td>
                   </tr>
                 ))
               )}
@@ -390,10 +390,10 @@ export default function WorkExpenditureAttendancePage() {
                 <td className="border border-slate-400 p-1.5 text-right" colSpan={3 + days.length}>
                   Total =
                 </td>
+                <td className="border border-slate-400 p-1.5 text-center font-mono">{totals.days}</td>
                 <td className="border border-slate-400 p-1.5 text-center font-mono">{totals.working}</td>
                 <td className="border border-slate-400 p-1.5 text-center font-mono">{totals.present}</td>
                 <td className="border border-slate-400 p-1.5 text-center font-mono">{totals.absent}</td>
-                <td className="border border-slate-400 p-1.5 text-center font-mono">{totals.days}</td>
               </tr>
             </tbody>
           </table>

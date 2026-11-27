@@ -19,6 +19,7 @@ import {
   statusToLabourMark,
 } from "@/lib/attendanceMarks";
 import DayMarkPicker from "@/components/admin/DayMarkPicker";
+import SimpleMenuSelect from "@/components/admin/SimpleMenuSelect";
 
 type SheetRow = {
   rowKey: string;
@@ -108,6 +109,34 @@ export default function WorkExpenditureAttendancePage() {
 
   const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
 
+  const workOptions = useMemo(() => {
+    const seen = new Set<string>();
+    const opts: { value: string; label: string; department?: string; location?: string }[] = [];
+    for (const c of contracts) {
+      const label = String(c.workName || c.clientName || "").trim();
+      if (!label || seen.has(label.toLowerCase())) continue;
+      seen.add(label.toLowerCase());
+      opts.push({
+        value: label,
+        label,
+        department: c.departmentName || "",
+        location: c.workLocation || c.location || "",
+      });
+    }
+    return opts;
+  }, [contracts]);
+
+  const employeeOptions = useMemo(
+    () =>
+      employees
+        .filter((e) => e.fullName)
+        .map((e) => ({
+          value: e.employeeId,
+          label: e.fullName as string,
+        })),
+    [employees],
+  );
+
   const monthLabel = useMemo(() => {
     const [y, m] = monthKey.split("-").map(Number);
     return new Date(y, m - 1, 1).toLocaleString("en-IN", { month: "long", year: "numeric" });
@@ -175,16 +204,25 @@ export default function WorkExpenditureAttendancePage() {
     setRows((prev) => prev.map((r) => (r.rowKey === rowKey ? { ...r, ...patch } : r)));
   }
 
-  function onNameChange(row: SheetRow, value: string) {
-    const match = employees.find(
-      (e) => String(e.fullName || "").trim().toLowerCase() === value.trim().toLowerCase(),
-    );
+  function onEmployeePick(row: SheetRow, employeeId: string) {
+    if (!employeeId) {
+      patchRow(row.rowKey, { fullName: "", employeeId: "", siteId: "" });
+      return;
+    }
+    const match = employees.find((e) => e.employeeId === employeeId);
+    if (!match) return;
     patchRow(row.rowKey, {
-      fullName: value,
-      employeeId: match?.employeeId || "",
-      siteId: match?.siteId || "",
-      // Designation stays whatever user typed — do not auto-fill
+      fullName: match.fullName || "",
+      employeeId: match.employeeId,
+      siteId: match.siteId || "",
     });
+  }
+
+  function onWorkPick(value: string) {
+    setNameOfWork(value);
+    const match = workOptions.find((o) => o.value === value);
+    if (match?.department) setDepartment(match.department);
+    if (match?.location) setLocation(match.location);
   }
 
   function addRow() {
@@ -296,18 +334,14 @@ export default function WorkExpenditureAttendancePage() {
         </label>
         <label className="text-xs font-bold text-slate-700 block">
           Name Of Work
-          <input
-            list="work-names"
-            value={nameOfWork}
-            onChange={(e) => setNameOfWork(e.target.value)}
-            className="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg text-sm"
-            placeholder="Select or type"
-          />
-          <datalist id="work-names">
-            {contracts.map((c) => (
-              <option key={c.id} value={c.workName || c.clientName || ""} />
-            ))}
-          </datalist>
+          <div className="mt-1">
+            <SimpleMenuSelect
+              value={nameOfWork}
+              options={workOptions}
+              placeholder="Select name of work"
+              onChange={onWorkPick}
+            />
+          </div>
         </label>
         <label className="text-xs font-bold text-slate-700 block">
           Department Name
@@ -391,13 +425,13 @@ export default function WorkExpenditureAttendancePage() {
               {rows.map((row, i) => (
                 <tr key={row.rowKey} className="hover:bg-emerald-50/30">
                   <td className="border border-slate-400 p-1 text-center">{i + 1}</td>
-                  <td className="border border-slate-400 p-0.5">
-                    <input
-                      list="employee-names"
-                      value={row.fullName}
-                      onChange={(e) => onNameChange(row, e.target.value)}
-                      placeholder="Employee name"
-                      className="w-full min-w-[140px] px-1.5 py-1 border-0 bg-transparent text-[10px] font-semibold focus:outline-none focus:ring-1 focus:ring-emerald-400 rounded"
+                  <td className="border border-slate-400 p-0.5 min-w-[160px]">
+                    <SimpleMenuSelect
+                      value={row.employeeId || row.fullName}
+                      options={employeeOptions}
+                      placeholder="Select name"
+                      onChange={(id) => onEmployeePick(row, id)}
+                      buttonClassName="!px-1.5 !py-1 !text-[10px] !rounded border-0 bg-transparent font-semibold min-h-7"
                     />
                   </td>
                   <td className="border border-slate-400 p-0.5">
@@ -459,11 +493,6 @@ export default function WorkExpenditureAttendancePage() {
               </tr>
             </tbody>
           </table>
-          <datalist id="employee-names">
-            {employees.map((e) => (
-              <option key={e.employeeId} value={e.fullName || ""} />
-            ))}
-          </datalist>
         </div>
       )}
     </div>

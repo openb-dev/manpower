@@ -2,11 +2,12 @@
 
 import React, { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import { ChevronDown } from "lucide-react";
 import { LABOUR_MARK_OPTIONS, markStyle } from "@/lib/attendanceMarks";
 
 /**
  * Click any day box → marking list (P, P/0.5, P/1.5, P/2, A).
- * Always clickable; lock/busy is handled after choose (so the menu always appears).
+ * Looks like a dropdown (chevron); always opens the mark sheet.
  */
 export default function DayMarkPicker({
   value,
@@ -112,11 +113,12 @@ export default function DayMarkPicker({
           e.stopPropagation();
           setOpen(true);
         }}
-        className={`w-full min-w-[48px] h-8 rounded text-[11px] font-bold border-2 border-slate-400 cursor-pointer hover:border-emerald-500 ${
-          value ? markStyle(value) : "bg-white text-slate-400"
+        className={`w-full min-w-[56px] h-8 px-1 rounded text-[11px] font-bold border border-slate-300 bg-white cursor-pointer hover:border-emerald-500 inline-flex items-center justify-between gap-0.5 ${
+          value ? markStyle(value) : "text-slate-400"
         }`}
       >
-        {value || "·"}
+        <span className="truncate flex-1 text-center">{value || "—"}</span>
+        <ChevronDown className="h-3 w-3 shrink-0 text-slate-500" aria-hidden />
       </button>
       {menu}
     </>

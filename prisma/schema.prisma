@@ -98,6 +98,7 @@ model Company {
   workProgressReports WorkProgressReport[]
   userProjectAssignments UserProjectAssignment[]
   clientDetails      ClientDetail[]
+  labourAttendanceRows LabourAttendanceRow[]
 
   @@map("companies")
 }
@@ -737,6 +738,29 @@ model WorkProgressReport {
 
   @@index([companyId])
   @@map("work_progress_reports")
+}
+
+/// Work Expenditure labour attendance sheet (independent of People → Attendance)
+model LabourAttendanceRow {
+  id             String    @id @default(uuid())
+  companyId      String    @map("company_id")
+  track          String    @default("construction")
+  monthKey       String    @map("month_key") // YYYY-MM
+  nameOfWork     String    @default("") @map("name_of_work")
+  departmentName String    @default("") @map("department_name")
+  location       String    @default("")
+  fullName       String    @default("") @map("full_name")
+  designation    String    @default("")
+  marks          Json      @default("{}") // { "1": "P", "2": "A", ... }
+  sortOrder      Int       @default(0) @map("sort_order")
+  deletedAt      DateTime? @map("deleted_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  company        Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, track, monthKey])
+  @@map("labour_attendance_rows")
 }
 
 /// Client / department contact sheet (CLIENTS DETAILS)

@@ -5,9 +5,10 @@ import Link from "next/link";
 import { useParams, notFound } from "next/navigation";
 import { CalendarCheck, Plus, Trash2 } from "lucide-react";
 import {
-  loadAttendanceBook,
   loadCrmBook,
-  saveAttendanceDay,
+  loadLabourAttendanceBook,
+  removeLabourAttendanceRow,
+  saveLabourAttendanceDay,
 } from "../../../../actions";
 import { friendlyPublicError } from "@/lib/publicErrors";
 import { isWorkListTrack, workListTrackLabel, type WorkListTrack } from "@/lib/workList";
@@ -16,15 +17,13 @@ import {
   dayUnitsForAttendance,
   markStyle,
   markToStatusAndUnits,
-  statusToLabourMark,
 } from "@/lib/attendanceMarks";
 import DayMarkPicker from "@/components/admin/DayMarkPicker";
 import ListPicker from "@/components/admin/ListPicker";
 
 type SheetRow = {
   rowKey: string;
-  employeeId: string;
-  siteId: string;
+  id: string;
   fullName: string;
   designation: string;
   markCodes: Record<string, string>;
@@ -43,8 +42,7 @@ function currentMonthKey() {
 function newEmptyRow(): SheetRow {
   return {
     rowKey: `row-${crypto.randomUUID()}`,
-    employeeId: "",
-    siteId: "",
+    id: "",
     fullName: "",
     designation: "",
     markCodes: {},
@@ -98,10 +96,8 @@ export default function WorkExpenditureAttendancePage() {
   const [department, setDepartment] = useState("");
   const [location, setLocation] = useState("");
   const [contracts, setContracts] = useState<any[]>([]);
-  const [employees, setEmployees] = useState<any[]>([]);
   const [rows, setRows] = useState<SheetRow[]>([newEmptyRow()]);
   const [daysInMonth, setDaysInMonth] = useState(31);
-  const [locked, setLocked] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState("");
@@ -126,17 +122,6 @@ export default function WorkExpenditureAttendancePage() {
     return opts;
   }, [contracts]);
 
-  const employeeOptions = useMemo(
-    () =>
-      employees
-        .filter((e) => e.fullName)
-        .map((e) => ({
-          value: e.employeeId,
-          label: e.fullName as string,
-        })),
-    [employees],
-  );
-
   const monthLabel = useMemo(() => {
     const [y, m] = monthKey.split("-").map(Number);
     return new Date(y, m - 1, 1).toLocaleString("en-IN", { month: "long", year: "numeric" });
@@ -154,42 +139,32 @@ export default function WorkExpenditureAttendancePage() {
 
   function loadBook() {
     setLoading(true);
-    Promise.all([loadAttendanceBook(companySlug, monthKey), loadCrmBook(companySlug).catch(() => null)])
+    Promise.all([
+      loadLabourAttendanceBook(companySlug, monthKey, track, nameOfWork || undefined),
+      loadCrmBook(companySlug).catch(() => null),
+    ])
       .then(([attendance, crm]) => {
-        const catalog = attendance.rows || [];
-        setEmployees(catalog);
         setDaysInMonth(attendance.daysInMonth || 31);
-        setLocked(Boolean(attendance.locked));
         if (attendance.companyName) setCompanyName(attendance.companyName);
         setContracts(crm?.contracts || []);
 
-        // Keep sheet blank for typing — only restore rows that already have marks this month
-        const withMarks = catalog
-          .filter((row: any) => Object.keys(row.marks || row.markCodes || {}).length > 0)
-          .map((row: any) => {
-            const markCodes: Record<string, string> = { ...(row.markCodes || {}) };
-            if (!row.markCodes) {
-              for (const [day, status] of Object.entries(row.marks || {})) {
-                markCodes[day] = statusToLabourMark(status as string, 0);
-              }
-            }
-            return {
-              rowKey: `emp-${row.employeeId}`,
-              employeeId: row.employeeId,
-              siteId: row.siteId || "",
-              // Restored from saved marks — new Add row lines stay blank for typing
-              fullName: row.fullName || "",
-              designation: row.designation || row.jobRole || "",
-              markCodes,
-              ...totalsFromMarks(markCodes),
-            } satisfies SheetRow;
-          });
+        const loaded = (attendance.rows || []).map((row: any) => ({
+          rowKey: `lab-${row.id}`,
+          id: row.id,
+          fullName: row.fullName || "",
+          designation: row.designation || "",
+          markCodes: { ...(row.markCodes || {}) },
+          presentDays: Number(row.presentDays || 0),
+          absentDays: Number(row.absentDays || 0),
+          payableDays: Number(row.payableDays || 0),
+          totalWorkingDay: Number(row.totalWorkingDay || 0),
+          totalPresent: Number(row.totalPresent || 0),
+        })) as SheetRow[];
 
-        setRows(withMarks.length ? withMarks : [newEmptyRow()]);
+        setRows(loaded.length ? loaded : [newEmptyRow()]);
         setError("");
       })
       .catch((err: any) => {
-        setEmployees([]);
         setRows([newEmptyRow()]);
         setError(friendlyPublicError(err.message || "Attendance could not be loaded."));
       })
@@ -198,24 +173,12 @@ export default function WorkExpenditureAttendancePage() {
 
   useEffect(() => {
     loadBook();
-  }, [companySlug, monthKey]);
+    // Reload when month / work filter / track changes — not on every keystroke of department/location
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [companySlug, monthKey, track, nameOfWork]);
 
   function patchRow(rowKey: string, patch: Partial<SheetRow>) {
     setRows((prev) => prev.map((r) => (r.rowKey === rowKey ? { ...r, ...patch } : r)));
-  }
-
-  function onEmployeePick(row: SheetRow, employeeId: string) {
-    if (!employeeId) {
-      patchRow(row.rowKey, { fullName: "", employeeId: "", siteId: "" });
-      return;
-    }
-    const match = employees.find((e) => e.employeeId === employeeId);
-    if (!match) return;
-    patchRow(row.rowKey, {
-      fullName: match.fullName || "",
-      employeeId: match.employeeId,
-      siteId: match.siteId || "",
-    });
   }
 
   function onWorkPick(value: string) {
@@ -229,36 +192,55 @@ export default function WorkExpenditureAttendancePage() {
     setRows((prev) => [...prev, newEmptyRow()]);
   }
 
-  function removeRow(rowKey: string) {
+  async function removeRow(rowKey: string) {
+    const row = rows.find((r) => r.rowKey === rowKey);
     setRows((prev) => {
       const next = prev.filter((r) => r.rowKey !== rowKey);
       return next.length ? next : [newEmptyRow()];
     });
+    if (row?.id) {
+      try {
+        await removeLabourAttendanceRow(companySlug, row.id);
+      } catch (err: any) {
+        setError(friendlyPublicError(err.message || "Row could not be removed."));
+        loadBook();
+      }
+    }
   }
 
   async function onMarkChange(row: SheetRow, day: number, mark: string) {
-    if (locked) return;
     if (!row.fullName.trim()) {
       setError("Enter the employee name first.");
       return;
     }
-    if (!row.employeeId || !row.siteId) {
-      setError(
-        `"${row.fullName.trim()}" is not in Employees yet, or has no duty site. Pick a name from the list (or add them under Employees first).`,
-      );
-      return;
-    }
 
-    const date = `${monthKey}-${String(day).padStart(2, "0")}`;
     setRows((prev) => prev.map((r) => (r.rowKey === row.rowKey ? recomputeMarks(r, day, mark) : r)));
     setBusy(`${row.rowKey}-${day}`);
     try {
-      await saveAttendanceDay(companySlug, {
-        employeeId: row.employeeId,
-        siteId: row.siteId,
-        nominalDate: date,
+      const saved = await saveLabourAttendanceDay(companySlug, {
+        rowId: row.id || null,
+        track,
+        monthKey,
+        nameOfWork,
+        departmentName: department,
+        location,
+        fullName: row.fullName.trim(),
+        designation: row.designation,
+        day,
         mark: mark || null,
       });
+      setRows((prev) =>
+        prev.map((r) =>
+          r.rowKey === row.rowKey
+            ? {
+                ...r,
+                id: saved.id,
+                markCodes: { ...(saved.markCodes || {}) },
+                ...totalsFromMarks(saved.markCodes || {}),
+              }
+            : r,
+        ),
+      );
       setError("");
     } catch (err: any) {
       setError(friendlyPublicError(err.message || "Attendance could not be saved."));
@@ -375,13 +357,6 @@ export default function WorkExpenditureAttendancePage() {
         <p className="text-slate-500 sm:ml-auto">Click a day box to open the mark list.</p>
       </div>
 
-      {locked ? (
-        <div className="p-3 text-sm text-amber-900 bg-amber-50 border border-amber-300 rounded-xl font-semibold">
-          This month is closed on Attendance. Day boxes still open the mark list, but changes will not save until the
-          month is unlocked (People → Attendance).
-        </div>
-      ) : null}
-
       {error ? <div className="p-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl">{error}</div> : null}
 
       {loading ? (
@@ -416,7 +391,7 @@ export default function WorkExpenditureAttendancePage() {
                   Total Absent
                 </th>
                 <th rowSpan={2} className="border border-slate-400 p-1.5 text-center align-middle min-w-[44px]">
-                 {" "}
+                  {" "}
                 </th>
               </tr>
               <tr className="bg-slate-50">
@@ -432,13 +407,11 @@ export default function WorkExpenditureAttendancePage() {
                 <tr key={row.rowKey} className="hover:bg-emerald-50/30">
                   <td className="border border-slate-400 p-1 text-center">{i + 1}</td>
                   <td className="border border-slate-400 p-0.5 min-w-[160px]">
-                    <ListPicker
-                      value={row.employeeId}
-                      options={employeeOptions}
-                      placeholder="Select name"
-                      onChange={(id) => onEmployeePick(row, id)}
-                      buttonClassName="!px-1.5 !py-1 !text-[10px] !min-h-8 !rounded border-slate-200"
-                      emptyHint="No employees yet."
+                    <input
+                      value={row.fullName}
+                      onChange={(e) => patchRow(row.rowKey, { fullName: e.target.value })}
+                      placeholder="Name"
+                      className="w-full min-w-[140px] px-1.5 py-1 border-0 bg-transparent text-[10px] focus:outline-none focus:ring-1 focus:ring-emerald-400 rounded"
                     />
                   </td>
                   <td className="border border-slate-400 p-0.5">
@@ -456,7 +429,6 @@ export default function WorkExpenditureAttendancePage() {
                       <td key={day} className="border border-slate-400 p-0.5 text-center">
                         <DayMarkPicker
                           value={mark}
-                          locked={locked}
                           disabled={cellBusy}
                           ariaLabel={`Day ${day}`}
                           onChange={(next) => void onMarkChange(row, day, next)}
@@ -479,7 +451,7 @@ export default function WorkExpenditureAttendancePage() {
                   <td className="border border-slate-400 p-1 text-center">
                     <button
                       type="button"
-                      onClick={() => removeRow(row.rowKey)}
+                      onClick={() => void removeRow(row.rowKey)}
                       className="inline-flex text-rose-600 hover:text-rose-800"
                       aria-label="Remove row"
                       title="Remove row"

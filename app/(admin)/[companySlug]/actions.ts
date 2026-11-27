@@ -287,6 +287,69 @@ export async function lockAttendanceMonth(companySlug: string, monthKey: string)
   });
 }
 
+/** Work Expenditure labour sheet — separate from People → Attendance */
+export async function loadLabourAttendanceBook(
+  companySlug: string,
+  monthKey: string,
+  track: string,
+  nameOfWork?: string,
+) {
+  const { company } = await requireCompany(companySlug);
+  const { listLabourAttendance } = await import("@/modules/labourAttendance/services");
+  const data = await listLabourAttendance({
+    companyId: company.id,
+    track,
+    monthKey,
+    nameOfWork,
+  });
+  return toClientJson({
+    ...data,
+    companyName: company.legalName || company.shortName,
+  });
+}
+
+export async function saveLabourAttendanceDay(
+  companySlug: string,
+  input: {
+    rowId?: string | null;
+    track: string;
+    monthKey: string;
+    nameOfWork?: string;
+    departmentName?: string;
+    location?: string;
+    fullName: string;
+    designation?: string;
+    day: number;
+    mark: string | null;
+    sortOrder?: number;
+  },
+) {
+  const { company } = await requireCompany(companySlug);
+  const { saveLabourAttendanceMark } = await import("@/modules/labourAttendance/services");
+  return toClientJson(
+    await saveLabourAttendanceMark({
+      companyId: company.id,
+      rowId: input.rowId,
+      track: input.track,
+      monthKey: input.monthKey,
+      nameOfWork: input.nameOfWork,
+      departmentName: input.departmentName,
+      location: input.location,
+      fullName: input.fullName,
+      designation: input.designation,
+      day: input.day,
+      mark: input.mark,
+      sortOrder: input.sortOrder,
+    }),
+  );
+}
+
+export async function removeLabourAttendanceRow(companySlug: string, rowId: string) {
+  const { company } = await requireCompany(companySlug);
+  const { deleteLabourAttendanceRow } = await import("@/modules/labourAttendance/services");
+  return deleteLabourAttendanceRow({ companyId: company.id, rowId });
+}
+
 export async function loadProgressBook(companySlug: string) {
   const { company } = await requireCompany(companySlug);
   const { listWorkProgressReports } = await import("@/modules/workProgress/services");

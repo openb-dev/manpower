@@ -19,6 +19,7 @@ import {
   statusToLabourMark,
 } from "@/lib/attendanceMarks";
 import DayMarkPicker from "@/components/admin/DayMarkPicker";
+import ListPicker from "@/components/admin/ListPicker";
 
 type SheetRow = {
   rowKey: string;
@@ -333,21 +334,15 @@ export default function WorkExpenditureAttendancePage() {
         </label>
         <label className="text-xs font-bold text-slate-700 block">
           Name Of Work
-          <select
-            value={nameOfWork}
-            onChange={(e) => onWorkPick(e.target.value)}
-            className="mt-1 w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white cursor-pointer"
-          >
-            <option value="">Select name of work</option>
-            {workOptions.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-          {!workOptions.length ? (
-            <span className="mt-1 block text-[10px] text-amber-700">No works yet — add in Work Register.</span>
-          ) : null}
+          <div className="mt-1">
+            <ListPicker
+              value={nameOfWork}
+              options={workOptions}
+              placeholder="Select name of work"
+              onChange={onWorkPick}
+              emptyHint="No works yet — add in Work Register."
+            />
+          </div>
         </label>
         <label className="text-xs font-bold text-slate-700 block">
           Department Name
@@ -377,7 +372,7 @@ export default function WorkExpenditureAttendancePage() {
             {o.label}
           </span>
         ))}
-        <p className="text-slate-500 sm:ml-auto">Open the dropdown in each day box to choose P, P/0.5, P/1.5, P/2 or A.</p>
+        <p className="text-slate-500 sm:ml-auto">Click a day box to open the mark list.</p>
       </div>
 
       {error ? <div className="p-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl">{error}</div> : null}
@@ -430,18 +425,14 @@ export default function WorkExpenditureAttendancePage() {
                 <tr key={row.rowKey} className="hover:bg-emerald-50/30">
                   <td className="border border-slate-400 p-1 text-center">{i + 1}</td>
                   <td className="border border-slate-400 p-0.5 min-w-[160px]">
-                    <select
+                    <ListPicker
                       value={row.employeeId}
-                      onChange={(e) => onEmployeePick(row, e.target.value)}
-                      className="w-full min-w-[140px] px-1.5 py-1.5 text-[10px] font-semibold bg-white border border-slate-200 rounded cursor-pointer"
-                    >
-                      <option value="">Select name</option>
-                      {employeeOptions.map((o) => (
-                        <option key={o.value} value={o.value}>
-                          {o.label}
-                        </option>
-                      ))}
-                    </select>
+                      options={employeeOptions}
+                      placeholder="Select name"
+                      onChange={(id) => onEmployeePick(row, id)}
+                      buttonClassName="!px-1.5 !py-1 !text-[10px] !min-h-8 !rounded border-slate-200"
+                      emptyHint="No employees yet."
+                    />
                   </td>
                   <td className="border border-slate-400 p-0.5">
                     <input

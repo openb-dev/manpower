@@ -1,11 +1,12 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { LABOUR_MARK_OPTIONS, markStyle } from "@/lib/attendanceMarks";
 
 /**
- * Day mark chooser: click the cell → full-screen option sheet.
- * Avoids native &lt;select&gt; / portal issues inside scroll tables on live.
+ * Click day box → dropdown of markings (P, P/0.5, P/1.5, P/2, A).
+ * Menu is portaled to document.body so table overflow cannot clip it.
  */
 export default function DayMarkPicker({
   value,
@@ -19,6 +20,72 @@ export default function DayMarkPicker({
   ariaLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("keydown", onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [open]);
+
+  const menu =
+    open && mounted
+      ? createPortal(
+          <div
+            className="fixed inset-0 z-[10050] flex items-center justify-center bg-black/55 p-4"
+            role="presentation"
+            onClick={() => setOpen(false)}
+          >
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label="Choose attendance mark"
+              className="w-full max-w-xs rounded-2xl bg-white shadow-2xl p-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="text-base font-bold text-slate-900 mb-1">Select mark</div>
+              <p className="text-xs text-slate-500 mb-3">P · P/0.5 · P/1.5 · P/2 · A</p>
+              <div className="flex flex-col gap-2">
+                {LABOUR_MARK_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value || "clear"}
+                    type="button"
+                    className={`w-full min-h-12 rounded-xl border-2 text-base font-bold ${
+                      value === opt.value ? "border-emerald-600 ring-2 ring-emerald-200" : "border-slate-200"
+                    } ${opt.value ? markStyle(opt.value) : "bg-slate-50 text-slate-600"}`}
+                    onClick={() => {
+                      onChange(opt.value);
+                      setOpen(false);
+                    }}
+                  >
+                    {opt.value ? opt.label : "Clear (—)"}
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                className="mt-3 w-full min-h-10 rounded-lg border border-slate-300 text-sm font-semibold text-slate-700"
+                onClick={() => setOpen(false)}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>,
+          document.body,
+        )
+      : null;
 
   return (
     <>
@@ -26,57 +93,20 @@ export default function DayMarkPicker({
         type="button"
         disabled={disabled}
         aria-label={ariaLabel || "Attendance mark"}
-        onClick={() => {
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
           if (!disabled) setOpen(true);
         }}
-        className={`w-full min-w-[48px] h-8 rounded text-[11px] font-bold border border-slate-400 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+        className={`w-full min-w-[48px] h-8 rounded text-[11px] font-bold border-2 border-slate-400 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed hover:border-emerald-500 ${
           value ? markStyle(value) : "bg-white text-slate-400"
         }`}
       >
         {value || "·"}
       </button>
-
-      {open ? (
-        <div
-          className="fixed inset-0 z-[10050] flex items-end sm:items-center justify-center bg-black/50 p-3"
-          onClick={() => setOpen(false)}
-          role="presentation"
-        >
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-label="Choose attendance mark"
-            className="w-full max-w-sm rounded-2xl bg-white shadow-2xl p-4"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="text-sm font-bold text-slate-900 mb-3">Choose mark</div>
-            <div className="grid grid-cols-2 gap-2">
-              {LABOUR_MARK_OPTIONS.map((opt) => (
-                <button
-                  key={opt.value || "clear"}
-                  type="button"
-                  className={`min-h-12 rounded-xl border-2 text-sm font-bold ${
-                    value === opt.value ? "border-emerald-600 ring-2 ring-emerald-200" : "border-slate-200"
-                  } ${opt.value ? markStyle(opt.value) : "bg-slate-50 text-slate-600"}`}
-                  onClick={() => {
-                    onChange(opt.value);
-                    setOpen(false);
-                  }}
-                >
-                  {opt.label === "—" ? "Clear" : opt.label}
-                </button>
-              ))}
-            </div>
-            <button
-              type="button"
-              className="mt-3 w-full min-h-10 rounded-lg border border-slate-300 text-sm font-semibold text-slate-700"
-              onClick={() => setOpen(false)}
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      ) : null}
+      {menu}
     </>
   );
 }

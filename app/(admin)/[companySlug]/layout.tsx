@@ -49,7 +49,7 @@ export default async function AdminLayout({
   }
 
   return (
-    <div className="min-h-dvh flex flex-col md:flex-row bg-[#f8fafc] text-slate-800 overflow-x-hidden print:overflow-visible print:block print:h-auto print:min-h-0">
+    <div className="min-h-dvh flex flex-col md:flex-row bg-[#f8fafc] text-slate-800 print:overflow-visible print:block print:h-auto print:min-h-0">
       <Sidebar
         company={{
           id: company.id,

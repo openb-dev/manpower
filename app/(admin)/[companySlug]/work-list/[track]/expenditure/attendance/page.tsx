@@ -415,7 +415,7 @@ export default function WorkExpenditureAttendancePage() {
               </tr>
               <tr className="bg-slate-50">
                 {days.map((day) => (
-                  <th key={day} className="border border-slate-400 p-1 text-center min-w-[52px] font-mono">
+                  <th key={day} className="border border-slate-400 p-1 text-center min-w-[64px] font-mono">
                     {day}
                   </th>
                 ))}

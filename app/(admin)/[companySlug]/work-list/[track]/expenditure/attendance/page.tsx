@@ -18,6 +18,7 @@ import {
   markToStatusAndUnits,
   statusToLabourMark,
 } from "@/lib/attendanceMarks";
+import DayMarkPicker from "@/components/admin/DayMarkPicker";
 
 type SheetRow = {
   rowKey: string;
@@ -104,8 +105,6 @@ export default function WorkExpenditureAttendancePage() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState("");
   const [companyName, setCompanyName] = useState("M/s. N.K. Enterprise");
-  /** Selected mark from legend — click a day box to apply (same mark again clears). */
-  const [paintMark, setPaintMark] = useState("P");
 
   const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
 
@@ -368,29 +367,17 @@ export default function WorkExpenditureAttendancePage() {
         </label>
       </div>
 
-      <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 bg-white border border-slate-200 rounded-xl p-3">
-        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Mark with</span>
-        <div className="flex flex-wrap gap-2">
-          {LABOUR_MARK_OPTIONS.filter((o) => o.value).map((o) => (
-            <button
-              key={o.value}
-              type="button"
-              onClick={() => setPaintMark(o.value)}
-              className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border text-[12px] font-bold min-h-10 ${
-                paintMark === o.value
-                  ? "border-emerald-600 ring-2 ring-emerald-200 bg-emerald-50"
-                  : "border-slate-200 bg-white hover:bg-slate-50"
-              }`}
-            >
-              <span className={`w-6 h-6 rounded flex items-center justify-center text-[11px] ${markStyle(o.value)}`}>
-                {o.label}
-              </span>
-            </button>
-          ))}
-        </div>
-        <p className="text-[11px] text-slate-500 sm:ml-auto">
-          Selected <span className="font-bold text-slate-800">{paintMark}</span> — click day boxes to fill. Same mark again clears.
-        </p>
+      <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-600">
+        <span className="font-bold uppercase tracking-wider text-slate-500">Marks</span>
+        {LABOUR_MARK_OPTIONS.filter((o) => o.value).map((o) => (
+          <span
+            key={o.value}
+            className={`inline-flex items-center px-2 py-0.5 rounded border border-slate-200 font-bold ${markStyle(o.value)}`}
+          >
+            {o.label}
+          </span>
+        ))}
+        <p className="text-slate-500 sm:ml-auto">Open the dropdown in each day box to choose P, P/0.5, P/1.5, P/2 or A.</p>
       </div>
 
       {error ? <div className="p-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl">{error}</div> : null}
@@ -467,21 +454,14 @@ export default function WorkExpenditureAttendancePage() {
                   {days.map((day) => {
                     const mark = row.markCodes?.[String(day)] || "";
                     const cellBusy = busy === `${row.rowKey}-${day}`;
-                    const nextMark = mark === paintMark ? "" : paintMark;
                     return (
                       <td key={day} className="border border-slate-400 p-0.5 text-center">
-                        <button
-                          type="button"
+                        <DayMarkPicker
+                          value={mark}
                           disabled={locked || cellBusy}
-                          aria-label={`Day ${day}`}
-                          title={mark ? `Marked ${mark}. Click to set ${paintMark}` : `Click to mark ${paintMark}`}
-                          onClick={() => void onMarkChange(row, day, nextMark)}
-                          className={`w-full min-w-[40px] h-8 rounded text-[11px] font-bold border border-slate-300 cursor-pointer disabled:opacity-50 ${
-                            mark ? markStyle(mark) : "bg-white text-slate-300 hover:bg-slate-50"
-                          }`}
-                        >
-                          {mark || "·"}
-                        </button>
+                          ariaLabel={`Day ${day}`}
+                          onChange={(next) => void onMarkChange(row, day, next)}
+                        />
                       </td>
                     );
                   })}

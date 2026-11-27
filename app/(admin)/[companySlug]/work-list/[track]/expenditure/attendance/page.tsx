@@ -375,6 +375,13 @@ export default function WorkExpenditureAttendancePage() {
         <p className="text-slate-500 sm:ml-auto">Click a day box to open the mark list.</p>
       </div>
 
+      {locked ? (
+        <div className="p-3 text-sm text-amber-900 bg-amber-50 border border-amber-300 rounded-xl font-semibold">
+          This month is closed on Attendance. Day boxes still open the mark list, but changes will not save until the
+          month is unlocked (People → Attendance).
+        </div>
+      ) : null}
+
       {error ? <div className="p-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl">{error}</div> : null}
 
       {loading ? (
@@ -449,7 +456,8 @@ export default function WorkExpenditureAttendancePage() {
                       <td key={day} className="border border-slate-400 p-0.5 text-center">
                         <DayMarkPicker
                           value={mark}
-                          disabled={locked || cellBusy}
+                          locked={locked}
+                          disabled={cellBusy}
                           ariaLabel={`Day ${day}`}
                           onChange={(next) => void onMarkChange(row, day, next)}
                         />

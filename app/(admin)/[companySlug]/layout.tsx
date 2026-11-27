@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { redirect } from "next/navigation";
 import { Role } from "@prisma/client";
 import Sidebar from "@/components/admin/Sidebar";
+import BackButton from "@/components/admin/BackButton";
 
 const getCompanyBySlug = cache(async (slug: string) => {
   return prisma.company.findUnique({
@@ -65,6 +66,7 @@ export default async function AdminLayout({
       />
 
       <main className="flex-1 min-w-0 p-3 sm:p-6 md:p-8 md:overflow-y-auto md:max-h-screen print:overflow-visible print:max-h-none print:p-0">
+        <BackButton companySlug={company.slug} />
         {children}
       </main>
     </div>

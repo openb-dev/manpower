@@ -18,6 +18,7 @@ import {
   markToStatusAndUnits,
   statusToLabourMark,
 } from "@/lib/attendanceMarks";
+import DayMarkPicker from "@/components/admin/DayMarkPicker";
 
 type SheetRow = {
   rowKey: string;
@@ -411,20 +412,13 @@ export default function WorkExpenditureAttendancePage() {
                     const mark = row.markCodes?.[String(day)] || "";
                     const cellBusy = busy === `${row.rowKey}-${day}`;
                     return (
-                      <td key={day} className="border border-slate-400 p-0.5 text-center">
-                        <select
+                      <td key={day} className="border border-slate-400 p-0.5 text-center relative z-0">
+                        <DayMarkPicker
                           value={mark}
                           disabled={locked || cellBusy}
-                          onChange={(e) => void onMarkChange(row, day, e.target.value)}
-                          className={`w-full min-w-[48px] h-7 rounded text-[10px] font-bold border border-slate-300 cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-400 disabled:opacity-50 ${markStyle(mark)}`}
-                          aria-label={`Day ${day}`}
-                        >
-                          {LABOUR_MARK_OPTIONS.map((opt) => (
-                            <option key={opt.value || "empty"} value={opt.value}>
-                              {opt.label}
-                            </option>
-                          ))}
-                        </select>
+                          ariaLabel={`Day ${day}`}
+                          onChange={(next) => void onMarkChange(row, day, next)}
+                        />
                       </td>
                     );
                   })}

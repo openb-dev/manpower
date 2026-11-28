@@ -6,28 +6,36 @@ import { ChevronDown } from "lucide-react";
 import { LABOUR_MARK_OPTIONS, markStyle } from "@/lib/attendanceMarks";
 
 /**
- * Compact day mark dropdown (P, P/0.5, P/1.5, P/2, A).
+ * Compact day mark dropdown (P, P/0.5, P/1.5, P/2, A)
+ * with optional Job Description box.
  */
 export default function DayMarkPicker({
   value,
+  jobDescription = "",
   disabled,
   locked,
   onChange,
   ariaLabel,
 }: {
   value: string;
+  jobDescription?: string;
   disabled?: boolean;
   locked?: boolean;
-  onChange: (mark: string) => void;
+  onChange: (mark: string, jobDescription: string) => void;
   ariaLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [jobDraft, setJobDraft] = useState(jobDescription);
   const cannotSave = Boolean(disabled || locked);
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useEffect(() => {
+    if (open) setJobDraft(jobDescription || "");
+  }, [open, jobDescription]);
 
   useEffect(() => {
     if (!open) return;
@@ -46,7 +54,7 @@ export default function DayMarkPicker({
   function pick(mark: string) {
     if (locked) return;
     if (disabled) return;
-    onChange(mark);
+    onChange(mark, jobDraft.trim());
     setOpen(false);
   }
 
@@ -62,7 +70,7 @@ export default function DayMarkPicker({
               role="dialog"
               aria-modal="true"
               aria-label="Choose attendance mark"
-              className="w-full max-w-[11rem] rounded-lg bg-white shadow-xl p-2"
+              className="w-full max-w-[16rem] rounded-lg bg-white shadow-xl p-2.5"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="text-[11px] font-bold text-slate-800 mb-1.5 px-0.5">Mark</div>
@@ -71,6 +79,21 @@ export default function DayMarkPicker({
                   Month closed — cannot save.
                 </div>
               ) : null}
+
+              <label className="block mb-2">
+                <span className="text-[10px] font-bold text-slate-600 px-0.5">
+                  Job Description <span className="font-normal text-slate-400">(optional)</span>
+                </span>
+                <textarea
+                  value={jobDraft}
+                  disabled={cannotSave}
+                  onChange={(e) => setJobDraft(e.target.value)}
+                  rows={2}
+                  placeholder="Job description"
+                  className="mt-1 w-full px-2 py-1.5 border border-slate-300 rounded-md text-[11px] resize-y min-h-[52px] disabled:opacity-60"
+                />
+              </label>
+
               <div className="flex flex-col gap-1">
                 {LABOUR_MARK_OPTIONS.map((opt) => (
                   <button

@@ -160,18 +160,6 @@ export default function WorkExpenditureAttendancePage() {
     return opts;
   }, [contracts]);
 
-  const jobDescriptionOptions = useMemo(() => {
-    const seen = new Set<string>();
-    const opts: { value: string; label: string }[] = [];
-    for (const row of rows) {
-      const label = row.jobDescription.trim();
-      if (!label || seen.has(label.toLowerCase())) continue;
-      seen.add(label.toLowerCase());
-      opts.push({ value: label, label });
-    }
-    return opts;
-  }, [rows]);
-
   const monthLabel = useMemo(() => {
     const [y, m] = monthKey.split("-").map(Number);
     return new Date(y, m - 1, 1).toLocaleString("en-IN", { month: "long", year: "numeric" });
@@ -310,13 +298,20 @@ export default function WorkExpenditureAttendancePage() {
     }
   }
 
-  async function onMarkChange(row: SheetRow, day: number, mark: string) {
+  async function onMarkChange(row: SheetRow, day: number, mark: string, jobDescription?: string) {
     if (!row.fullName.trim()) {
       setError("Enter the employee name first.");
       return;
     }
 
-    setRows((prev) => prev.map((r) => (r.rowKey === row.rowKey ? recomputeMarks(r, day, mark) : r)));
+    const nextJob = jobDescription !== undefined ? jobDescription : row.jobDescription;
+    setRows((prev) =>
+      prev.map((r) =>
+        r.rowKey === row.rowKey
+          ? { ...recomputeMarks(r, day, mark), jobDescription: nextJob }
+          : r,
+      ),
+    );
     setBusy(`${row.rowKey}-${day}`);
     try {
       const saved = await saveLabourAttendanceDay(companySlug, {
@@ -326,7 +321,7 @@ export default function WorkExpenditureAttendancePage() {
         nameOfWork,
         departmentName: department,
         location,
-        jobDescription: row.jobDescription,
+        jobDescription: nextJob,
         fullName: row.fullName.trim(),
         designation: row.designation,
         wagePerDay: wagePayload(row.wagePerDay),
@@ -339,7 +334,7 @@ export default function WorkExpenditureAttendancePage() {
             ? {
                 ...r,
                 id: saved.id,
-                jobDescription: saved.jobDescription || r.jobDescription,
+                jobDescription: saved.jobDescription || nextJob,
                 wagePerDay: saved.wagePerDay == null ? r.wagePerDay : String(saved.wagePerDay),
                 markCodes: { ...(saved.markCodes || {}) },
                 ...totalsFromMarks(saved.markCodes || {}),
@@ -629,9 +624,6 @@ export default function WorkExpenditureAttendancePage() {
                 <th rowSpan={2} className="border border-slate-400 p-1.5 text-center align-middle min-w-[88px]">
                   Wage / Day
                 </th>
-                <th rowSpan={2} className="border border-slate-400 p-1.5 text-center align-middle min-w-[150px]">
-                  Job Description
-                </th>
                 <th colSpan={days.length} className="border border-slate-400 p-1.5 text-center">
                   Date
                 </th>
@@ -703,18 +695,6 @@ export default function WorkExpenditureAttendancePage() {
                       className={`${cellInput} min-w-[72px] text-right font-mono`}
                     />
                   </td>
-                  <td className="border border-slate-400 p-0.5 min-w-[150px]">
-                    <ListPicker
-                      value={row.jobDescription}
-                      options={jobDescriptionOptions}
-                      placeholder="Optional"
-                      allowCustom
-                      customPlaceholder="Type job description"
-                      emptyHint="Optional — type a job description."
-                      buttonClassName="!px-1.5 !py-1 !text-[10px] !min-h-7 !rounded border-slate-200"
-                      onChange={(value) => void persistPerson(row.rowKey, { jobDescription: value })}
-                    />
-                  </td>
                   {days.map((day) => {
                     const mark = row.markCodes?.[String(day)] || "";
                     const cellBusy = busy === `${row.rowKey}-${day}`;
@@ -722,9 +702,10 @@ export default function WorkExpenditureAttendancePage() {
                       <td key={day} className="border border-slate-400 p-0.5 text-center">
                         <DayMarkPicker
                           value={mark}
+                          jobDescription={row.jobDescription}
                           disabled={cellBusy}
                           ariaLabel={`Day ${day}`}
-                          onChange={(next) => void onMarkChange(row, day, next)}
+                          onChange={(next, job) => void onMarkChange(row, day, next, job)}
                         />
                       </td>
                     );
@@ -802,7 +783,7 @@ export default function WorkExpenditureAttendancePage() {
                 </tr>
               ))}
               <tr className="bg-emerald-50 font-bold">
-                <td className="border border-slate-400 p-1.5 text-right" colSpan={6 + days.length}>
+                <td className="border border-slate-400 p-1.5 text-right" colSpan={5 + days.length}>
                   Total =
                 </td>
                 <td className="border border-slate-400 p-1.5 text-center font-mono">{totals.days}</td>

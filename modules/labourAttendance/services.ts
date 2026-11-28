@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import {
   dayUnitsForAttendance,
@@ -13,6 +14,12 @@ function asMarks(value: unknown): LabourMarks {
     if (typeof mark === "string" && mark) out[day] = mark;
   }
   return out;
+}
+
+function parseWage(value: unknown): number | null {
+  if (value == null || value === "") return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
 }
 
 function totalsFromMarks(markCodes: LabourMarks) {
@@ -33,7 +40,7 @@ function totalsFromMarks(markCodes: LabourMarks) {
     presentDays,
     absentDays,
     payableDays,
-    totalWorkingDay: presentDays + absentDays,
+    totalWorkingDay: presentDays,
     totalPresent: presentDays,
   };
 }
@@ -48,10 +55,13 @@ function mapRow(row: {
   location: string;
   fullName: string;
   designation: string;
+  wagePerDay?: unknown;
+  jobDescription?: string | null;
   marks: unknown;
   sortOrder: number;
 }) {
   const markCodes = asMarks(row.marks);
+  const wage = parseWage(row.wagePerDay);
   return {
     id: row.id,
     companyId: row.companyId,
@@ -62,6 +72,8 @@ function mapRow(row: {
     location: row.location || "",
     fullName: row.fullName || "",
     designation: row.designation || "",
+    wagePerDay: wage,
+    jobDescription: row.jobDescription || "",
     markCodes,
     sortOrder: row.sortOrder || 0,
     ...totalsFromMarks(markCodes),
@@ -71,6 +83,31 @@ function mapRow(row: {
 function daysInMonthKey(monthKey: string) {
   const [year, month] = monthKey.split("-").map(Number);
   return new Date(Date.UTC(year, month, 0)).getUTCDate();
+}
+
+function rowFields(input: {
+  track: string;
+  monthKey: string;
+  nameOfWork?: string;
+  departmentName?: string;
+  location?: string;
+  fullName: string;
+  designation?: string;
+  wagePerDay?: number | string | null;
+  jobDescription?: string;
+}) {
+  const wage = parseWage(input.wagePerDay);
+  return {
+    track: input.track,
+    monthKey: input.monthKey,
+    nameOfWork: String(input.nameOfWork || "").trim(),
+    departmentName: String(input.departmentName || "").trim(),
+    location: String(input.location || "").trim(),
+    fullName: String(input.fullName || "").trim(),
+    designation: String(input.designation || "").trim(),
+    wagePerDay: wage == null ? null : new Prisma.Decimal(wage),
+    jobDescription: String(input.jobDescription || "").trim(),
+  };
 }
 
 export async function listLabourAttendance({
@@ -120,8 +157,10 @@ export async function saveLabourAttendanceMark({
   nameOfWork,
   departmentName,
   location,
+  jobDescription,
   fullName,
   designation,
+  wagePerDay,
   day,
   mark,
   sortOrder,
@@ -133,8 +172,10 @@ export async function saveLabourAttendanceMark({
   nameOfWork?: string;
   departmentName?: string;
   location?: string;
+  jobDescription?: string;
   fullName: string;
   designation?: string;
+  wagePerDay?: number | string | null;
   day: number;
   mark: string | null;
   sortOrder?: number;
@@ -152,6 +193,17 @@ export async function saveLabourAttendanceMark({
 
   const dayKey = String(dayNum);
   const nextMark = String(mark || "").trim();
+  const fields = rowFields({
+    track,
+    monthKey,
+    nameOfWork,
+    departmentName,
+    location,
+    fullName: name,
+    designation,
+    wagePerDay,
+    jobDescription,
+  });
 
   if (rowId) {
     const existing = await prisma.labourAttendanceRow.findFirst({
@@ -166,13 +218,7 @@ export async function saveLabourAttendanceMark({
     const row = await prisma.labourAttendanceRow.update({
       where: { id: rowId },
       data: {
-        track,
-        monthKey,
-        nameOfWork: String(nameOfWork || "").trim(),
-        departmentName: String(departmentName || "").trim(),
-        location: String(location || "").trim(),
-        fullName: name,
-        designation: String(designation || "").trim(),
+        ...fields,
         marks: markCodes,
         sortOrder: sortOrder ?? existing.sortOrder,
       },
@@ -190,13 +236,7 @@ export async function saveLabourAttendanceMark({
   const row = await prisma.labourAttendanceRow.create({
     data: {
       companyId,
-      track,
-      monthKey,
-      nameOfWork: String(nameOfWork || "").trim(),
-      departmentName: String(departmentName || "").trim(),
-      location: String(location || "").trim(),
-      fullName: name,
-      designation: String(designation || "").trim(),
+      ...fields,
       marks: markCodes,
       sortOrder: sortOrder ?? count,
     },
@@ -212,8 +252,10 @@ export async function saveLabourAttendanceRowMeta({
   nameOfWork,
   departmentName,
   location,
+  jobDescription,
   fullName,
   designation,
+  wagePerDay,
   sortOrder,
 }: {
   companyId: string;
@@ -223,12 +265,26 @@ export async function saveLabourAttendanceRowMeta({
   nameOfWork?: string;
   departmentName?: string;
   location?: string;
+  jobDescription?: string;
   fullName: string;
   designation?: string;
+  wagePerDay?: number | string | null;
   sortOrder?: number;
 }) {
   const name = String(fullName || "").trim();
   if (!name) throw new Error("Enter the employee name first.");
+
+  const fields = rowFields({
+    track,
+    monthKey,
+    nameOfWork,
+    departmentName,
+    location,
+    fullName: name,
+    designation,
+    wagePerDay,
+    jobDescription,
+  });
 
   if (rowId) {
     const existing = await prisma.labourAttendanceRow.findFirst({
@@ -238,13 +294,7 @@ export async function saveLabourAttendanceRowMeta({
     const row = await prisma.labourAttendanceRow.update({
       where: { id: rowId },
       data: {
-        track,
-        monthKey,
-        nameOfWork: String(nameOfWork || "").trim(),
-        departmentName: String(departmentName || "").trim(),
-        location: String(location || "").trim(),
-        fullName: name,
-        designation: String(designation || "").trim(),
+        ...fields,
         sortOrder: sortOrder ?? existing.sortOrder,
       },
     });
@@ -257,13 +307,7 @@ export async function saveLabourAttendanceRowMeta({
   const row = await prisma.labourAttendanceRow.create({
     data: {
       companyId,
-      track,
-      monthKey,
-      nameOfWork: String(nameOfWork || "").trim(),
-      departmentName: String(departmentName || "").trim(),
-      location: String(location || "").trim(),
-      fullName: name,
-      designation: String(designation || "").trim(),
+      ...fields,
       marks: {},
       sortOrder: sortOrder ?? count,
     },

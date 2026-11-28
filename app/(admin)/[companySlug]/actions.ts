@@ -317,8 +317,10 @@ export async function saveLabourAttendanceDay(
     nameOfWork?: string;
     departmentName?: string;
     location?: string;
+    jobDescription?: string;
     fullName: string;
     designation?: string;
+    wagePerDay?: number | string | null;
     day: number;
     mark: string | null;
     sortOrder?: number;
@@ -335,10 +337,48 @@ export async function saveLabourAttendanceDay(
       nameOfWork: input.nameOfWork,
       departmentName: input.departmentName,
       location: input.location,
+      jobDescription: input.jobDescription,
       fullName: input.fullName,
       designation: input.designation,
+      wagePerDay: input.wagePerDay,
       day: input.day,
       mark: input.mark,
+      sortOrder: input.sortOrder,
+    }),
+  );
+}
+
+export async function saveLabourAttendancePerson(
+  companySlug: string,
+  input: {
+    rowId?: string | null;
+    track: string;
+    monthKey: string;
+    nameOfWork?: string;
+    departmentName?: string;
+    location?: string;
+    jobDescription?: string;
+    fullName: string;
+    designation?: string;
+    wagePerDay?: number | string | null;
+    sortOrder?: number;
+  },
+) {
+  const { company } = await requireCompany(companySlug);
+  const { saveLabourAttendanceRowMeta } = await import("@/modules/labourAttendance/services");
+  return toClientJson(
+    await saveLabourAttendanceRowMeta({
+      companyId: company.id,
+      rowId: input.rowId,
+      track: input.track,
+      monthKey: input.monthKey,
+      nameOfWork: input.nameOfWork,
+      departmentName: input.departmentName,
+      location: input.location,
+      jobDescription: input.jobDescription,
+      fullName: input.fullName,
+      designation: input.designation,
+      wagePerDay: input.wagePerDay,
       sortOrder: input.sortOrder,
     }),
   );

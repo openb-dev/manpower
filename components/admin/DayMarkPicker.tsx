@@ -6,8 +6,7 @@ import { ChevronDown } from "lucide-react";
 import { LABOUR_MARK_OPTIONS, markStyle } from "@/lib/attendanceMarks";
 
 /**
- * Click any day box → marking list (P, P/0.5, P/1.5, P/2, A).
- * Looks like a dropdown (chevron); always opens the mark sheet.
+ * Compact day mark dropdown (P, P/0.5, P/1.5, P/2, A).
  */
 export default function DayMarkPicker({
   value,
@@ -55,7 +54,7 @@ export default function DayMarkPicker({
     open && mounted
       ? createPortal(
           <div
-            className="fixed inset-0 z-[10050] flex items-center justify-center bg-black/55 p-4"
+            className="fixed inset-0 z-[10050] flex items-center justify-center bg-black/40 p-3"
             role="presentation"
             onClick={() => setOpen(false)}
           >
@@ -63,34 +62,33 @@ export default function DayMarkPicker({
               role="dialog"
               aria-modal="true"
               aria-label="Choose attendance mark"
-              className="w-full max-w-xs rounded-2xl bg-white shadow-2xl p-4"
+              className="w-full max-w-[11rem] rounded-lg bg-white shadow-xl p-2"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="text-base font-bold text-slate-900 mb-1">Select mark</div>
-              <p className="text-xs text-slate-500 mb-3">P · P/0.5 · P/1.5 · P/2 · A</p>
+              <div className="text-[11px] font-bold text-slate-800 mb-1.5 px-0.5">Mark</div>
               {locked ? (
-                <div className="mb-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900">
-                  This month is closed. Marks cannot be changed.
+                <div className="mb-1.5 rounded border border-amber-300 bg-amber-50 px-2 py-1 text-[10px] font-semibold text-amber-900">
+                  Month closed — cannot save.
                 </div>
               ) : null}
-              <div className="flex flex-col gap-2">
+              <div className="flex flex-col gap-1">
                 {LABOUR_MARK_OPTIONS.map((opt) => (
                   <button
                     key={opt.value || "clear"}
                     type="button"
                     disabled={cannotSave}
-                    className={`w-full min-h-12 rounded-xl border-2 text-base font-bold disabled:opacity-60 ${
-                      value === opt.value ? "border-emerald-600 ring-2 ring-emerald-200" : "border-slate-200"
+                    className={`w-full min-h-8 rounded-md border text-[11px] font-bold disabled:opacity-60 ${
+                      value === opt.value ? "border-emerald-600 ring-1 ring-emerald-200" : "border-slate-200"
                     } ${opt.value ? markStyle(opt.value) : "bg-slate-50 text-slate-600"}`}
                     onClick={() => pick(opt.value)}
                   >
-                    {opt.value ? opt.label : "Clear (—)"}
+                    {opt.value ? opt.label : "—"}
                   </button>
                 ))}
               </div>
               <button
                 type="button"
-                className="mt-3 w-full min-h-10 rounded-lg border border-slate-300 text-sm font-semibold text-slate-700"
+                className="mt-1.5 w-full min-h-7 rounded border border-slate-300 text-[10px] font-semibold text-slate-600"
                 onClick={() => setOpen(false)}
               >
                 Cancel
@@ -113,12 +111,12 @@ export default function DayMarkPicker({
           e.stopPropagation();
           setOpen(true);
         }}
-        className={`w-full min-w-[56px] h-8 px-1 rounded text-[11px] font-bold border border-slate-300 bg-white cursor-pointer hover:border-emerald-500 inline-flex items-center justify-between gap-0.5 ${
+        className={`w-full min-w-[42px] max-w-[52px] h-6 mx-auto px-0.5 rounded text-[9px] font-bold border border-slate-300 bg-white cursor-pointer hover:border-emerald-500 inline-flex items-center justify-between gap-px ${
           value ? markStyle(value) : "text-slate-400"
         }`}
       >
-        <span className="truncate flex-1 text-center">{value || "—"}</span>
-        <ChevronDown className="h-3 w-3 shrink-0 text-slate-500" aria-hidden />
+        <span className="truncate flex-1 text-center leading-none">{value || "—"}</span>
+        <ChevronDown className="h-2.5 w-2.5 shrink-0 text-slate-500" aria-hidden />
       </button>
       {menu}
     </>

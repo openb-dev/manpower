@@ -751,6 +751,8 @@ model LabourAttendanceRow {
   location       String    @default("")
   fullName       String    @default("") @map("full_name")
   designation    String    @default("")
+  wagePerDay     Decimal?  @map("wage_per_day") @db.Decimal(12, 2)
+  jobDescription String    @default("") @map("job_description")
   marks          Json      @default("{}") // { "1": "P", "2": "A", ... }
   sortOrder      Int       @default(0) @map("sort_order")
   deletedAt      DateTime? @map("deleted_at")

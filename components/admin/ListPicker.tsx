@@ -16,6 +16,8 @@ export default function ListPicker({
   className = "",
   buttonClassName = "",
   emptyHint,
+  allowCustom = false,
+  customPlaceholder = "Type and use",
 }: {
   value: string;
   options: ListPickerOption[];
@@ -25,10 +27,15 @@ export default function ListPicker({
   className?: string;
   buttonClassName?: string;
   emptyHint?: string;
+  /** Allow typing a value that is not in the list. */
+  allowCustom?: boolean;
+  customPlaceholder?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [custom, setCustom] = useState("");
   const selected = options.find((o) => o.value === value || o.label === value);
+  const display = selected?.label || value || "";
 
   useEffect(() => {
     setMounted(true);
@@ -36,6 +43,7 @@ export default function ListPicker({
 
   useEffect(() => {
     if (!open) return;
+    setCustom(value || "");
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") setOpen(false);
     }
@@ -46,7 +54,13 @@ export default function ListPicker({
       document.removeEventListener("keydown", onKey);
       document.body.style.overflow = prev;
     };
-  }, [open]);
+  }, [open, value]);
+
+  function useCustom() {
+    const next = custom.trim();
+    onChange(next);
+    setOpen(false);
+  }
 
   const sheet =
     open && mounted
@@ -65,6 +79,30 @@ export default function ListPicker({
               <div className="px-4 py-3 border-b border-slate-200 text-sm font-bold text-slate-900">
                 {placeholder}
               </div>
+              {allowCustom ? (
+                <div className="px-3 pt-3 flex gap-2">
+                  <input
+                    value={custom}
+                    onChange={(e) => setCustom(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        useCustom();
+                      }
+                    }}
+                    placeholder={customPlaceholder}
+                    className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm"
+                    autoFocus
+                  />
+                  <button
+                    type="button"
+                    className="px-3 py-2 rounded-lg bg-emerald-700 text-white text-sm font-bold"
+                    onClick={useCustom}
+                  >
+                    Use
+                  </button>
+                </div>
+              ) : null}
               <div className="overflow-y-auto p-2">
                 <button
                   type="button"
@@ -77,7 +115,9 @@ export default function ListPicker({
                   Clear
                 </button>
                 {options.length === 0 ? (
-                  <div className="px-3 py-4 text-sm text-amber-700">{emptyHint || "No options yet."}</div>
+                  <div className="px-3 py-4 text-sm text-amber-700">
+                    {emptyHint || (allowCustom ? "Type above, or leave blank." : "No options yet.")}
+                  </div>
                 ) : (
                   options.map((opt) => (
                     <button
@@ -125,8 +165,8 @@ export default function ListPicker({
         }}
         className={`w-full flex items-center justify-between gap-2 px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white text-left hover:border-slate-400 disabled:opacity-50 min-h-10 ${buttonClassName}`}
       >
-        <span className={`truncate ${selected ? "text-slate-900 font-semibold" : "text-slate-400"}`}>
-          {selected?.label || placeholder}
+        <span className={`truncate ${display ? "text-slate-900 font-semibold" : "text-slate-400"}`}>
+          {display || placeholder}
         </span>
         <ChevronDown className="h-4 w-4 shrink-0 text-slate-500" aria-hidden />
       </button>
